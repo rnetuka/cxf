@@ -21,7 +21,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.apache.cxf</groupId>
     <artifactId>cxf</artifactId>
-    <version>2.7.12</version>
+    <version>2.7.12-jboss-1-SNAPSHOT</version>
     <name>Apache CXF</name>
     <description>Apache CXF is an open-source services framework that aids in 
     the development of services using front-end programming APIs, like JAX-WS 
@@ -55,21 +55,33 @@
 
     <distributionManagement>
         <repository>
-            <id>apache.releases.https</id>
-            <name>Apache Release Distribution Repository</name>
-            <url>https://repository.apache.org/service/local/staging/deploy/maven2</url>
+            <id>jboss-releases-repository</id>
+            <name>JBoss Releases Repository</name>
+            <url>https://repository.jboss.org/nexus/service/local/staging/deploy/maven2/</url>
         </repository>
-        <snapshotRepository>
-            <id>apache.snapshots.https</id>
-            <name>Apache Development Snapshot Repository</name>
-            <url>https://repository.apache.org/content/repositories/snapshots</url>
+    </distributionManagement>
+
+    <!--    <distributionManagement>
+            <repository>
+                <id>apache.releases.https</id>
+                <name>Apache Release Distribution Repository</name>
+                <url>https://repository.apache.org/service/local/staging/deploy/maven2</url>
+            </repository>
+            <snapshotRepository>
+                <id>apache.snapshots.https</id>
+                <name>Apache Development Snapshot Repository</name>
+                <url>https://repository.apache.org/content/repositories/snapshots</url>
+                -->
             <!--uniqueVersion>false</uniqueVersion-->
+
+    <!--
         </snapshotRepository>
         <site>
 	  <id>apache.cxf.site</id>
 	  <url>${site.deploy.url}</url>
         </site>
     </distributionManagement>
+-->
     <repositories>
           <repository>
               <id>apache.snapshots</id>
