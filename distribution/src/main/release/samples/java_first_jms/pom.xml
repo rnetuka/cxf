@@ -121,12 +121,12 @@
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-frontend-jaxws</artifactId>
-            <version>2.7.12-jboss-1-SNAPSHOT</version>
+            <version>2.7.12-jboss-1</version>
         </dependency>
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-transports-jms</artifactId>
-            <version>2.7.12-jboss-1-SNAPSHOT</version>
+            <version>2.7.12-jboss-1</version>
         </dependency>
     </dependencies>
 </project>
