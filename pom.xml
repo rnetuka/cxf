@@ -32,9 +32,10 @@
     <packaging>pom</packaging>
 
     <scm>
-        <connection>scm:git:http://git-wip-us.apache.org/repos/asf/cxf.git</connection>
-        <developerConnection>scm:git:https://git-wip-us.apache.org/repos/asf/cxf.git</developerConnection>
-        <tag>cxf-2.7.12</tag>
+        <connection>scm:git:git://github.com/jboss/cxf.git</connection>
+        <developerConnection>scm:git:git@github.com:jboss/cxf.git</developerConnection>
+        <url>https://github.com/jboss/cxf</url>
+        <tag>2.7.12-jboss-1</tag>
     </scm>
     <issueManagement>
         <system>jira</system>
@@ -208,6 +209,7 @@
 
 
     <profiles>
+
         <profile>
             <!-- default profile enables checkstyle and Xlint stuff -->
             <id>everything</id>
@@ -215,6 +217,7 @@
                 <module>distribution</module>
             </modules>
         </profile>
+
         <profile>
             <!-- default profile enables checkstyle and Xlint stuff -->
             <id>rat</id>
@@ -236,6 +239,7 @@
                 </plugins>
             </build>
         </profile>
+
         <profile>
             <id>setup.eclipse</id>
             <properties>
@@ -378,6 +382,7 @@
                 </plugins>
             </build>
         </profile>
+
         <profile>
             <id>release</id>
             <build>
@@ -443,32 +448,67 @@
                 </plugins>
             </build>
         </profile>
-    <profile>
-      <id>maven-3-site</id>
-      <activation>
-        <file>
-          <!--  This employs that the basedir expression is only recognized by Maven 3.x (see MNG-2363) -->
-          <exists>${basedir}</exists>
-        </file>
-      </activation>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-site-plugin</artifactId>
-            <executions>
-              <execution>
-                <id>attach-descriptor</id>
-                <goals>
-                  <goal>attach-descriptor</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>    
 
+        <profile>
+          <id>maven-3-site</id>
+          <activation>
+            <file>
+              <!--  This employs that the basedir expression is only recognized by Maven 3.x (see MNG-2363) -->
+              <exists>${basedir}</exists>
+            </file>
+          </activation>
+          <build>
+            <plugins>
+              <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-site-plugin</artifactId>
+                <executions>
+                  <execution>
+                    <id>attach-descriptor</id>
+                    <goals>
+                      <goal>attach-descriptor</goal>
+                    </goals>
+                  </execution>
+                </executions>
+              </plugin>
+            </plugins>
+          </build>
+        </profile>
+
+        <profile>
+            <id>nexus</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-deploy-plugin</artifactId>
+                        <configuration>
+                            <skip>true</skip>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                    <groupId>org.sonatype.plugins</groupId>
+                    <artifactId>nexus-staging-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>default-deploy</id>
+                                <phase>deploy</phase>
+                                <goals>
+                                    <goal>deploy</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <serverId>jboss-releases-repository</serverId>
+                            <nexusUrl>https://repository.jboss.org/nexus/</nexusUrl>
+                            <!-- explicit matching using the staging profile id -->
+                            <stagingProfileId>2161b7b8da0080</stagingProfileId>
+                            <skipStagingRepositoryClose>true</skipStagingRepositoryClose>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 
 
