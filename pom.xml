@@ -31,10 +31,9 @@
     <packaging>pom</packaging>
 
     <scm>
-        <connection>scm:git:http://git-wip-us.apache.org/repos/asf/cxf.git</connection>
-        <developerConnection>scm:git:https://git-wip-us.apache.org/repos/asf/cxf.git</developerConnection>
-      <tag>cxf-2.7.12</tag>
-  </scm>
+        <connection>scm:git:https://github.com/jboss/cxf</connection>
+        <developerConnection>scm:git:git@github.com:jboss/cxf.git</developerConnection>
+    </scm>
     <issueManagement>
         <system>jira</system>
         <url>https://issues.apache.org/jira/browse/CXF</url>
