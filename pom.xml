@@ -21,7 +21,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.apache.cxf</groupId>
     <artifactId>cxf</artifactId>
-    <version>2.7.12.SP1</version>
+    <version>2.7.12.SP2-SNAPSHOT</version>
     <name>Apache CXF</name>
     <description>Apache CXF is an open-source services framework that aids in 
     the development of services using front-end programming APIs, like JAX-WS 
@@ -33,7 +33,7 @@
     <scm>
         <connection>scm:git:https://github.com/jboss/cxf</connection>
         <developerConnection>scm:git:git@github.com:jboss/cxf.git</developerConnection>
-      <tag>jboss-2.7.12.SP1</tag>
+      <tag>HEAD</tag>
   </scm>
     <issueManagement>
         <system>jira</system>
