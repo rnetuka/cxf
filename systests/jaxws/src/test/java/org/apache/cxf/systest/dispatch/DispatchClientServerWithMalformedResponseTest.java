@@ -44,8 +44,10 @@ import org.apache.cxf.testutil.common.TestUtil;
 import org.apache.hello_world_soap_http.GreeterImpl;
 import org.apache.hello_world_soap_http.SOAPService;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
+@Ignore("https://github.com/jboss/cxf/issues/2")
 public class DispatchClientServerWithMalformedResponseTest extends AbstractBusClientServerTestBase {
 
     private static final QName SERVICE_NAME 
