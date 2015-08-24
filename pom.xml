@@ -29,8 +29,8 @@
     <url>http://cxf.apache.org</url>
     <packaging>pom</packaging>
     <scm>
-        <connection>scm:git:http://git-wip-us.apache.org/repos/asf/cxf.git</connection>
-        <developerConnection>scm:git:https://git-wip-us.apache.org/repos/asf/cxf.git</developerConnection>
+        <connection>scm:git:https://github.com/jboss/cxf.git</connection>
+        <developerConnection>scm:git:https://github.com/jboss/cxf.git</developerConnection>
       <tag>HEAD</tag>
   </scm>
     <issueManagement>
@@ -50,20 +50,15 @@
     </properties>
     <distributionManagement>
         <repository>
-            <id>apache.releases.https</id>
-            <name>Apache Release Distribution Repository</name>
-            <url>https://repository.apache.org/service/local/staging/deploy/maven2</url>
+            <id>jboss-releases-repository</id>
+            <name>JBoss Releases Repository</name>
+            <url>https://repository.jboss.org/nexus/service/local/staging/deploy/maven2/</url>
         </repository>
         <snapshotRepository>
-            <id>apache.snapshots.https</id>
-            <name>Apache Development Snapshot Repository</name>
-            <url>https://repository.apache.org/content/repositories/snapshots</url>
-            <!--uniqueVersion>false</uniqueVersion-->
+            <id>jboss-snapshots-repository</id>
+            <name>JBoss Snapshots Repository</name>
+            <url>https://repository.jboss.org/nexus/content/repositories/snapshots/</url>
         </snapshotRepository>
-        <site>
-            <id>apache.cxf.site</id>
-            <url>${site.deploy.url}</url>
-        </site>
     </distributionManagement>
     <repositories>
         <repository>
