@@ -1225,6 +1225,17 @@ public class HandlerInvocationTest extends AbstractBusClientServerTestBase {
 
     }
 
+    @Test
+    public void testHandlerMessgeContext() throws PingException {
+        MessageContextFirstHandler handler1 = new MessageContextFirstHandler();
+        MessageContextSecondHandler handler2 = new MessageContextSecondHandler();
+        addHandlersToChain((BindingProvider)handlerTest, handler1, handler2);
+
+        List<String> resp = handlerTest.ping();
+        assertNotNull(resp);
+        assertNotNull("handler2 can't retrieve header map from message context", handler2.getHeaderMap());
+    }
+
     void addHandlersToChain(BindingProvider bp, Handler<?>... handlers) {
         @SuppressWarnings("rawtypes")
         List<Handler> handlerChain = bp.getBinding().getHandlerChain();
