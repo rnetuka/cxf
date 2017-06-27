@@ -1264,8 +1264,7 @@ public class CodeGenTest extends AbstractCodeGenTest {
             processor.execute();
         } catch (Exception e) {
             assertTrue("Jaxb databinding can not find the schema error ",
-                       e.getLocalizedMessage().indexOf(" cos-st-restricts.1.1: "
-                                                       + "The type 'TpAny' is atomic") > -1);
+                       e.getLocalizedMessage().indexOf(" cos-st-restricts.1.1: ") > -1);
         }
     }
 

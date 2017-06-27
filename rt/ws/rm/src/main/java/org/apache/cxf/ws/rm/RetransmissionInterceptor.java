@@ -70,7 +70,8 @@ public class RetransmissionInterceptor extends AbstractPhaseInterceptor<Message>
             return;
         }
         if (isFault) {
-            RetryPolicyType rmrp = null != manager.getSourcePolicy() ? manager.getSourcePolicy().getRetryPolicy() : null;
+            RetryPolicyType rmrp = null != manager.getSourcePolicy()
+                ? manager.getSourcePolicy().getRetryPolicy() : null;
             int maxRetries = null != rmrp ? rmrp.getMaxRetries() : -1;
             if (maxRetries != 0) {
                 // remove the exception set by the PhaseInterceptorChain so that the

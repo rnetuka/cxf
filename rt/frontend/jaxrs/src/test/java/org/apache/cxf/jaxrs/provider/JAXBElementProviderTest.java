@@ -1338,7 +1338,7 @@ public class JAXBElementProviderTest extends Assert {
             fail("Validation exception expected");
         } catch (Exception ex) {
             Throwable cause = ex.getCause();
-            assertTrue(cause.getMessage().contains("Cannot find the declaration of element"));
+            assertTrue(cause.getMessage().contains("cvc-elt.1"));
         }
         
     }
