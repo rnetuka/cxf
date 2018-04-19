@@ -39,12 +39,14 @@ import javax.ws.rs.core.Link;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.UriBuilder;
 
+import org.apache.cxf.common.util.SystemPropertyAction;
 import org.apache.cxf.configuration.jsse.TLSClientParameters;
 import org.apache.cxf.jaxrs.client.ClientConfiguration;
 import org.apache.cxf.jaxrs.client.ClientProviderFactory;
 import org.apache.cxf.jaxrs.client.JAXRSClientFactoryBean;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.jaxrs.model.FilterProviderInfo;
+import org.apache.cxf.message.Message;
 import org.apache.cxf.transport.https.SSLUtils;
 
 public class ClientImpl implements Client {
@@ -53,7 +55,18 @@ public class ClientImpl implements Client {
     private static final String HTTP_PROXY_SERVER_PROP = "http.proxy.server.uri";
     private static final String HTTP_PROXY_SERVER_PORT_PROP = "http.proxy.server.port";
     private static final String HTTP_AUTOREDIRECT_PROP = "http.autoredirect";
+    private static final String HTTP_MAINTAIN_SESSION_PROP = "http.maintain.session";
     private static final String HTTP_RESPONSE_AUTOCLOSE_PROP = "http.response.stream.auto.close";
+    private static final String THREAD_SAFE_CLIENT_PROP = "thread.safe.client";
+    private static final String THREAD_SAFE_CLIENT_STATE_CLEANUP_PROP = "thread.safe.client.state.cleanup.period";
+    private static final Boolean DEFAULT_THREAD_SAFETY_CLIENT_STATUS;
+    private static final Integer THREAD_SAFE_CLIENT_STATE_CLEANUP_PERIOD;
+    static  {
+        DEFAULT_THREAD_SAFETY_CLIENT_STATUS = 
+            Boolean.parseBoolean(SystemPropertyAction.getPropertyOrNull(THREAD_SAFE_CLIENT_PROP));
+        THREAD_SAFE_CLIENT_STATE_CLEANUP_PERIOD = 
+            getIntValue(SystemPropertyAction.getPropertyOrNull(THREAD_SAFE_CLIENT_STATE_CLEANUP_PROP));
+    }
     
     private Configurable<Client> configImpl;
     private TLSConfiguration secConfig;
@@ -152,7 +165,7 @@ public class ClientImpl implements Client {
     
     private void checkClosed() {
         if (closed) {
-            throw new IllegalStateException();
+            throw new IllegalStateException("client is closed");
         }
     }
 
@@ -242,8 +255,9 @@ public class ClientImpl implements Client {
         @Override
         public Builder request() {
             checkClosed();
+            Map<String, Object> configProps = getConfiguration().getProperties();
             
-            initTargetClientIfNeeded(); 
+            initTargetClientIfNeeded(configProps); 
             
             ClientProviderFactory pf = 
                 ClientProviderFactory.getInstance(WebClient.getConfig(targetClient).getEndpoint());
@@ -266,7 +280,6 @@ public class ClientImpl implements Client {
             }
             
             pf.setUserProviders(providers);
-            Map<String, Object> configProps = getConfiguration().getProperties();
             ClientConfiguration clientCfg = WebClient.getConfig(targetClient);
             
             clientCfg.getRequestContext().putAll(configProps);
@@ -282,7 +295,8 @@ public class ClientImpl implements Client {
             // TLS
             TLSClientParameters tlsParams = secConfig.getTlsClientParams();
             if (tlsParams.getSSLSocketFactory() != null 
-                || tlsParams.getTrustManagers() != null) {
+                || tlsParams.getTrustManagers() != null
+                || tlsParams.getHostnameVerifier() != null) {
                 clientCfg.getHttpConduit().setTlsClientParameters(tlsParams);
             }
             
@@ -315,13 +329,31 @@ public class ClientImpl implements Client {
             if (autoRedirectValue != null) {
                 clientCfg.getHttpConduit().getClient().setAutoRedirect(autoRedirectValue);
             }
+            Boolean mantainSessionValue = getBooleanValue(configProps.get(HTTP_MAINTAIN_SESSION_PROP));
+            if (mantainSessionValue != null) {
+                clientCfg.getRequestContext().put(Message.MAINTAIN_SESSION, mantainSessionValue);
+            }
         }
 
-        private void initTargetClientIfNeeded() {
+        private void initTargetClientIfNeeded(Map<String, Object> configProps) {
             URI uri = uriBuilder.build();
             if (targetClient == null) {
                 JAXRSClientFactoryBean bean = new JAXRSClientFactoryBean();
                 bean.setAddress(uri.toString());
+                Boolean threadSafe = getBooleanValue(configProps.get(THREAD_SAFE_CLIENT_PROP));
+                if (threadSafe == null) {
+                    threadSafe = DEFAULT_THREAD_SAFETY_CLIENT_STATUS;
+                }
+                bean.setThreadSafe(threadSafe);
+                if (threadSafe) {
+                    Integer cleanupPeriod = getIntValue(configProps.get(THREAD_SAFE_CLIENT_PROP));
+                    if (cleanupPeriod == null) {
+                        cleanupPeriod = THREAD_SAFE_CLIENT_STATE_CLEANUP_PERIOD;
+                    }
+                    if (cleanupPeriod != null) {
+                        bean.setSecondsToKeepState(cleanupPeriod);
+                    }
+                }
                 targetClient = bean.createWebClient();
                 ClientImpl.this.baseClients.add(targetClient);
             } else if (!targetClient.getCurrentURI().equals(uri)) {
@@ -353,12 +385,14 @@ public class ClientImpl implements Client {
 
         @Override
         public WebTarget path(String path) {
+            checkClosed();
             checkNull(path);
             return newWebTarget(getUriBuilder().path(path));
         }
 
         @Override
         public WebTarget queryParam(String name, Object... values) {
+            checkClosed();
             checkNullValues(name, values);
             UriBuilder thebuilder = getUriBuilder();
             if (values == null || values.length == 1 && values[0] == null) {
@@ -371,6 +405,7 @@ public class ClientImpl implements Client {
         
         @Override
         public WebTarget matrixParam(String name, Object... values) {
+            checkClosed();
             checkNullValues(name, values);
             
             UriBuilder thebuilder = getUriBuilder();
@@ -389,6 +424,7 @@ public class ClientImpl implements Client {
 
         @Override
         public WebTarget resolveTemplate(String name, Object value, boolean encodeSlash) {
+            checkClosed();
             checkNull(name, value);
             return newWebTarget(getUriBuilder().resolveTemplate(name, value, encodeSlash));
         }
@@ -406,6 +442,7 @@ public class ClientImpl implements Client {
 
         @Override
         public WebTarget resolveTemplates(Map<String, Object> templatesMap, boolean encodeSlash) {
+            checkClosed();
             checkNullMap(templatesMap);
             
             if (templatesMap.isEmpty()) {
@@ -416,28 +453,21 @@ public class ClientImpl implements Client {
 
         @Override
         public WebTarget resolveTemplatesFromEncoded(Map<String, Object> templatesMap) {
+            checkClosed();
             checkNullMap(templatesMap);
             if (templatesMap.isEmpty()) {
                 return this;
             }
             return newWebTarget(getUriBuilder().resolveTemplatesFromEncoded(templatesMap));
         }
-        
+
         private WebTarget newWebTarget(UriBuilder newBuilder) {
-            checkClosed();
-            boolean complete = false;
+            WebClient newClient;
             if (targetClient != null) {
-                try {
-                    newBuilder.build();
-                    complete = true;
-                } catch (IllegalArgumentException ex) {
-                    //the builder still has unresolved vars
-                }
+                newClient = WebClient.fromClient(targetClient);
+            } else {
+                newClient = null;
             }
-            if (!complete) {
-                return new WebTargetImpl(newBuilder, getConfiguration());
-            }
-            WebClient newClient = WebClient.fromClient(targetClient);
             return new WebTargetImpl(newBuilder, getConfiguration(), newClient);
         }
         
@@ -515,12 +545,14 @@ public class ClientImpl implements Client {
         }
     }
     private static Long getLongValue(Object o) {
-        return o instanceof Long ? (Long)o : o instanceof String ? Long.valueOf(o.toString()) : null;
+        return o instanceof Long ? (Long)o 
+            : o instanceof String ? Long.valueOf(o.toString()) 
+            : o instanceof Integer ? ((Integer)o).longValue() : null;
     }
     private static Integer getIntValue(Object o) {
         return o instanceof Integer ? (Integer)o : o instanceof String ? Integer.valueOf(o.toString()) : null;
     }
     private static Boolean getBooleanValue(Object o) {
-        return o instanceof Boolean ? (Boolean)o : o instanceof Boolean ? Boolean.valueOf(o.toString()) : null;
+        return o instanceof Boolean ? (Boolean)o : o instanceof String ? Boolean.valueOf(o.toString()) : null;
     }
 }

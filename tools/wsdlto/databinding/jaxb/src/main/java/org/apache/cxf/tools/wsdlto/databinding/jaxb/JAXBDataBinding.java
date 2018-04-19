@@ -18,8 +18,6 @@
  */
 package org.apache.cxf.tools.wsdlto.databinding.jaxb;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -29,6 +27,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.net.URI;
 import java.net.URL;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -167,7 +166,7 @@ public class JAXBDataBinding implements DataBindingProfile {
             }
         }
     }
-    public class LocationFilterReader extends StreamReaderDelegate {
+    public static class LocationFilterReader extends StreamReaderDelegate {
         boolean isImport;
         boolean isInclude;
         int locIdx = -1;
@@ -598,18 +597,18 @@ public class JAXBDataBinding implements DataBindingProfile {
         InputSource result = null;
         ele.setAttributeNS(null, "schemaLocation", schemaLoc);
         File tmpFile = FileUtils.createTempFile("jaxbbinding", ".xml");
-        StaxUtils.writeTo(ele, new FileOutputStream(tmpFile));
+        StaxUtils.writeTo(ele, Files.newOutputStream(tmpFile.toPath()));
         result = new InputSource(URIParserUtil.getAbsoluteURI(tmpFile.getAbsolutePath()));
         tmpFile.deleteOnExit();
         return result;
     }
 
-    @SuppressWarnings("unchecked")
     private void addSchemas(Options opts,
                             SchemaCompiler schemaCompiler,
                             SchemaCollection schemaCollection) {
 
-        Set<String> ids = new HashSet<String>();
+        Set<String> ids = new HashSet<>();
+        @SuppressWarnings("unchecked")
         List<ServiceInfo> serviceList = (List<ServiceInfo>)context.get(ToolConstants.SERVICE_LIST);
         for (ServiceInfo si : serviceList) {
             for (SchemaInfo sci : si.getSchemas()) {
@@ -673,14 +672,16 @@ public class JAXBDataBinding implements DataBindingProfile {
             }
             String key = schema.getSourceURI();
             String tns = schema.getTargetNamespace();
-            if (ids.contains(key) || tns == null) {
+            String ltns = schema.getLogicalTargetNamespace();
+            // accepting also a null tns (e.g., reported by apache.ws.xmlschema for no-namespace)
+            if (ids.contains(key) || (tns == null && !StringUtils.isEmpty(ltns))) {
                 continue;
             }
             if (key.startsWith("file:") || key.startsWith("jar:")) {
                 InputStream in = null;
                 try {
                     if (key.startsWith("file:")) {
-                        in = new FileInputStream(new File(new URI(key)));
+                        in = Files.newInputStream(new File(new URI(key)).toPath());
                     } else {
                         in = new URL(key).openStream();
                     }
@@ -706,7 +707,14 @@ public class JAXBDataBinding implements DataBindingProfile {
                 }
             }
         }
-        ids.clear();
+        addSchemasForServiceInfos(catalog, serviceList, opts, schemaCompiler, schemaCollection);
+    }
+    private void addSchemasForServiceInfos(OASISCatalogManager catalog,
+                                           List<ServiceInfo> serviceList,
+                                          Options opts,
+                                          SchemaCompiler schemaCompiler,
+                                          SchemaCollection schemaCollection) {
+        Set<String> ids = new HashSet<>();
         for (ServiceInfo si : serviceList) {
             for (SchemaInfo sci : si.getSchemas()) {
                 String key = sci.getSystemId();
@@ -1128,7 +1136,7 @@ public class JAXBDataBinding implements DataBindingProfile {
                             writer.write("\n");
                             writer.write(indent);
                             writeDefaultValue(writer, indent, path + "/" + varName + "Val",
-                                              varName + "Val" + cnt , cl);
+                                              varName + "Val" + cnt, cl);
                             writer.write("\n");
                             writer.write(indent);
                             writer.write(varName);

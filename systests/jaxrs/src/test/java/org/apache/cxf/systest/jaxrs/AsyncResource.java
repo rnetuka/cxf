@@ -25,6 +25,7 @@ import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.QueryParam;
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.container.Suspended;
 import javax.ws.rs.core.Response;
@@ -38,13 +39,19 @@ public class AsyncResource {
     public static final String FALSE = "A method returned false";
     public static final String TRUE = "A method return true";
 
-    private static final AsyncResponseQueue[] ASYNC_RESPONSES = { 
+    private static final AsyncResponseQueue[] ASYNC_RESPONSES = {
         new AsyncResponseQueue(), new AsyncResponseQueue(), new AsyncResponseQueue() };
 
     @GET
     @Path("suspend")
     public void suspend(@Suspended AsyncResponse asyncResponse) { 
         ASYNC_RESPONSES[0].add(asyncResponse); 
+    }
+
+    @GET
+    @Path("suspendthrow")
+    public void suspendthrow(@Suspended AsyncResponse asyncResponse) {
+        throw new WebApplicationException("Oh Dear", 502);
     }
     
     @GET

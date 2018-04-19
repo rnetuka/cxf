@@ -22,8 +22,6 @@ package org.apache.cxf.jaxrs.provider;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -33,6 +31,8 @@ import java.io.Reader;
 import java.io.Writer;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.DigestInputStream;
 import java.util.UUID;
 import java.util.logging.Logger;
@@ -95,12 +95,7 @@ public class BinaryDataProvider<T> extends AbstractConfigurableProvider
                 return clazz.cast(new InputStreamReader(is, getEncoding(type)));
             }
             if (byte[].class.isAssignableFrom(clazz)) {
-                String enc = getCharset(type);
-                if (enc == null) {
-                    return clazz.cast(IOUtils.readBytesFromStream(is));
-                } else {
-                    return clazz.cast(IOUtils.toString(is, bufferSize, enc).getBytes(enc));
-                }
+                return clazz.cast(IOUtils.readBytesFromStream(is));
             }
             if (File.class.isAssignableFrom(clazz)) {
                 LOG.warning("Reading data into File objects with the help of pre-packaged" 
@@ -110,9 +105,9 @@ public class BinaryDataProvider<T> extends AbstractConfigurableProvider
                                                   "jaxrs",
                                                   null,
                                                   true);
-                FileOutputStream fos = new FileOutputStream(f);
-                IOUtils.copy(is, fos, bufferSize);
-                fos.close();
+                OutputStream os = Files.newOutputStream(f.toPath());
+                IOUtils.copy(is, os, bufferSize);
+                os.close();
                 return clazz.cast(f);
             }
             if (StreamingOutput.class.isAssignableFrom(clazz)) {
@@ -153,7 +148,7 @@ public class BinaryDataProvider<T> extends AbstractConfigurableProvider
             copyInputToOutput((InputStream)o, os, headers);
         } else if (File.class.isAssignableFrom(o.getClass())) {
             copyInputToOutput(new BufferedInputStream(
-                    new FileInputStream((File)o)), os, headers);
+                    Files.newInputStream(((File)o).toPath())), os, headers);
         } else if (byte[].class.isAssignableFrom(o.getClass())) {
             copyInputToOutput(new ByteArrayInputStream((byte[])o), os, headers);
         } else if (Reader.class.isAssignableFrom(o.getClass())) {
@@ -177,12 +172,8 @@ public class BinaryDataProvider<T> extends AbstractConfigurableProvider
     
     private String getEncoding(MediaType mt) {
         String enc = mt.getParameters().get("charset");
-        return enc == null ? "UTF-8" : enc;
+        return enc == null ? StandardCharsets.UTF_8.name() : enc;
     }
-    private String getCharset(MediaType mt) {
-        return mt.getParameters().get("charset");
-    }
-    
     protected void copyInputToOutput(InputStream is, OutputStream os,
             MultivaluedMap<String, Object> outHeaders) throws IOException {
         if (isRangeSupported()) {

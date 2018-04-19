@@ -19,6 +19,7 @@
 
 package org.apache.cxf.ws.rm;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,6 +36,8 @@ import org.apache.cxf.endpoint.ClientImpl;
 import org.apache.cxf.endpoint.ConduitSelector;
 import org.apache.cxf.endpoint.DeferredConduitSelector;
 import org.apache.cxf.endpoint.Endpoint;
+import org.apache.cxf.interceptor.Fault;
+import org.apache.cxf.logging.FaultListener;
 import org.apache.cxf.message.Exchange;
 import org.apache.cxf.message.ExchangeImpl;
 import org.apache.cxf.message.Message;
@@ -47,7 +50,9 @@ import org.apache.cxf.transport.Conduit;
 import org.apache.cxf.workqueue.SynchronousExecutor;
 import org.apache.cxf.ws.addressing.AttributedURIType;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
+import org.apache.cxf.ws.addressing.MAPAggregator;
 import org.apache.cxf.ws.addressing.RelatesToType;
+import org.apache.cxf.ws.addressing.WSAddressingFeature;
 import org.apache.cxf.ws.rm.manager.SourcePolicyType;
 import org.apache.cxf.ws.rm.v200702.CloseSequenceType;
 import org.apache.cxf.ws.rm.v200702.CreateSequenceResponseType;
@@ -68,6 +73,9 @@ public class Proxy {
     // REVISIT assumption there is only a single outstanding offer
     private Identifier offeredIdentifier;
     
+    //hold the sequence message context
+    private Map<String, Object> sequenceContext;
+    
 
     public Proxy(RMEndpoint rme) {
         reliableEndpoint = rme;
@@ -87,7 +95,7 @@ public class Proxy {
         RMConstants constants = protocol.getConstants();
         OperationInfo oi = reliableEndpoint.getEndpoint(protocol).getEndpointInfo()
             .getService().getInterface().getOperation(constants.getSequenceAckOperationName());
-        invoke(oi, protocol, new Object[] {ds});
+        invoke(oi, protocol, new Object[] {ds}, this.sequenceContext);
     }
     
     void terminate(SourceSequence ss) throws RMException {
@@ -100,7 +108,7 @@ public class Proxy {
         ts.setIdentifier(ss.getIdentifier());
         ts.setLastMsgNumber(ss.getCurrentMessageNr());
         EncoderDecoder codec = protocol.getCodec();
-        invoke(oi, protocol, new Object[] {codec.convertToSend(ts)});
+        invoke(oi, protocol, new Object[] {codec.convertToSend(ts)}, this.sequenceContext);
     }
     
     void terminate(DestinationSequence ds) throws RMException {
@@ -113,7 +121,7 @@ public class Proxy {
         ts.setIdentifier(ds.getIdentifier());
         ts.setLastMsgNumber(ds.getLastMessageNumber());
         EncoderDecoder codec = protocol.getCodec();
-        invoke(oi, protocol, new Object[] {codec.convertToSend(ts)});
+        invoke(oi, protocol, new Object[] {codec.convertToSend(ts)}, this.sequenceContext);
     }
     
     void createSequenceResponse(final Object createResponse, ProtocolVariation protocol) throws RMException {
@@ -131,6 +139,7 @@ public class Proxy {
     public CreateSequenceResponseType createSequence(EndpointReferenceType defaultAcksTo, RelatesToType relatesTo, 
              boolean isServer, final ProtocolVariation protocol, final Exchange exchange, Map<String, Object> context) 
         throws RMException {
+        this.sequenceContext = context;
         SourcePolicyType sp = reliableEndpoint.getManager().getSourcePolicy();
         CreateSequenceType create = new CreateSequenceType();        
 
@@ -229,13 +238,28 @@ public class Proxy {
                 Collections.singletonMap(SourceSequence.class.getName(), 
                                          (Object)s));
 
-        if (constants instanceof RM11Constants) {
-            CloseSequenceType csr = new CloseSequenceType();
-            csr.setIdentifier(s.getIdentifier());
-            csr.setLastMsgNumber(s.getCurrentMessageNr());
-            invoke(oi, protocol, new Object[] {csr}, context);
-        } else {
-            invoke(oi, protocol, new Object[] {}, context);
+        context.put(FaultListener.class.getName(), new FaultListener() {
+            public boolean faultOccurred(Exception exception, String description, Message message) {
+                if (exception.getCause() instanceof IOException) {
+                    //for close messages, the server may be gone and nothing we can do so don't pollute the logs
+                    LOG.log(Level.WARNING, "Could not send CloseSequence message: " 
+                            + exception.getCause().getMessage());
+                    return false;
+                }
+                return true;
+            }
+        });
+        try {
+            if (constants instanceof RM11Constants) {
+                CloseSequenceType csr = new CloseSequenceType();
+                csr.setIdentifier(s.getIdentifier());
+                csr.setLastMsgNumber(s.getCurrentMessageNr());
+                invoke(oi, protocol, new Object[] {csr}, context, Level.FINER);
+            } else {
+                invoke(oi, protocol, new Object[] {}, context, Level.FINER);
+            }
+        } catch (Fault f) {
+            throw new RMException(f);
         }
     }
     
@@ -276,10 +300,17 @@ public class Proxy {
             offeredIdentifier = offer.getIdentifier();
         }
     }
-       
-    Object invoke(OperationInfo oi, ProtocolVariation protocol, 
-                  Object[] params, Map<String, Object> context, Exchange exchange) throws RMException {
-        
+
+    Object invoke(OperationInfo oi, ProtocolVariation protocol,
+                  Object[] params, Map<String, Object> context, 
+                  Exchange exchange) throws RMException {
+        return invoke(oi, protocol, params, context, exchange, Level.SEVERE);
+    }
+    Object invoke(OperationInfo oi, ProtocolVariation protocol,
+                  Object[] params, Map<String, Object> context, 
+                  Exchange exchange,
+                  Level exceptionLevel) throws RMException {
+
         if (LOG.isLoggable(Level.INFO)) {
             LOG.log(Level.INFO, "Sending out-of-band RM protocol message {0}.", 
                     oi == null ? null : oi.getName());
@@ -319,7 +350,7 @@ public class Proxy {
             org.apache.cxf.common.i18n.Message msg = 
                 new org.apache.cxf.common.i18n.Message("SEND_PROTOCOL_MSG_FAILED_EXC", LOG, 
                                                        oi == null ? null : oi.getName());
-            LOG.log(Level.SEVERE, msg.toString(), ex);
+            LOG.log(exceptionLevel, msg.toString(), ex);
             throw new RMException(msg, ex);
         }
         return null;
@@ -327,9 +358,14 @@ public class Proxy {
     
     Object invoke(OperationInfo oi, ProtocolVariation protocol, Object[] params, Map<String, Object> context)
         throws RMException {
-        return invoke(oi, protocol, params, context, new ExchangeImpl());
+        return invoke(oi, protocol, params, context, Level.SEVERE);
     }
-    
+
+    Object invoke(OperationInfo oi, ProtocolVariation protocol, Object[] params, 
+                  Map<String, Object> context, Level level)
+        throws RMException {
+        return invoke(oi, protocol, params, context, new ExchangeImpl(), level);
+    }
     Object invoke(OperationInfo oi, ProtocolVariation protocol, Object[] params) throws RMException {
         return invoke(oi, protocol, params, null);
     }
@@ -355,7 +391,12 @@ public class Proxy {
             }
         };  
         RMClient client = new RMClient(bus, endpoint, cs);
+        // WS-RM requires ws-addressing
+        WSAddressingFeature wsa = new WSAddressingFeature();
+        wsa.setAddressingRequired(true);
+        wsa.initialize(client, bus);
         Map<String, Object> context = client.getRequestContext();
+        context.put(MAPAggregator.ADDRESSING_NAMESPACE, protocol.getWSANamespace());
         context.put(RMManager.WSRM_VERSION_PROPERTY, protocol.getWSRMNamespace());
         context.put(RMManager.WSRM_WSA_VERSION_PROPERTY, protocol.getWSANamespace());
         return client;

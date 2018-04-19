@@ -19,15 +19,14 @@
 
 package org.apache.cxf.sts.operation;
 
+import java.security.Principal;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.xml.bind.JAXBElement;
-import javax.xml.ws.WebServiceContext;
 
 import org.apache.cxf.common.logging.LogUtils;
-import org.apache.cxf.rt.security.claims.ClaimCollection;
 import org.apache.cxf.sts.QNameConstants;
 import org.apache.cxf.sts.RealmParser;
 import org.apache.cxf.sts.STSConstants;
@@ -62,19 +61,20 @@ public class TokenValidateOperation extends AbstractOperation implements Validat
    
     public RequestSecurityTokenResponseType validate(
         RequestSecurityTokenType request, 
-        WebServiceContext context
+        Principal principal,
+        Map<String, Object> messageContext
     ) {
         long start = System.currentTimeMillis();
         TokenValidatorParameters validatorParameters = new TokenValidatorParameters();
         
         try {
-            RequestRequirements requestRequirements = parseRequest(request, context);
+            RequestRequirements requestRequirements = parseRequest(request, messageContext);
             
             TokenRequirements tokenRequirements = requestRequirements.getTokenRequirements();
             
             validatorParameters.setStsProperties(stsProperties);
-            validatorParameters.setPrincipal(context.getUserPrincipal());
-            validatorParameters.setWebServiceContext(context);
+            validatorParameters.setPrincipal(principal);
+            validatorParameters.setMessageContext(messageContext);
             validatorParameters.setTokenStore(getTokenStore());
             
             //validatorParameters.setKeyRequirements(keyRequirements);
@@ -98,12 +98,12 @@ public class TokenValidateOperation extends AbstractOperation implements Validat
             String realm = null;
             if (stsProperties.getRealmParser() != null) {
                 RealmParser realmParser = stsProperties.getRealmParser();
-                realm = realmParser.parseRealm(context);
+                realm = realmParser.parseRealm(messageContext);
             }
             validatorParameters.setRealm(realm);
             
             TokenValidatorResponse tokenResponse = validateReceivedToken(
-                    context, realm, tokenRequirements, validateTarget);
+                    principal, messageContext, realm, tokenRequirements, validateTarget);
             
             if (tokenResponse == null) {
                 LOG.fine("No Token Validator has been found that can handle this token");
@@ -120,15 +120,11 @@ public class TokenValidateOperation extends AbstractOperation implements Validat
             if (tokenResponse.getToken().getState() == STATE.VALID 
                 && !STSConstants.STATUS.equals(tokenType)) {
                 TokenProviderParameters providerParameters = 
-                     createTokenProviderParameters(requestRequirements, context);
+                     createTokenProviderParameters(requestRequirements, principal, messageContext);
                 
                 processValidToken(providerParameters, validateTarget, tokenResponse);
                 
                 // Check if the requested claims can be handled by the configured claim handlers
-                ClaimCollection requestedClaims = providerParameters.getRequestedPrimaryClaims();
-                checkClaimsSupport(requestedClaims);
-                requestedClaims = providerParameters.getRequestedSecondaryClaims();
-                checkClaimsSupport(requestedClaims);
                 providerParameters.setClaimsManager(claimsManager);
                 
                 Map<String, Object> additionalProperties = tokenResponse.getAdditionalProperties();
@@ -187,8 +183,8 @@ public class TokenValidateOperation extends AbstractOperation implements Validat
             throw ex;
         }            
     }
-    
-    private RequestSecurityTokenResponseType createResponse(
+
+    protected RequestSecurityTokenResponseType createResponse(
         TokenValidatorResponse tokenResponse,
         TokenProviderResponse tokenProviderResponse,
         TokenRequirements tokenRequirements
@@ -229,7 +225,7 @@ public class TokenValidateOperation extends AbstractOperation implements Validat
                 QNameConstants.WS_TRUST_FACTORY.createRequestedSecurityTokenType();
             JAXBElement<RequestedSecurityTokenType> requestedToken = 
                 QNameConstants.WS_TRUST_FACTORY.createRequestedSecurityToken(requestedTokenType);
-            requestedTokenType.setAny(tokenProviderResponse.getToken());
+            tokenWrapper.wrapToken(tokenProviderResponse.getToken(), requestedTokenType);
             response.getAny().add(requestedToken);
             
             // Lifetime

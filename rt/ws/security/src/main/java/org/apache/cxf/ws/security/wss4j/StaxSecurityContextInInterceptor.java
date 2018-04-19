@@ -31,6 +31,7 @@ import org.apache.cxf.binding.soap.SoapVersion;
 import org.apache.cxf.interceptor.Fault;
 import org.apache.cxf.interceptor.security.DefaultSecurityContext;
 import org.apache.cxf.interceptor.security.RolePrefixSecurityContextImpl;
+import org.apache.cxf.message.Message;
 import org.apache.cxf.phase.AbstractPhaseInterceptor;
 import org.apache.cxf.phase.Phase;
 import org.apache.cxf.rt.security.claims.ClaimCollection;
@@ -92,16 +93,16 @@ public class StaxSecurityContextInInterceptor extends AbstractPhaseInterceptor<S
         // Now go through the results in a certain order to set up a security context. Highest priority is first.
 
         List<Event> desiredSecurityEvents = new ArrayList<>();
-        desiredSecurityEvents.add(WSSecurityEventConstants.SamlToken);
-        desiredSecurityEvents.add(WSSecurityEventConstants.UsernameToken);
-        desiredSecurityEvents.add(WSSecurityEventConstants.KerberosToken);
+        desiredSecurityEvents.add(WSSecurityEventConstants.SAML_TOKEN);
+        desiredSecurityEvents.add(WSSecurityEventConstants.USERNAME_TOKEN);
+        desiredSecurityEvents.add(WSSecurityEventConstants.KERBEROS_TOKEN);
         desiredSecurityEvents.add(WSSecurityEventConstants.X509Token);
         desiredSecurityEvents.add(WSSecurityEventConstants.KeyValueToken);
             
         for (Event desiredEvent : desiredSecurityEvents) {
             SubjectAndPrincipalSecurityToken token = null;
             try {
-                token = getSubjectPrincipalToken(incomingSecurityEventList, desiredEvent);
+                token = getSubjectPrincipalToken(incomingSecurityEventList, desiredEvent, msg);
             } catch (XMLSecurityException ex) {
                 // proceed
             }
@@ -130,7 +131,7 @@ public class StaxSecurityContextInInterceptor extends AbstractPhaseInterceptor<S
 
                     Object receivedAssertion = null;
                     
-                    if (desiredEvent == WSSecurityEventConstants.SamlToken) {
+                    if (desiredEvent == WSSecurityEventConstants.SAML_TOKEN) {
                         String roleAttributeName = (String)SecurityUtils.getSecurityPropertyValue(
                                 SecurityConstants.SAML_ROLE_ATTRIBUTENAME, msg);
                         if (roleAttributeName == null || roleAttributeName.length() == 0) {
@@ -159,13 +160,15 @@ public class StaxSecurityContextInInterceptor extends AbstractPhaseInterceptor<S
     }
     
     private SubjectAndPrincipalSecurityToken getSubjectPrincipalToken(List<SecurityEvent> incomingSecurityEventList,
-                                                                      Event desiredEvent) throws XMLSecurityException {
+                                                                      Event desiredEvent,
+                                                                      Message msg) throws XMLSecurityException {
         for (SecurityEvent event : incomingSecurityEventList) {
             if (desiredEvent == event.getSecurityEventType()) {
-                if (event.getSecurityEventType() == WSSecurityEventConstants.UsernameToken) {
+                if (event.getSecurityEventType() == WSSecurityEventConstants.USERNAME_TOKEN
+                    && isUsernameTokenEventAllowed((UsernameTokenSecurityEvent)event, msg)) {
                     return ((UsernameTokenSecurityEvent)event).getSecurityToken();
-                } else if (event.getSecurityEventType() == WSSecurityEventConstants.SamlToken
-                    && isSamlEventSigned((SamlTokenSecurityEvent)event)) {
+                } else if (event.getSecurityEventType() == WSSecurityEventConstants.SAML_TOKEN
+                    && isSamlEventAllowed((SamlTokenSecurityEvent)event, msg)) {
                     return ((SamlTokenSecurityEvent)event).getSecurityToken();
                 } else if (event.getSecurityEventType() == WSSecurityEventConstants.X509Token
                     && isUsedForPublicKeySignature(((X509TokenSecurityEvent)event).getSecurityToken())) {
@@ -173,7 +176,7 @@ public class StaxSecurityContextInInterceptor extends AbstractPhaseInterceptor<S
                 } else if (event.getSecurityEventType() == WSSecurityEventConstants.KeyValueToken
                     && isUsedForPublicKeySignature(((KeyValueTokenSecurityEvent)event).getSecurityToken())) {
                     return ((KeyValueTokenSecurityEvent)event).getSecurityToken();
-                } else if (event.getSecurityEventType() == WSSecurityEventConstants.KerberosToken) {
+                } else if (event.getSecurityEventType() == WSSecurityEventConstants.KERBEROS_TOKEN) {
                     return ((KerberosTokenSecurityEvent)event).getSecurityToken();
                 }
             }
@@ -209,15 +212,36 @@ public class StaxSecurityContextInInterceptor extends AbstractPhaseInterceptor<S
         return token.getPublicKey() != null 
             || (token.getX509Certificates() != null && token.getX509Certificates().length > 0);
     }
-    
-    private boolean isSamlEventSigned(SamlTokenSecurityEvent event) {
+
+    private boolean isSamlEventAllowed(SamlTokenSecurityEvent event, Message msg) {
         if (event == null) {
             return false;
         }
-        
-        return event.getSecurityToken() != null 
+
+        boolean allowUnsignedSamlPrincipals =
+            SecurityUtils.getSecurityPropertyBoolean(
+                SecurityConstants.ENABLE_UNSIGNED_SAML_ASSERTION_PRINCIPAL, msg, false
+            );
+
+        // The SAML Assertion must be signed by default
+        return event.getSecurityToken() != null
             && event.getSecurityToken().getSamlAssertionWrapper() != null
-            && event.getSecurityToken().getSamlAssertionWrapper().isSigned();
+            && (allowUnsignedSamlPrincipals || event.getSecurityToken().getSamlAssertionWrapper().isSigned());
+    }
+
+    private boolean isUsernameTokenEventAllowed(UsernameTokenSecurityEvent event, Message msg) {
+        if (event == null) {
+            return false;
+        }
+
+        boolean allowUTNoPassword =
+            SecurityUtils.getSecurityPropertyBoolean(
+                SecurityConstants.ENABLE_UT_NOPASSWORD_PRINCIPAL, msg, true
+            );
+
+        // The "no password" case is not allowed by default
+        return event.getSecurityToken() != null
+            && (allowUTNoPassword || event.getSecurityToken().getPassword() != null);
     }
     
     private SecurityContext createSecurityContext(final Principal p) {

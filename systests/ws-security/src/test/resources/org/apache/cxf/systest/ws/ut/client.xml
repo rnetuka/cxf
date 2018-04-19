@@ -27,7 +27,7 @@
     <http:conduit name="https://localhost:.*">
         <http:tlsClientParameters disableCNCheck="true">
             <sec:trustManagers>
-                <sec:keyStore type="jks" password="password" resource="org/apache/cxf/systest/ws/security/Truststore.jks"/>
+                <sec:keyStore type="jks" password="password" resource="keys/Truststore.jks"/>
             </sec:trustManagers>
         </http:tlsClientParameters>
     </http:conduit>
@@ -44,6 +44,12 @@
         </jaxws:properties>
     </jaxws:client>
     <jaxws:client name="{http://www.example.org/contract/DoubleIt}DoubleItPlaintextSupportingPort" createdFromAPI="true">
+        <jaxws:properties>
+            <entry key="security.username" value="Alice"/>
+            <entry key="security.callback-handler" value="org.apache.cxf.systest.ws.common.UTPasswordCallback"/>
+        </jaxws:properties>
+    </jaxws:client>
+    <jaxws:client name="{http://www.example.org/contract/DoubleIt}DoubleItPlaintextSupportingSP11Port" createdFromAPI="true">
         <jaxws:properties>
             <entry key="security.username" value="Alice"/>
             <entry key="security.callback-handler" value="org.apache.cxf.systest.ws.common.UTPasswordCallback"/>

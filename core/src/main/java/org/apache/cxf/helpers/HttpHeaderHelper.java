@@ -69,12 +69,9 @@ public final class HttpHeaderHelper {
         return headerMap.get(getHeaderKey(key));
     }
     
-    public static String getHeaderKey(String key) {
-        if (internalHeaders.containsKey(key)) {
-            return internalHeaders.get(key);
-        } else {
-            return key;
-        }
+    public static String getHeaderKey(final String key) {
+        String headerKey = internalHeaders.get(key);
+        return headerKey == null ? key : headerKey;
     }
     
     public static String findCharset(String contentType) {
@@ -86,6 +83,9 @@ public final class HttpHeaderHelper {
             String charset = contentType.substring(idx + 8);
             if (charset.indexOf(";") != -1) {
                 charset = charset.substring(0, charset.indexOf(";")).trim();
+            }
+            if (charset.isEmpty()) {
+                return null;
             }
             if (charset.charAt(0) == '\"') {
                 charset = charset.substring(1, charset.length() - 1);
@@ -105,7 +105,7 @@ public final class HttpHeaderHelper {
             return deflt;
         }
         //older versions of tomcat don't properly parse ContentType headers with stuff
-        //after charset="UTF-8"
+        //after charset=StandardCharsets.UTF_8
         int idx = enc.indexOf(";");
         if (idx != -1) {
             enc = enc.substring(0, idx);

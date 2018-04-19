@@ -22,6 +22,7 @@ package org.apache.cxf.transport.jms.uri;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import javax.jms.ConnectionFactory;
 import javax.jms.Message;
@@ -85,6 +86,7 @@ public class JMSEndpoint {
     private boolean useConduitIdSelector = true;
     private String username;
     private int concurrentConsumers = 1;
+    private String messageSelector;
 
     /**
      * @param uri
@@ -137,9 +139,9 @@ public class JMSEndpoint {
         if (jaxwsProps == null) {
             return;
         }
-        for (String key : jaxwsProps.keySet()) {
-            if (key.startsWith(JAXWS_PROPERTY_PREFIX)) {
-                jmsProps.put(key.substring(JAXWS_PROPERTY_PREFIX.length()), jaxwsProps.get(key));
+        for (Entry<String, Object> entry : jaxwsProps.entrySet()) {
+            if (entry.getKey().startsWith(JAXWS_PROPERTY_PREFIX)) {
+                jmsProps.put(entry.getKey().substring(JAXWS_PROPERTY_PREFIX.length()), entry.getValue());
             }
         }
     }
@@ -312,7 +314,7 @@ public class JMSEndpoint {
         this.timeToLive = timeToLive;
     }
     public void setTimeToLive(String timeToLive) {
-        this.timeToLive = Long.valueOf(timeToLive);
+        this.timeToLive = Long.parseLong(timeToLive);
     }
     public boolean isSetPriority() {
         return priority != null;
@@ -372,7 +374,7 @@ public class JMSEndpoint {
     }
     
     public void setConcurrentConsumers(String concurrentConsumers) {
-        this.concurrentConsumers = Integer.valueOf(concurrentConsumers);
+        this.concurrentConsumers = Integer.parseInt(concurrentConsumers);
     }
     
     public String getPassword() {
@@ -407,7 +409,7 @@ public class JMSEndpoint {
     }
     
     public void setReceiveTimeout(String receiveTimeout) {
-        this.receiveTimeout = Long.valueOf(receiveTimeout);
+        this.receiveTimeout = Long.parseLong(receiveTimeout);
     }
     public String getTargetService() {
         return targetService;
@@ -475,5 +477,15 @@ public class JMSEndpoint {
             throw new IllegalArgumentException(v);
         }
     }
+
+    public String getMessageSelector() {
+        return messageSelector;
+    }
+
+    public void setMessageSelector(String messageSelector) {
+        this.messageSelector = messageSelector;
+    }
+    
+    
     
 }

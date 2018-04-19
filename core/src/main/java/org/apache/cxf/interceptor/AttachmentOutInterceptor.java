@@ -67,6 +67,11 @@ public class AttachmentOutInterceptor extends AbstractPhaseInterceptor<Message> 
                                      writeOptionalTypeParameters(),
                                      getRootHeaders());
         serializer.setXop(mtomEnabled);
+        String contentTransferEncoding = (String)message.getContextualProperty(
+                                            org.apache.cxf.message.Message.CONTENT_TRANSFER_ENCODING);
+        if (contentTransferEncoding != null) {
+            serializer.setContentTransferEncoding(contentTransferEncoding);
+        }
         
         try {
             serializer.writeProlog();
@@ -100,6 +105,10 @@ public class AttachmentOutInterceptor extends AbstractPhaseInterceptor<Message> 
             AttachmentSerializer ser = message.getContent(AttachmentSerializer.class);
             if (ser != null) {
                 try {
+                    String cte = (String)message.getContextualProperty(Message.CONTENT_TRANSFER_ENCODING);
+                    if (cte != null) {
+                        ser.setContentTransferEncoding(cte);
+                    }
                     ser.writeAttachments();
                 } catch (IOException e) {
                     throw new Fault(new org.apache.cxf.common.i18n.Message("WRITE_ATTACHMENTS", BUNDLE), e);

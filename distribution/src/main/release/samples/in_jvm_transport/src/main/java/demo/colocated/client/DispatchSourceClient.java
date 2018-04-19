@@ -111,7 +111,9 @@ public final class DispatchSourceClient {
     }
 
     private static String decodeSource(Source source, String uri, String name) throws Exception {
-        Transformer transformer = TransformerFactory.newInstance().newTransformer();
+        TransformerFactory transformerFactory = TransformerFactory.newInstance();
+        transformerFactory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        Transformer transformer = transformerFactory.newTransformer();
         ContentHandler handler = new ContentHandler(uri, name);
         transformer.transform(source, new SAXResult(handler));
         return handler.getValue();
@@ -123,7 +125,7 @@ public final class DispatchSourceClient {
         String elementName;
         boolean recording;
         
-        public ContentHandler(String namespaceURI, String elementName) {
+        ContentHandler(String namespaceURI, String elementName) {
             this.namespaceURI = namespaceURI;
             this.elementName = elementName;
         }

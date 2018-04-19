@@ -44,8 +44,8 @@ import org.apache.cxf.phase.PhaseInterceptor;
 import org.apache.wss4j.common.crypto.ThreadLocalSecurityProvider;
 import org.apache.wss4j.common.ext.WSSecurityException;
 import org.apache.wss4j.dom.WSConstants;
-import org.apache.wss4j.dom.WSSConfig;
 import org.apache.wss4j.dom.action.Action;
+import org.apache.wss4j.dom.engine.WSSConfig;
 import org.apache.wss4j.dom.handler.HandlerAction;
 import org.apache.wss4j.dom.handler.RequestData;
 import org.apache.wss4j.dom.handler.WSHandlerConstants;
@@ -121,7 +121,7 @@ public class WSS4JOutInterceptor extends AbstractWSS4JInterceptor {
     
     final class WSS4JOutInterceptorInternal 
         implements PhaseInterceptor<SoapMessage> {
-        public WSS4JOutInterceptorInternal() {
+        WSS4JOutInterceptorInternal() {
             super();
         }
         
@@ -195,8 +195,8 @@ public class WSS4JOutInterceptor extends AbstractWSS4JInterceptor {
                 reqData.setAttachmentCallbackHandler(new AttachmentCallbackHandler(mc));
                 
                 if (AttachmentUtil.isMtomEnabled(mc) && hasAttachments(mc)) {
-                    LOG.warning("MTOM is enabled with WS-Security. Please note that if an attachment is"
-                        + "referenced in the SOAP Body, only the reference will be signed and not the"
+                    LOG.warning("MTOM is enabled with WS-Security. Please note that if an attachment is "
+                        + "referenced in the SOAP Body, only the reference will be signed and not the "
                         + "SOAP Body!");
                 }
                 
@@ -218,6 +218,7 @@ public class WSS4JOutInterceptor extends AbstractWSS4JInterceptor {
                 for (HandlerAction handlerAction : actions) {
                     if ((handlerAction.getAction() == WSConstants.SIGN
                         || handlerAction.getAction() == WSConstants.UT
+                        || handlerAction.getAction() == WSConstants.UT_NOPASSWORD
                         || handlerAction.getAction() == WSConstants.UT_SIGN)
                         && (handlerAction.getActionToken() == null
                             || handlerAction.getActionToken().getUser() == null)) {

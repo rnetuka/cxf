@@ -56,9 +56,9 @@ import org.apache.wss4j.common.crypto.PasswordEncryptor;
 import org.apache.wss4j.common.ext.WSPasswordCallback;
 import org.apache.wss4j.common.ext.WSSecurityException;
 import org.apache.wss4j.common.util.Loader;
-import org.apache.wss4j.stax.ConfigurationConverter;
 import org.apache.wss4j.stax.ext.WSSConstants;
 import org.apache.wss4j.stax.ext.WSSSecurityProperties;
+import org.apache.wss4j.stax.setup.ConfigurationConverter;
 
 public abstract class AbstractWSS4JStaxInterceptor implements SoapInterceptor, 
     PhaseInterceptor<SoapMessage> {
@@ -344,7 +344,7 @@ public abstract class AbstractWSS4JStaxInterceptor implements SoapInterceptor,
                     cryptos.put(refId, crypto);
                 }
             }
-            if (crypto == null) {
+            if (crypto == null && LOG.isLoggable(Level.INFO)) {
                 LOG.info("The Crypto reference " + refId + " specified by "
                     + cryptoPropertyRefId + " could not be loaded"
                 );
@@ -362,7 +362,7 @@ public abstract class AbstractWSS4JStaxInterceptor implements SoapInterceptor,
                     crypto = loadCryptoFromPropertiesFile(soapMessage, propFile, securityProperties);
                     cryptos.put(propFile, crypto);
                 }
-                if (crypto == null) {
+                if (crypto == null && LOG.isLoggable(Level.INFO)) {
                     LOG.info(
                          "The Crypto properties file " + propFile + " specified by "
                          + cryptoPropertyFile + " could not be loaded or found"

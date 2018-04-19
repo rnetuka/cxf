@@ -27,6 +27,9 @@ public final class OAuthConstants {
     public static final String CLIENT_ID = "client_id";
     public static final String CLIENT_SECRET = "client_secret";
     public static final String CLIENT_AUDIENCE = "audience";
+    public static final String RESOURCE_INDICATOR = "resource";
+    
+    public static final String NONCE = "nonce";
     
     public static final String REDIRECT_URI = "redirect_uri";
     public static final String SCOPE = "scope";
@@ -34,12 +37,16 @@ public final class OAuthConstants {
     public static final String ACCESS_TOKEN = "access_token";
     public static final String ACCESS_TOKEN_TYPE = "token_type";
     public static final String ACCESS_TOKEN_EXPIRES_IN = "expires_in";
-    // CXF-Specific
-    public static final String ACCESS_TOKEN_ISSUED_AT = "issued_at";
     public static final String GRANT_TYPE = "grant_type";
     public static final String RESPONSE_TYPE = "response_type";
     public static final String TOKEN_RESPONSE_TYPE = "token";
     public static final String REFRESH_TOKEN = "refresh_token";
+    public static final String RESPONSE_MODE = "response_mode";
+    public static final String FORM_RESPONSE_MODE = "form_post";
+    // CXF-Specific
+    public static final String TOKEN_REQUEST_PARAMS = "token_request_params";
+    public static final String ACCESS_TOKEN_ISSUED_AT = "issued_at";
+    
     
     // Well-known grant types
     public static final String AUTHORIZATION_CODE_GRANT = "authorization_code";
@@ -54,12 +61,13 @@ public final class OAuthConstants {
     public static final String DIRECT_TOKEN_GRANT = "urn:ietf:params:oauth:grant-type:direct-token-grant";
     
     // Well-known token types
-    public static final String BEARER_TOKEN_TYPE = "bearer";
+    public static final String BEARER_TOKEN_TYPE = "Bearer";
     public static final String HAWK_TOKEN_TYPE = "hawk";
     
-    // http://datatracker.ietf.org/doc/draft-sakimura-oauth-tcse
+    // https://tools.ietf.org/html/rfc7636
     public static final String AUTHORIZATION_CODE_VERIFIER = "code_verifier";
     public static final String AUTHORIZATION_CODE_CHALLENGE = "code_challenge";
+    public static final String AUTHORIZATION_CODE_CHALLENGE_METHOD = "code_challenge_method";
     
     // CXF-specific
     public static final String REFRESH_TOKEN_TYPE = "refresh";
@@ -117,10 +125,19 @@ public final class OAuthConstants {
     public static final String INVALID_SCOPE = "invalid_scope";
     public static final String ACCESS_DENIED = "access_denied";
     
-    // Token Revocation
-    public static final String REVOKED_TOKEN_ID = "token";
-    public static final String REVOKED_TOKEN_TYPE_HINT = "token_type_hint";
+    // Token Revocation, Introspection
+    public static final String TOKEN_ID = "token";
+    public static final String TOKEN_TYPE_HINT = "token_type_hint";
     public static final String UNSUPPORTED_TOKEN_TYPE = "unsupported_token_type";
+
+    // Token Service Authentication Methods
+    public static final String TOKEN_ENDPOINT_AUTH_NONE = "none";
+    public static final String TOKEN_ENDPOINT_AUTH_BASIC = "client_secret_basic";
+    public static final String TOKEN_ENDPOINT_AUTH_POST = "client_secret_post";
+    public static final String TOKEN_ENDPOINT_AUTH_TLS = "tls_client_auth";
+    // TLS Authentication Binding Properties
+    public static final String TLS_CLIENT_AUTH_SUBJECT_DN = "tls_client_auth_subject_dn";
+    public static final String TLS_CLIENT_AUTH_ISSUER_DN = "tls_client_auth_root_dn";
     
     // Authorization scheme constants, used internally by AccessTokenValidation client and service
     public static final String AUTHORIZATION_SCHEME_TYPE = "authScheme";
@@ -129,7 +146,12 @@ public final class OAuthConstants {
     // Default refresh token scope value - checked by CXF utility code
     public static final String REFRESH_TOKEN_SCOPE = "refreshToken";
     
-    
+    // Client Secret (JWS) Signature Algorithm
+    public static final String CLIENT_SECRET_SIGNATURE_ALGORITHM = "client.secret.signature.algorithm";
+    // Client Secret (JWE) Content Encryption Algorithm
+    public static final String CLIENT_SECRET_CONTENT_ENCRYPTION_ALGORITHM = 
+        "client.secret.content.encryption.algorithm";
+
     private OAuthConstants() {
     }
     

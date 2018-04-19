@@ -24,7 +24,6 @@ import java.util.Properties;
 
 import org.w3c.dom.Element;
 
-import org.apache.cxf.jaxws.context.WebServiceContextImpl;
 import org.apache.cxf.jaxws.context.WrappedMessageContext;
 import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.sts.STSConstants;
@@ -33,7 +32,7 @@ import org.apache.cxf.sts.common.PasswordCallbackHandler;
 import org.apache.cxf.sts.request.KeyRequirements;
 import org.apache.cxf.sts.request.TokenRequirements;
 import org.apache.cxf.sts.service.EncryptionProperties;
-import org.apache.cxf.sts.token.realm.SAMLRealm;
+import org.apache.cxf.sts.token.realm.RealmProperties;
 import org.apache.wss4j.common.crypto.Crypto;
 import org.apache.wss4j.common.crypto.CryptoFactory;
 import org.apache.wss4j.common.ext.WSSecurityException;
@@ -57,11 +56,11 @@ public class SAMLProviderRealmTest extends org.junit.Assert {
         providerParameters.setRealm("A");
         
         // Create Realms
-        Map<String, SAMLRealm> samlRealms = new HashMap<String, SAMLRealm>();
-        SAMLRealm samlRealm = new SAMLRealm();
+        Map<String, RealmProperties> samlRealms = new HashMap<String, RealmProperties>();
+        RealmProperties samlRealm = new RealmProperties();
         samlRealm.setIssuer("A-Issuer");
         samlRealms.put("A", samlRealm);
-        samlRealm = new SAMLRealm();
+        samlRealm = new RealmProperties();
         samlRealm.setIssuer("B-Issuer");
         samlRealms.put("B", samlRealm);
         ((SAMLTokenProvider)samlTokenProvider).setRealmMap(samlRealms);
@@ -72,7 +71,7 @@ public class SAMLProviderRealmTest extends org.junit.Assert {
         assertTrue(providerResponse != null);
         assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
         
-        Element token = providerResponse.getToken();
+        Element token = (Element)providerResponse.getToken();
         String tokenString = DOM2Writer.nodeToString(token);
         assertTrue(tokenString.contains(providerResponse.getTokenId()));
         assertTrue(tokenString.contains("A-Issuer"));
@@ -86,7 +85,7 @@ public class SAMLProviderRealmTest extends org.junit.Assert {
         assertTrue(providerResponse != null);
         assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
         
-        token = providerResponse.getToken();
+        token = (Element)providerResponse.getToken();
         tokenString = DOM2Writer.nodeToString(token);
         assertTrue(tokenString.contains(providerResponse.getTokenId()));
         assertFalse(tokenString.contains("A-Issuer"));
@@ -100,7 +99,68 @@ public class SAMLProviderRealmTest extends org.junit.Assert {
         assertTrue(providerResponse != null);
         assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
         
-        token = providerResponse.getToken();
+        token = (Element)providerResponse.getToken();
+        tokenString = DOM2Writer.nodeToString(token);
+        assertTrue(tokenString.contains(providerResponse.getTokenId()));
+        assertFalse(tokenString.contains("A-Issuer"));
+        assertFalse(tokenString.contains("B-Issuer"));
+        assertTrue(tokenString.contains("STS"));
+    }
+    
+    @SuppressWarnings("deprecation")
+    @org.junit.Test
+    public void testRealmsUsingOldRealmClass() throws Exception {
+        TokenProvider samlTokenProvider = new SAMLTokenProvider();
+        TokenProviderParameters providerParameters = 
+            createProviderParameters(WSConstants.WSS_SAML_TOKEN_TYPE, STSConstants.BEARER_KEY_KEYTYPE);
+        providerParameters.setRealm("A");
+        
+        // Create Realms
+        Map<String, org.apache.cxf.sts.token.realm.SAMLRealm> samlRealms = 
+            new HashMap<String, org.apache.cxf.sts.token.realm.SAMLRealm>();
+        org.apache.cxf.sts.token.realm.SAMLRealm samlRealm = new org.apache.cxf.sts.token.realm.SAMLRealm();
+        samlRealm.setIssuer("A-Issuer");
+        samlRealms.put("A", samlRealm);
+        samlRealm = new org.apache.cxf.sts.token.realm.SAMLRealm();
+        samlRealm.setIssuer("B-Issuer");
+        samlRealms.put("B", samlRealm);
+        ((SAMLTokenProvider)samlTokenProvider).setRealmMap(samlRealms);
+        
+        // Realm "A"
+        assertTrue(samlTokenProvider.canHandleToken(WSConstants.WSS_SAML_TOKEN_TYPE, "A"));
+        TokenProviderResponse providerResponse = samlTokenProvider.createToken(providerParameters);
+        assertTrue(providerResponse != null);
+        assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
+        
+        Element token = (Element)providerResponse.getToken();
+        String tokenString = DOM2Writer.nodeToString(token);
+        assertTrue(tokenString.contains(providerResponse.getTokenId()));
+        assertTrue(tokenString.contains("A-Issuer"));
+        assertFalse(tokenString.contains("B-Issuer"));
+        assertFalse(tokenString.contains("STS"));
+        
+        // Realm "B"
+        providerParameters.setRealm("B");
+        assertTrue(samlTokenProvider.canHandleToken(WSConstants.WSS_SAML_TOKEN_TYPE, "B"));
+        providerResponse = samlTokenProvider.createToken(providerParameters);
+        assertTrue(providerResponse != null);
+        assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
+        
+        token = (Element)providerResponse.getToken();
+        tokenString = DOM2Writer.nodeToString(token);
+        assertTrue(tokenString.contains(providerResponse.getTokenId()));
+        assertFalse(tokenString.contains("A-Issuer"));
+        assertTrue(tokenString.contains("B-Issuer"));
+        assertFalse(tokenString.contains("STS"));
+        
+        // Default Realm
+        providerParameters.setRealm(null);
+        assertTrue(samlTokenProvider.canHandleToken(WSConstants.WSS_SAML_TOKEN_TYPE, null));
+        providerResponse = samlTokenProvider.createToken(providerParameters);
+        assertTrue(providerResponse != null);
+        assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
+        
+        token = (Element)providerResponse.getToken();
         tokenString = DOM2Writer.nodeToString(token);
         assertTrue(tokenString.contains(providerResponse.getTokenId()));
         assertFalse(tokenString.contains("A-Issuer"));
@@ -125,8 +185,7 @@ public class SAMLProviderRealmTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
-        parameters.setWebServiceContext(webServiceContext);
+        parameters.setMessageContext(msgCtx);
 
         parameters.setAppliesToAddress("http://dummy-service.com/dummy");
 
@@ -152,7 +211,7 @@ public class SAMLProviderRealmTest extends org.junit.Assert {
             "org.apache.wss4j.crypto.provider", "org.apache.wss4j.common.crypto.Merlin"
         );
         properties.put("org.apache.wss4j.crypto.merlin.keystore.password", "stsspass");
-        properties.put("org.apache.wss4j.crypto.merlin.keystore.file", "stsstore.jks");
+        properties.put("org.apache.wss4j.crypto.merlin.keystore.file", "keys/stsstore.jks");
         
         return properties;
     }

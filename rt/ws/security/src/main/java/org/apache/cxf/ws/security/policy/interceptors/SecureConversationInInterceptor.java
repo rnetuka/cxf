@@ -58,11 +58,12 @@ import org.apache.cxf.ws.security.trust.STSUtils;
 import org.apache.cxf.ws.security.wss4j.PolicyBasedWSS4JInInterceptor;
 import org.apache.cxf.ws.security.wss4j.WSS4JInInterceptor;
 import org.apache.cxf.ws.security.wss4j.WSS4JStaxInInterceptor;
+import org.apache.cxf.ws.security.wss4j.WSS4JUtils;
 import org.apache.neethi.All;
 import org.apache.neethi.Assertion;
 import org.apache.neethi.ExactlyOne;
 import org.apache.neethi.Policy;
-import org.apache.wss4j.dom.WSSConfig;
+import org.apache.wss4j.dom.engine.WSSConfig;
 import org.apache.wss4j.dom.message.token.SecurityContextToken;
 import org.apache.wss4j.policy.SP12Constants;
 import org.apache.wss4j.policy.SPConstants;
@@ -79,7 +80,7 @@ import org.apache.xml.security.utils.Base64;
 
 class SecureConversationInInterceptor extends AbstractPhaseInterceptor<SoapMessage> {
     
-    public SecureConversationInInterceptor() {
+    SecureConversationInInterceptor() {
         super(Phase.PRE_STREAM);
         addBefore(WSS4JStaxInInterceptor.class.getName());
         addBefore(HttpsTokenInInterceptor.class.getName());
@@ -330,7 +331,7 @@ class SecureConversationInInterceptor extends AbstractPhaseInterceptor<SoapMessa
 
             byte clientEntropy[] = null;
             int keySize = 256;
-            long ttl = 300000L;
+            long ttl = WSS4JUtils.getSecurityTokenLifetime(exchange.getOutMessage());
             String tokenType = null;
             Element el = DOMUtils.getFirstElement(requestEl);
             while (el != null) {
@@ -481,7 +482,7 @@ class SecureConversationInInterceptor extends AbstractPhaseInterceptor<SoapMessa
     static class SecureConversationCancelInterceptor extends AbstractPhaseInterceptor<SoapMessage> {
         static final SecureConversationCancelInterceptor INSTANCE = new SecureConversationCancelInterceptor();
         
-        public SecureConversationCancelInterceptor() {
+        SecureConversationCancelInterceptor() {
             super(Phase.POST_LOGICAL);
         }
         

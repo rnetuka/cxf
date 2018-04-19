@@ -189,15 +189,19 @@ public class CorbaConduit implements Conduit {
         if (request == null) {
             throw new CorbaBindingException("Couldn't build the corba request");
         }
+        Exception ex = null;
         try {
             request.invoke();
-        } catch (SystemException ex) {
-            message.setContent(Exception.class, new Fault(ex));
-            message.setSystemException(ex);
-            return;
+            ex = request.env().exception();
+        } catch (SystemException sysex) {
+            ex = sysex;
         }
-        Exception ex = request.env().exception();
         if (ex != null) {
+            if (ex instanceof SystemException) {
+                message.setContent(Exception.class, new Fault(ex));
+                message.setSystemException((SystemException) ex);
+                return;
+            }
             if (ex instanceof UnknownUserException) {
                 UnknownUserException userEx = (UnknownUserException) ex;
                 Any except = userEx.except;

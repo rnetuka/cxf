@@ -20,12 +20,14 @@
 package org.apache.cxf.configuration.jsse;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
@@ -95,9 +97,9 @@ public final class SSLUtils {
         throws Exception {
         //TODO for performance reasons we should cache
         // the KeymanagerFactory and TrustManagerFactory 
-        if ((keyStorePassword != null)
-            && (keyPassword != null) 
-            && (!keyStorePassword.equals(keyPassword))) {
+        if (keyStorePassword != null
+            && keyPassword != null 
+            && !keyStorePassword.equals(keyPassword)) {
             LogUtils.log(log,
                          Level.WARNING,
                          "KEY_PASSWORD_NOT_SAME_KEYSTORE_PASSWORD");
@@ -108,36 +110,34 @@ public final class SSLUtils {
         KeyStore ks = KeyStore.getInstance(keyStoreType);
         
         if (keyStoreType.equalsIgnoreCase(PKCS12_TYPE)) {
-            byte[] bytes = null;
-            try (FileInputStream fis = new FileInputStream(keyStoreLocation);
-                DataInputStream dis = new DataInputStream(fis)) {
-                bytes = new byte[dis.available()];
-                dis.readFully(bytes);
-            }
-            ByteArrayInputStream bin = new ByteArrayInputStream(bytes);
+            Path path = FileSystems.getDefault().getPath(keyStoreLocation);
+            byte[] bytes = Files.readAllBytes(path);
+            try (ByteArrayInputStream bin = new ByteArrayInputStream(bytes)) {
             
-            if (keyStorePassword != null) {
-                keystoreManagers = loadKeyStore(kmf,
-                                                ks,
-                                                bin,
-                                                keyStoreLocation,
-                                                keyStorePassword,
-                                                log);
+                if (keyStorePassword != null) {
+                    keystoreManagers = loadKeyStore(kmf,
+                                                    ks,
+                                                    bin,
+                                                    keyStoreLocation,
+                                                    keyStorePassword,
+                                                    log);
+                }
             }
         } else {        
-            byte[] sslCert = loadClientCredential(keyStoreLocation);
+            byte[] sslCert = loadFile(keyStoreLocation);
             
             if (sslCert != null && sslCert.length > 0 && keyStorePassword != null) {
-                ByteArrayInputStream bin = new ByteArrayInputStream(sslCert);
-                keystoreManagers = loadKeyStore(kmf,
+                try (ByteArrayInputStream bin = new ByteArrayInputStream(sslCert)) {
+                    keystoreManagers = loadKeyStore(kmf,
                                                 ks,
                                                 bin,
                                                 keyStoreLocation,
                                                 keyStorePassword,
                                                 log);
+                }
             }  
         }
-        if ((keyStorePassword == null) && (keyStoreLocation != null)) {
+        if (keyStorePassword == null && keyStoreLocation != null) {
             LogUtils.log(log, Level.WARNING,
                          "FAILED_TO_LOAD_KEYSTORE_NULL_PASSWORD", 
                          keyStoreLocation);
@@ -154,6 +154,7 @@ public final class SSLUtils {
         }
         return defaultManagers;
     }
+    
     private static synchronized void loadDefaultKeyManagers(Logger log) {
         if (defaultManagers != null) {
             return;
@@ -162,17 +163,17 @@ public final class SSLUtils {
         String location = getKeystore(null, log);
         String keyStorePassword = getKeystorePassword(null, log);
         String keyPassword = getKeyPassword(null, log);
-        FileInputStream fis = null;
-        
+        InputStream is = null;
+
         try {
             File file = new File(location);
             if (file.exists()) {
                 KeyManagerFactory kmf = 
                     KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());  
                 KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
-                
-                fis = new FileInputStream(file);
-                ks.load(fis, (keyStorePassword != null) ? keyStorePassword.toCharArray() : null);
+
+                is = Files.newInputStream(file.toPath());
+                ks.load(is, (keyStorePassword != null) ? keyStorePassword.toCharArray() : null);
                 kmf.init(ks, (keyPassword != null) ? keyPassword.toCharArray() : null);
                 defaultManagers = kmf.getKeyManagers();
             } else {
@@ -183,9 +184,9 @@ public final class SSLUtils {
             log.log(Level.WARNING, "Default key managers cannot be initialized: " + e.getMessage(), e);
             defaultManagers = new KeyManager[0];
         } finally {
-            if (fis != null) {
+            if (is != null) {
                 try {
-                    fis.close();
+                    is.close();
                 } catch (IOException e) {
                     log.warning("Keystore stream cannot be closed: " + e.getMessage());
                 }
@@ -233,20 +234,20 @@ public final class SSLUtils {
             
             trustedCertStore.load(null, "".toCharArray());
             CertificateFactory cf = CertificateFactory.getInstance(CERTIFICATE_FACTORY_TYPE);
-            byte[] caCert = loadCACert(trustStoreLocation);
+            byte[] caCert = loadFile(trustStoreLocation);
             try {
                 if (caCert != null) {
-                    ByteArrayInputStream cabin = new ByteArrayInputStream(caCert);
-                    X509Certificate cert = (X509Certificate)cf.generateCertificate(cabin);
-                    trustedCertStore.setCertificateEntry(cert.getIssuerDN().toString(), cert);
-                    cabin.close();
+                    try (ByteArrayInputStream cabin = new ByteArrayInputStream(caCert)) {
+                        X509Certificate cert = (X509Certificate)cf.generateCertificate(cabin);
+                        trustedCertStore.setCertificateEntry(cert.getIssuerDN().toString(), cert);
+                    }
                 }
             } catch (Exception e) {
                 LogUtils.log(log, Level.WARNING, "FAILED_TO_LOAD_TRUST_STORE", 
                              new Object[]{trustStoreLocation, e.getMessage()});
             } 
         } else {
-            try (FileInputStream trustStoreInputStream = new FileInputStream(trustStoreLocation)) {
+            try (InputStream trustStoreInputStream = Files.newInputStream(Paths.get(trustStoreLocation))) {
                 trustedCertStore.load(trustStoreInputStream, null);
             }
         }
@@ -258,37 +259,12 @@ public final class SSLUtils {
         return tmf.getTrustManagers();
     }
     
-    protected static byte[] loadClientCredential(String fileName) throws IOException {
+    protected static byte[] loadFile(String fileName) throws IOException {
         if (fileName == null) {
             return null;
         }
-        try (FileInputStream in = new FileInputStream(fileName);
-            ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            byte[] buf = new byte[512];
-            int i = in.read(buf);
-            while (i  > 0) {
-                out.write(buf, 0, i);
-                i = in.read(buf);
-            }
-            return out.toByteArray();
-        }
-    }
-
-    protected static byte[] loadCACert(String fileName) throws IOException {
-        if (fileName == null) {
-            return null;
-        }
-        try (FileInputStream in = new FileInputStream(fileName);
-            ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            byte[] buf = new byte[512];
-            int i = in.read(buf);
-        
-            while (i > 0) {
-                out.write(buf, 0, i);
-                i = in.read(buf);
-            }
-            return out.toByteArray();
-        }
+        Path path = FileSystems.getDefault().getPath(fileName);
+        return Files.readAllBytes(path);
     }
 
     public static String getKeystore(String keyStoreLocation, Logger log) {
@@ -312,6 +288,7 @@ public final class SSLUtils {
     public static String getKeystoreType(String keyStoreType, Logger log) {
         return getKeystoreType(keyStoreType, log, DEFAULT_KEYSTORE_TYPE);
     }
+    
     public static String getKeystoreType(String keyStoreType, Logger log, String def) {
         String logMsg = null;
         if (keyStoreType != null) {
@@ -327,7 +304,8 @@ public final class SSLUtils {
         }
         LogUtils.log(log, Level.FINE, logMsg, keyStoreType);
         return keyStoreType;
-    }  
+    }
+    
     public static String getKeystoreProvider(String keyStoreProvider, Logger log) {
         String logMsg = null;
         if (keyStoreProvider != null) {
@@ -582,14 +560,18 @@ public final class SSLUtils {
     }
     
     public static String getTrustStoreType(String trustStoreType, Logger log) {
+        return getTrustStoreType(trustStoreType, log, DEFAULT_TRUST_STORE_TYPE);
+    }
+
+    public static String getTrustStoreType(String trustStoreType, Logger log, String def) {
         String logMsg = null;
         if (trustStoreType != null) {
             logMsg = "TRUST_STORE_TYPE_SET";
         } else {
             //Can default to JKS
             trustStoreType = SystemPropertyAction.getProperty("javax.net.ssl.trustStoreType");
-            if (trustStoreType == null) {    
-                trustStoreType = DEFAULT_TRUST_STORE_TYPE;
+            if (trustStoreType == null) {
+                trustStoreType = def;
                 logMsg = "TRUST_STORE_TYPE_NOT_SET";
             } else {
                 logMsg = "TRUST_STORE_TYPE_SYSTEM_SET";
@@ -598,7 +580,39 @@ public final class SSLUtils {
         LogUtils.log(log, Level.FINE, logMsg, trustStoreType);
         return trustStoreType;
     }
-    
+
+    public static String getTruststorePassword(String trustStorePassword,
+                                             Logger log) {
+        String logMsg = null;
+        if (trustStorePassword != null) {
+            logMsg = "TRUST_STORE_PASSWORD_SET";
+        } else {
+            trustStorePassword =
+                SystemPropertyAction.getProperty("javax.net.ssl.trustStorePassword");
+            logMsg = trustStorePassword != null
+                     ? "TRUST_STORE_PASSWORD_SYSTEM_PROPERTY_SET"
+                     : "TRUST_STORE_PASSWORD_NOT_SET";
+        }
+        LogUtils.log(log, Level.FINE, logMsg);
+        return trustStorePassword;
+    }
+
+    public static String getTruststoreProvider(String trustStoreProvider, Logger log) {
+        String logMsg = null;
+        if (trustStoreProvider != null) {
+            logMsg = "TRUST_STORE_PROVIDER_SET";
+        } else {
+            trustStoreProvider = SystemPropertyAction.getProperty("javax.net.ssl.trustStoreProvider", null);
+            if (trustStoreProvider == null) {
+                logMsg = "TRUST_STORE_PROVIDER_NOT_SET";
+            } else {
+                logMsg = "TRUST_STORE_PROVIDER_SYSTEM_SET";
+            }
+        }
+        LogUtils.log(log, Level.FINE, logMsg, trustStoreProvider);
+        return trustStoreProvider;
+    }
+
     public static String getSecureSocketProtocol(String secureSocketProtocol,
                                                  Logger log) {
         if (secureSocketProtocol != null) {

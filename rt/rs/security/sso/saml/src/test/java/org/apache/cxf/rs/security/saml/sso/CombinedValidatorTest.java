@@ -44,7 +44,7 @@ import org.apache.wss4j.common.saml.bean.SubjectConfirmationDataBean;
 import org.apache.wss4j.common.saml.builder.SAML2Constants;
 import org.apache.wss4j.common.util.Loader;
 import org.apache.wss4j.dom.WSConstants;
-import org.apache.wss4j.dom.WSSConfig;
+import org.apache.wss4j.dom.engine.WSSConfig;
 import org.joda.time.DateTime;
 import org.opensaml.saml.common.SignableSAMLObject;
 import org.opensaml.saml.common.xml.SAMLConstants;
@@ -168,6 +168,7 @@ public class CombinedValidatorTest extends org.junit.Assert {
         
         // Test SSO validation
         SAMLSSOResponseValidator ssoValidator = new SAMLSSOResponseValidator();
+        ssoValidator.setEnforceAssertionsSigned(false);
         ssoValidator.setIssuerIDP("http://cxf.apache.org/issuer");
         ssoValidator.setAssertionConsumerURL("http://recipient.apache.org");
         ssoValidator.setClientAddress("http://apache.org");

@@ -95,7 +95,8 @@ public class ClientImpl
     protected PhaseChainCache inboundChainCache = new PhaseChainCache();
 
     protected Map<String, Object> currentRequestContext = new ConcurrentHashMap<String, Object>(8, 0.75f, 4);
-    protected Map<Thread, EchoContext> requestContext 
+    protected Thread latestContextThread;
+    protected Map<Thread, EchoContext> requestContext
         = Collections.synchronizedMap(new WeakHashMap<Thread, EchoContext>());
 
     protected Map<Thread, Map<String, Object>> responseContext 
@@ -242,8 +243,11 @@ public class ClientImpl
     public Map<String, Object> getRequestContext() {
         if (isThreadLocalRequestContext()) {
             if (!requestContext.containsKey(Thread.currentThread())) {
-                requestContext.put(Thread.currentThread(), new EchoContext(currentRequestContext));
+                Map<String, Object> freshRequestContext = new ConcurrentHashMap<String, Object>(8, 0.75f, 4);
+                freshRequestContext.putAll(currentRequestContext);
+                requestContext.put(Thread.currentThread(), new EchoContext(freshRequestContext));
             }
+            latestContextThread = Thread.currentThread();
             return requestContext.get(Thread.currentThread());
         }
         return currentRequestContext;
@@ -737,7 +741,7 @@ public class ClientImpl
         if (endpoint.getService().getDataBinding() instanceof InterceptorProvider) {
             InterceptorProvider p = (InterceptorProvider)endpoint.getService().getDataBinding();
             if (LOG.isLoggable(Level.FINE)) {
-                LOG.fine("Interceptors contributed by databinging: " + p.getInInterceptors());
+                LOG.fine("Interceptors contributed by databinding: " + p.getInInterceptors());
             }
             chain = inboundChainCache.get(pm.getInPhases(), i1, i2, i3, i4,
                                           p.getInInterceptors());
@@ -791,8 +795,11 @@ public class ClientImpl
                         if (resCtx != null) {
                             responseContext.put(Thread.currentThread(), resCtx);
                         }
-                        callback.handleException(resCtx, error);
-
+                        // remove callback so that it won't be invoked twice
+                        callback = message.getExchange().remove(ClientCallback.class);
+                        if (callback != null) {
+                            callback.handleException(resCtx, error);
+                        }
                     }
                 } else {
                     chain.doIntercept(message);
@@ -801,8 +808,13 @@ public class ClientImpl
             }
 
             callback = message.getExchange().get(ClientCallback.class);
+            if (callback == null || isPartialResponse(message)) {
+                return;
+            }
 
-            if (callback != null && !isPartialResponse(message)) {
+            // remove callback so that it won't be invoked twice
+            callback = message.getExchange().remove(ClientCallback.class);
+            if (callback != null) {
                 message.getExchange().setInMessage(message);
                 Map<String, Object> resCtx = CastUtils.cast((Map<?, ?>)message
                                                                 .getExchange()
@@ -1016,32 +1028,27 @@ public class ClientImpl
     /*
      * modification are echoed back to the shared map
      */
-    public static class EchoContext extends HashMap<String, Object> {
+    public class EchoContext extends HashMap<String, Object> {
         private static final long serialVersionUID = 5199023273052841289L;
-        final Map<String, Object> shared;
         public EchoContext(Map<String, Object> sharedMap) {
             super(sharedMap);
-            shared = sharedMap;
         }
 
         public Object put(String key, Object value) {
-            shared.put(key, value);
             return super.put(key, value);
         }
 
         public void putAll(Map<? extends String, ? extends Object> t) {
-            shared.putAll(t);
             super.putAll(t);
         }
 
         public Object remove(Object key) {
-            shared.remove(key);
             return super.remove(key);
         }
 
         public void reload() {
             super.clear();
-            super.putAll(shared);
+            super.putAll(requestContext.get(latestContextThread));
         }
     }
 

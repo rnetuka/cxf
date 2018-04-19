@@ -19,7 +19,9 @@
 package org.apache.cxf.rs.security.oauth2.grants.code;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.cxf.rs.security.oauth2.common.Client;
 import org.apache.cxf.rs.security.oauth2.common.UserSubject;
@@ -35,8 +37,11 @@ public class AuthorizationCodeRegistration {
     private String redirectUri;
     private UserSubject subject;
     private String audience;
+    private String nonce;
+    private String responseType;
     private String clientCodeChallenge;
-    
+    private boolean preauthorizedTokenAvailable;
+    private Map<String, String> extraProperties = new LinkedHashMap<String, String>();
     /**
      * Sets the {@link Client} reference
      * @param client the client
@@ -125,5 +130,29 @@ public class AuthorizationCodeRegistration {
     }
     public void setClientCodeChallenge(String clientCodeChallenge) {
         this.clientCodeChallenge = clientCodeChallenge;
+    }
+    public String getNonce() {
+        return nonce;
+    }
+    public void setNonce(String nonce) {
+        this.nonce = nonce;
+    }
+    public boolean isPreauthorizedTokenAvailable() {
+        return preauthorizedTokenAvailable;
+    }
+    public void setPreauthorizedTokenAvailable(boolean preauthorizedTokenAvailable) {
+        this.preauthorizedTokenAvailable = preauthorizedTokenAvailable;
+    }
+    public Map<String, String> getExtraProperties() {
+        return extraProperties;
+    }
+    public void setExtraProperties(Map<String, String> extraProperties) {
+        this.extraProperties = extraProperties;
+    }
+    public String getResponseType() {
+        return responseType;
+    }
+    public void setResponseType(String responseType) {
+        this.responseType = responseType;
     }
 }

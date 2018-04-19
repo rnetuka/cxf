@@ -19,13 +19,18 @@
 
 package org.apache.cxf.systest.jaxrs;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.ws.rs.BadRequestException;
 import javax.ws.rs.client.ClientRequestContext;
 import javax.ws.rs.client.ClientResponseContext;
 import javax.ws.rs.client.ClientResponseFilter;
@@ -34,8 +39,15 @@ import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.container.ContainerResponseContext;
 import javax.ws.rs.container.ContainerResponseFilter;
 import javax.ws.rs.container.PreMatching;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.ExceptionMapper;
+import javax.ws.rs.ext.MessageBodyReader;
+import javax.ws.rs.ext.MessageBodyWriter;
+import javax.ws.rs.ext.ParamConverter;
+import javax.ws.rs.ext.ParamConverterProvider;
+import javax.ws.rs.ext.Providers;
 
 import org.apache.cxf.Bus;
 import org.apache.cxf.BusFactory;
@@ -44,12 +56,14 @@ import org.apache.cxf.helpers.CastUtils;
 import org.apache.cxf.interceptor.Fault;
 import org.apache.cxf.interceptor.Interceptor;
 import org.apache.cxf.interceptor.LoggingInInterceptor;
+import org.apache.cxf.interceptor.LoggingOutInterceptor;
 import org.apache.cxf.jaxrs.JAXRSServerFactoryBean;
 import org.apache.cxf.jaxrs.client.ResponseExceptionMapper;
 import org.apache.cxf.jaxrs.ext.search.QueryContextProvider;
 import org.apache.cxf.jaxrs.ext.search.SearchBean;
 import org.apache.cxf.jaxrs.ext.search.SearchContextProvider;
 import org.apache.cxf.jaxrs.ext.search.sql.SQLPrinterVisitor;
+import org.apache.cxf.jaxrs.impl.MetadataMap;
 import org.apache.cxf.jaxrs.lifecycle.SingletonResourceProvider;
 import org.apache.cxf.jaxrs.provider.BinaryDataProvider;
 import org.apache.cxf.jaxrs.provider.JAXBElementProvider;
@@ -111,14 +125,15 @@ public class BookServer extends AbstractBusTestServerBase {
         providers.add(new BlockingRequestFilter());
         providers.add(new FaultyResponseFilter());
         providers.add(new BlockedExceptionMapper());
+        providers.add(new ParamConverterImpl());
         sf.setProviders(providers);
         List<Interceptor<? extends Message>> inInts = new ArrayList<Interceptor<? extends Message>>();
         inInts.add(new CustomInFaultyInterceptor());
         inInts.add(new LoggingInInterceptor());
-        
         sf.setInInterceptors(inInts);
         List<Interceptor<? extends Message>> outInts = new ArrayList<Interceptor<? extends Message>>();
         outInts.add(new CustomOutInterceptor());
+        outInts.add(new LoggingOutInterceptor());
         sf.setOutInterceptors(outInts);
         List<Interceptor<? extends Message>> outFaultInts = new ArrayList<Interceptor<? extends Message>>();
         outFaultInts.add(new CustomOutFaultInterceptor());
@@ -255,5 +270,77 @@ public class BookServer extends AbstractBusTestServerBase {
             
         }
         
+    }
+    public static class ParamConverterImpl implements ParamConverterProvider {
+
+        @Context
+        private Providers providers;
+        @SuppressWarnings("unchecked")
+        @Override
+        public <T> ParamConverter<T> getConverter(Class<T> rawType, Type genericType,
+                                                  Annotation[] annotations) {
+            if (rawType == Book.class) {
+                
+                MessageBodyReader<Book> mbr = providers.getMessageBodyReader(Book.class, 
+                                                                             Book.class, 
+                                                                             annotations, 
+                                                                             MediaType.APPLICATION_XML_TYPE);
+                MessageBodyWriter<Book> mbw = providers.getMessageBodyWriter(Book.class, 
+                                                                             Book.class, 
+                                                                             annotations, 
+                                                                             MediaType.APPLICATION_XML_TYPE);
+                return (ParamConverter<T>)new XmlParamConverter(mbr, mbw);
+            } else if (rawType == byte.class) {
+                return (ParamConverter<T>)new ByteConverter();
+            } else {
+                return null;
+            }
+            
+        }
+        private static class ByteConverter implements ParamConverter<Byte> {
+            @Override
+            public Byte fromString(String t) {
+                return new Byte(t); 
+            }
+
+            @Override
+            public String toString(Byte b) {
+                return b.toString();
+            }
+        }
+        private static class XmlParamConverter implements ParamConverter<Book> {
+            private MessageBodyReader<Book> mbr;
+            private MessageBodyWriter<Book> mbw;
+            XmlParamConverter(MessageBodyReader<Book> mbr, MessageBodyWriter<Book> mbw) {  
+                this.mbr = mbr;
+                this.mbw = mbw;
+            }
+            @Override
+            public Book fromString(String value) {
+                try {
+                    return mbr.readFrom(Book.class, Book.class, 
+                                        new Annotation[]{}, 
+                                        MediaType.APPLICATION_XML_TYPE, 
+                                        new MetadataMap<String, String>(), 
+                                        new ByteArrayInputStream(value.getBytes()));
+                } catch (IOException ex) {
+                    throw new BadRequestException(ex);
+                }
+            }
+            @Override
+            public String toString(Book value) {
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                try {
+                    mbw.writeTo(value, Book.class, Book.class, 
+                                new Annotation[]{}, 
+                                MediaType.APPLICATION_XML_TYPE, 
+                                new MetadataMap<String, Object>(),
+                                bos);
+                } catch (IOException ex) {
+                    throw new BadRequestException(ex);
+                }
+                return bos.toString();
+            }
+        }
     }
 }

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.Iterator;
@@ -31,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.HttpMethod;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Form;
 import javax.ws.rs.core.MediaType;
@@ -49,6 +52,7 @@ import org.apache.cxf.jaxrs.provider.FormEncodingProvider;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.message.MessageUtils;
 import org.apache.cxf.phase.PhaseInterceptorChain;
+import org.apache.cxf.transport.http.AbstractHTTPDestination;
 
 public final class FormUtils {
     public static final String FORM_PARAMS_FROM_HTTP_PARAMS = "set.form.parameters.from.http.parameters";
@@ -63,10 +67,9 @@ public final class FormUtils {
     }
     
     public static String formToString(Form form) {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        try {
-            FormUtils.writeMapToOutputStream(form.asMap(), bos, "UTF-8", false);
-            return bos.toString("UTF-8");
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            FormUtils.writeMapToOutputStream(form.asMap(), bos, StandardCharsets.UTF_8.name(), false);
+            return bos.toString(StandardCharsets.UTF_8.name());
         } catch (Exception ex) {
             // will not happen
         }
@@ -126,6 +129,9 @@ public final class FormUtils {
                                              String postBody, 
                                              String enc,
                                              boolean decode) {
+        if (StringUtils.isEmpty(postBody)) {
+            return;
+        }
         List<String> parts = Arrays.asList(StringUtils.split(postBody, "&"));
         checkNumberOfParts(m, parts.size());
         for (String part : parts) {
@@ -145,6 +151,16 @@ public final class FormUtils {
                 params.add(name, keyValue[1]);
             }
         }
+        
+    }
+
+    public static void populateMapFromStringOrHttpRequest(MultivaluedMap<String, String> params,
+                                             Message m,
+                                             String postBody,
+                                             String enc,
+                                             boolean decode) {
+        HttpServletRequest request = (HttpServletRequest)m.get(AbstractHTTPDestination.HTTP_REQUEST);
+        populateMapFromString(params, m, postBody, enc, decode, request);
         
     }
     
@@ -190,15 +206,26 @@ public final class FormUtils {
                                               boolean encoded) throws IOException {
         for (Iterator<Map.Entry<String, List<String>>> it = map.entrySet().iterator(); it.hasNext();) {
             Map.Entry<String, List<String>> entry = it.next();
+            
+            String key = entry.getKey();
+            if (!encoded) {
+                key = HttpUtils.urlEncode(key, enc);
+            }
             for (Iterator<String> entryIterator = entry.getValue().iterator(); entryIterator.hasNext();) {
-                String value = entryIterator.next();
-                os.write(entry.getKey().getBytes(enc));
+                os.write(key.getBytes(enc));
                 os.write('=');
-                String data = encoded ? value : HttpUtils.urlEncode(value, enc);
-                os.write(data.getBytes(enc));
-                if (entryIterator.hasNext() || it.hasNext()) {
+                
+                String value = entryIterator.next();
+                if (!encoded) {
+                    value = HttpUtils.urlEncode(value, enc);
+                }
+                os.write(value.getBytes(enc));
+                if (entryIterator.hasNext()) {
                     os.write('&');
                 }
+            }
+            if (it.hasNext()) {
+                os.write('&');
             }
 
         }
@@ -249,12 +276,17 @@ public final class FormUtils {
             return;
         }
         try {
-            int maxPartsCount = Integer.valueOf(maxPartsCountProp);
+            int maxPartsCount = Integer.parseInt(maxPartsCountProp);
             if (maxPartsCount != -1 && numberOfParts >= maxPartsCount) {
                 throw new WebApplicationException(413);
             }
         } catch (NumberFormatException ex) {
             throw ExceptionUtils.toInternalServerErrorException(ex, null);
         }
+    }
+
+    public static boolean isFormPostRequest(Message m) {
+        return MediaType.APPLICATION_FORM_URLENCODED.equals(m.get(Message.CONTENT_TYPE))
+            && HttpMethod.POST.equals(m.get(Message.HTTP_REQUEST_METHOD));
     }
 }

@@ -22,6 +22,7 @@ package org.apache.cxf.rs.security.saml;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -59,7 +60,7 @@ import org.apache.wss4j.common.saml.SAMLKeyInfo;
 import org.apache.wss4j.common.saml.SAMLUtil;
 import org.apache.wss4j.common.saml.SamlAssertionWrapper;
 import org.apache.wss4j.dom.WSDocInfo;
-import org.apache.wss4j.dom.WSSConfig;
+import org.apache.wss4j.dom.engine.WSSConfig;
 import org.apache.wss4j.dom.handler.RequestData;
 import org.apache.wss4j.dom.saml.WSSSAMLKeyInfoProcessor;
 import org.apache.wss4j.dom.validate.Credential;
@@ -101,7 +102,7 @@ public abstract class AbstractSamlInHandler implements ContainerRequestFilter {
     protected Element readToken(Message message, InputStream tokenStream) {
         
         try {
-            Document doc = StaxUtils.read(new InputStreamReader(tokenStream, "UTF-8"));
+            Document doc = StaxUtils.read(new InputStreamReader(tokenStream, StandardCharsets.UTF_8));
             return doc.getDocumentElement();
         } catch (Exception ex) {
             throwFault("Assertion can not be read as XML document", ex);
@@ -126,6 +127,7 @@ public abstract class AbstractSamlInHandler implements ContainerRequestFilter {
     protected void validateToken(Message message, SamlAssertionWrapper assertion) {
         try {
             RequestData data = new RequestData();
+            data.setMsgContext(message);
             
             // Add Audience Restrictions for SAML
             configureAudienceRestriction(message, data);
@@ -259,7 +261,11 @@ public abstract class AbstractSamlInHandler implements ContainerRequestFilter {
     protected void throwFault(String error, Exception ex) {
         // TODO: get bundle resource message once this filter is moved 
         // to rt/rs/security
-        LOG.warning(error + ": " + ExceptionUtils.getStackTrace(ex));
+        String errorMsg = error;
+        if (ex != null) {
+            errorMsg += ": " + ExceptionUtils.getStackTrace(ex);
+        }
+        LOG.warning(errorMsg);
         Response response = JAXRSUtils.toResponseBuilder(401).entity(error).build();
         throw ExceptionUtils.toNotAuthorizedException(null, response);
     }

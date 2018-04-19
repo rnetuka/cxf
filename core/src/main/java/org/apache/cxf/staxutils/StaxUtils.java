@@ -20,7 +20,6 @@
 package org.apache.cxf.staxutils;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -28,6 +27,8 @@ import java.io.Reader;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -44,6 +45,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.stream.Location;
 import javax.xml.stream.StreamFilter;
+import javax.xml.stream.XMLEventFactory;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLResolver;
@@ -93,7 +95,7 @@ import org.apache.cxf.helpers.DOMUtils;
 import org.apache.cxf.message.Message;
 
 public final class StaxUtils {
-    // System properies for defaults, but also contextual properties usable
+    // System properties for defaults, but also contextual properties usable
     // for StaxInInterceptor
     public static final String MAX_CHILD_ELEMENTS = 
         "org.apache.cxf.stax.maxChildElements";
@@ -105,6 +107,8 @@ public final class StaxUtils {
         "org.apache.cxf.stax.maxAttributeSize";
     public static final String MAX_TEXT_LENGTH = 
         "org.apache.cxf.stax.maxTextLength";
+    public static final String MIN_TEXT_SEGMENT =
+        "org.apache.cxf.stax.minTextSegment";
     public static final String MAX_ELEMENT_COUNT = 
         "org.apache.cxf.stax.maxElementCount";
     public static final String MAX_XML_CHARACTERS = 
@@ -137,6 +141,7 @@ public final class StaxUtils {
     private static int maxAttributeCount = 500; 
     private static int maxAttributeSize = 64 * 1024; //64K per attribute, likely just "list" will hit
     private static int maxTextLength = 128 * 1024 * 1024;  //128M - more than this should DEFINITLEY use MTOM 
+    private static int minTextSegment = 64; // Same default as woodstox
     private static long maxElementCount = Long.MAX_VALUE;
     private static long maxXMLCharacters = Long.MAX_VALUE;
     
@@ -157,6 +162,7 @@ public final class StaxUtils {
         maxAttributeCount = getInteger(MAX_ATTRIBUTE_COUNT, maxAttributeCount); 
         maxAttributeSize = getInteger(MAX_ATTRIBUTE_SIZE, maxAttributeSize);
         maxTextLength = getInteger(MAX_TEXT_LENGTH, maxTextLength); 
+        minTextSegment = getInteger(MIN_TEXT_SEGMENT, minTextSegment);
         maxElementCount = getLong(MAX_ELEMENT_COUNT, maxElementCount);
         maxXMLCharacters = getLong(MAX_XML_CHARACTERS, maxXMLCharacters);
         
@@ -307,14 +313,24 @@ public final class StaxUtils {
         try {
             factory = XMLInputFactory.newInstance();
         } catch (Throwable t) {
+            if (LOG.isLoggable(Level.FINE)) {
+                LOG.log(Level.FINE, "XMLInputFactory.newInstance() failed with: ", t);
+            }
             factory = null;
         }
         if (factory == null || !setRestrictionProperties(factory)) {
             try {
                 factory = createWoodstoxFactory();
             } catch (Throwable t) {
-                //ignore for now
+                if (LOG.isLoggable(Level.FINE)) {
+                    LOG.log(Level.FINE, "Cannot create Woodstox XMLInputFactory: ", t);
+                }
             }
+            
+            if (factory == null) {
+                throw new RuntimeException("Failed to create XMLInputFactory.");
+            }
+            
             if (!setRestrictionProperties(factory)) {
                 if (allowInsecureParser) {
                     LOG.log(Level.WARNING, "INSECURE_PARSER_DETECTED", factory.getClass().getName());
@@ -341,16 +357,23 @@ public final class StaxUtils {
     private static XMLInputFactory createWoodstoxFactory() {
         return WoodstoxHelper.createInputFactory();
     }
+    
+    public static XMLEventFactory createWoodstoxEventFactory() {
+        return WoodstoxHelper.createEventFactory();
+    }
+    
     private static boolean setRestrictionProperties(XMLInputFactory factory) {
         //For now, we can only support Woodstox 4.2.x and newer as none of the other
         //stax parsers support these settings
-        return setProperty(factory, "com.ctc.wstx.maxAttributesPerElement", maxAttributeCount)
-            && setProperty(factory, "com.ctc.wstx.maxAttributeSize", maxAttributeSize)
-            && setProperty(factory, "com.ctc.wstx.maxChildrenPerElement", innerElementCountThreshold)
-            && setProperty(factory, "com.ctc.wstx.maxElementCount", maxElementCount)
-            && setProperty(factory, "com.ctc.wstx.maxElementDepth", innerElementLevelThreshold)
-            && setProperty(factory, "com.ctc.wstx.maxCharacters", maxXMLCharacters)
-            && setProperty(factory, "com.ctc.wstx.maxTextLength", maxTextLength);
+        final boolean wstxMaxs = setProperty(factory, "com.ctc.wstx.maxAttributesPerElement", maxAttributeCount)
+                    && setProperty(factory, "com.ctc.wstx.maxAttributeSize", maxAttributeSize)
+                    && setProperty(factory, "com.ctc.wstx.maxChildrenPerElement", innerElementCountThreshold)
+                    && setProperty(factory, "com.ctc.wstx.maxElementCount", maxElementCount)
+                    && setProperty(factory, "com.ctc.wstx.maxElementDepth", innerElementLevelThreshold)
+                    && setProperty(factory, "com.ctc.wstx.maxCharacters", maxXMLCharacters)
+                    && setProperty(factory, "com.ctc.wstx.maxTextLength", maxTextLength);
+        return wstxMaxs
+            && setProperty(factory, "com.ctc.wstx.minTextSegment", minTextSegment);
     }
 
     private static boolean setProperty(XMLInputFactory f, String p, Object o) {
@@ -382,7 +405,7 @@ public final class StaxUtils {
 
     public static XMLStreamWriter createXMLStreamWriter(OutputStream out, String encoding) {
         if (encoding == null) {
-            encoding = "UTF-8";
+            encoding = StandardCharsets.UTF_8.name();
         }
         XMLOutputFactory factory = getXMLOutputFactory();
         try {
@@ -749,6 +772,7 @@ public final class StaxUtils {
                 }
                 break;
             case XMLStreamConstants.CHARACTERS:
+            case XMLStreamConstants.SPACE:
                 String s = reader.getText();
                 if (s != null) {
                     writer.writeCharacters(s);
@@ -791,7 +815,7 @@ public final class StaxUtils {
                 && StringUtils.isEmpty(writer.getNamespaceContext().getNamespaceURI(""))) {
                 writeElementNS = false;
             }
-            while (it != null && it.hasNext()) {
+            while (it.hasNext()) {
                 String s = it.next();
                 if (s == null) {
                     s = "";
@@ -1136,7 +1160,7 @@ public final class StaxUtils {
         }
     }
     public static Document read(File is) throws XMLStreamException, IOException {
-        try (InputStream fin = new FileInputStream(is)) {
+        try (InputStream fin = Files.newInputStream(is.toPath())) {
             return read(fin);
         }
     }
@@ -1159,7 +1183,7 @@ public final class StaxUtils {
         Document doc = DOMUtils.createDocument();
         if (reader.getLocation().getSystemId() != null) {
             try {
-                doc.setDocumentURI(new String(reader.getLocation().getSystemId()));
+                doc.setDocumentURI(reader.getLocation().getSystemId());
             } catch (Exception e) {
                 //ignore - probably not DOM level 3
             }
@@ -1174,7 +1198,7 @@ public final class StaxUtils {
         Document doc = builder == null ? DOMUtils.createDocument() : builder.newDocument();
         if (reader.getLocation().getSystemId() != null) {
             try {
-                doc.setDocumentURI(new String(reader.getLocation().getSystemId()));
+                doc.setDocumentURI(reader.getLocation().getSystemId());
             } catch (Exception e) {
                 //ignore - probably not DOM level 3
             }
@@ -1664,8 +1688,8 @@ public final class StaxUtils {
         node.setAttributeNodeNS(attr);
     }
     public static XMLStreamReader createXMLStreamReader(InputSource src) {
-        String sysId = src.getSystemId() == null ? null : new String(src.getSystemId());
-        String pubId = src.getPublicId() == null ? null : new String(src.getPublicId());
+        String sysId = src.getSystemId() == null ? null : src.getSystemId();
+        String pubId = src.getPublicId() == null ? null : src.getPublicId();
         if (src.getByteStream() != null) {
             if (src.getEncoding() == null) {
                 StreamSource ss = new StreamSource(src.getByteStream(), sysId);
@@ -1695,7 +1719,7 @@ public final class StaxUtils {
      */
     public static XMLStreamReader createXMLStreamReader(InputStream in, String encoding) {
         if (encoding == null) {
-            encoding = "UTF-8";
+            encoding = StandardCharsets.UTF_8.name();
         }
 
         XMLInputFactory factory = getXMLInputFactory();

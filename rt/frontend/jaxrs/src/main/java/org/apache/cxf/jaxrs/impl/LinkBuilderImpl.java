@@ -55,9 +55,16 @@ public class LinkBuilderImpl implements Builder {
     }
 
     private URI getResolvedUri(Object... values) {
+        if (ub == null) {
+            ub = new UriBuilderImpl();
+            if (baseUri != null) {
+                ub.uri(baseUri);    
+            }
+            
+        }
         URI uri = ub.build(values);
                 
-        if (!uri.isAbsolute() && baseUri != null) {
+        if (!uri.isAbsolute() && baseUri != null && baseUri.isAbsolute()) {
             UriBuilder linkUriBuilder = UriBuilder.fromUri(baseUri);
             return HttpUtils.resolve(linkUriBuilder, uri);    
         } else {
@@ -74,12 +81,25 @@ public class LinkBuilderImpl implements Builder {
 
     @Override
     public Builder link(String link) {
+        
+        link = link.trim();
+        if (link.length() > 1 && link.startsWith("<")) {
+            int index = link.lastIndexOf(">", link.length());
+            if (index != -1) {
+                String uri = link.substring(1, index);
+                ub = UriBuilder.fromUri(uri);
+                if (index + 1 == link.length()) {
+                    link = "";
+                } else {
+                    link = link.substring(index + 1);
+                }
+            }
+        }
+        
         String[] tokens = StringUtils.split(link, ";");
         for (String token : tokens) {
             String theToken = token.trim();
-            if (theToken.startsWith("<") && theToken.endsWith(">")) {
-                ub = UriBuilder.fromUri(theToken.substring(1, theToken.length() - 1));
-            } else {
+            if (!theToken.isEmpty()) {
                 int i = theToken.indexOf('=');
                 if (i != -1) {
                     String name = theToken.substring(0, i);
@@ -150,7 +170,7 @@ public class LinkBuilderImpl implements Builder {
         
         private URI uri;
         private Map<String, String> params;
-        public LinkImpl(URI uri, Map<String, String> params) {
+        LinkImpl(URI uri, Map<String, String> params) {
             this.uri = uri;
             this.params = params;
         }

@@ -21,9 +21,15 @@ package org.apache.cxf.osgi.itests.jaxrs;
 
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import javax.validation.ConstraintViolation;
+import javax.validation.ConstraintViolationException;
+import javax.validation.ValidationProviderResolver;
+import javax.validation.spi.ValidationProvider;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -39,6 +45,10 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
+
+import org.apache.cxf.validation.BeanValidationProvider;
+import org.hibernate.validator.HibernateValidator;
+import org.hibernate.validator.HibernateValidatorConfiguration;
 
 @Path("/bookstore")
 @Produces("application/xml")
@@ -84,6 +94,36 @@ public class BookStore {
             return Response.ok().build();
         }
     }
+
+    @POST
+    @Path("/books-validate")
+    public Response createBookValidate(Book book) {
+        assertInjections();
+
+        BeanValidationProvider prov = new BeanValidationProvider(
+                new ValidationProviderResolver() {
+                    @Override
+                    public List<ValidationProvider<?>> getValidationProviders() {
+                        ValidationProvider<HibernateValidatorConfiguration> prov = new HibernateValidator();
+                        List<ValidationProvider<?>> provs = new ArrayList<>();
+                        provs.add(prov);
+                        return provs;
+                    }
+                }, HibernateValidator.class);
+        try {
+            prov.validateBean(book);
+        } catch (ConstraintViolationException cve) {
+            StringBuilder violationMessages = new StringBuilder();
+            for (ConstraintViolation<?> constraintViolation : cve.getConstraintViolations()) {
+                violationMessages.append(constraintViolation.getPropertyPath())
+                        .append(": ").append(constraintViolation.getMessage()).append("\n");
+            }
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .type("text/plain").entity(violationMessages.toString()).build();
+        }
+        return createBook(book);
+    }
+
     
     @POST
     @Path("/books")

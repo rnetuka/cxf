@@ -63,6 +63,21 @@
         <wsdl:port name="DoubleItAsymmetricEncryptBeforeSigningPort" binding="tns:DoubleItNoSecurityBinding">
             <soap:address location="http://localhost:9001/DoubleItAsymmetricEncryptBeforeSigning"/>
         </wsdl:port>
+        <wsdl:port name="DoubleItEncryptionPort" binding="tns:DoubleItNoSecurityBinding">
+            <soap:address location="http://localhost:9001/DoubleItEncryption"/>
+        </wsdl:port>
+        <wsdl:port name="DoubleItSignatureNegativeClientPort" binding="tns:DoubleItNoSecurityBinding">
+            <soap:address location="http://localhost:9001/DoubleItSignatureNegativeClient"/>
+        </wsdl:port>
+        <wsdl:port name="DoubleItSignatureNegativeClientPort2" binding="tns:DoubleItNoSecurityBinding">
+            <soap:address location="http://localhost:9001/DoubleItSignatureNegativeClient2"/>
+        </wsdl:port>
+        <wsdl:port name="DoubleItSignatureNegativeServerPort" binding="tns:DoubleItNoSecurityBinding">
+            <soap:address location="http://localhost:9001/DoubleItSignatureNegativeServer"/>
+        </wsdl:port>
+        <wsdl:port name="DoubleItSignatureNegativeServerPort2" binding="tns:DoubleItNoSecurityBinding">
+            <soap:address location="http://localhost:9001/DoubleItSignatureNegativeServer2"/>
+        </wsdl:port>
     </wsdl:service>
     
 </wsdl:definitions>

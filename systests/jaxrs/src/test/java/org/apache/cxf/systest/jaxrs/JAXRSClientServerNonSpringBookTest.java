@@ -27,17 +27,18 @@ import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 
-import org.apache.commons.httpclient.Header;
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.cxf.helpers.IOUtils;
-import org.apache.cxf.io.CachedOutputStream;
 import org.apache.cxf.jaxrs.client.JAXRSClientFactory;
 import org.apache.cxf.jaxrs.client.JAXRSClientFactoryBean;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.jaxrs.model.AbstractResourceInfo;
 import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
-
+import org.apache.http.Header;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.util.EntityUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -183,7 +184,7 @@ public class JAXRSClientServerNonSpringBookTest extends AbstractBusClientServerT
     @Test
     public void testGetBook123TwoApplications() throws Exception {
         doTestPerRequest("http://localhost:" + PORT + "/application6/thebooks/bookstore2/bookheaders");
-        doTestPerRequest("http://localhost:" + PORT + "/application6/thebooks2/bookstore2/bookheaders");
+        doTestPerRequest("http://localhost:" + PORT + "/application6/the%20books2/bookstore2/book%20headers");
     }
     
     private Response doTestPerRequest(String address) throws Exception {
@@ -243,19 +244,19 @@ public class JAXRSClientServerNonSpringBookTest extends AbstractBusClientServerT
                                String acceptType,
                                String expectedContentType,
                                int expectedStatus) throws Exception {
-        GetMethod get = new GetMethod(address);
-        get.setRequestHeader("Accept", acceptType);
-        get.setRequestHeader("Accept-Language", "da;q=0.8,en");
-        get.setRequestHeader("Book", "1,2,3");
-        HttpClient httpClient = new HttpClient();
+        CloseableHttpClient client = HttpClientBuilder.create().build();
+        HttpGet get = new HttpGet(address);
+        get.setHeader("Accept", acceptType);
+        get.setHeader("Accept-Language", "da;q=0.8,en");
+        get.setHeader("Book", "1,2,3");
         try {
-            int result = httpClient.executeMethod(get);
-            assertEquals(expectedStatus, result);
-            String content = getStringFromInputStream(get.getResponseBodyAsStream());
-            assertEquals("Expected value is wrong", 
+            CloseableHttpResponse response = client.execute(get);
+            assertEquals(expectedStatus, response.getStatusLine().getStatusCode());
+            String content = EntityUtils.toString(response.getEntity());
+            assertEquals("Expected value is wrong",
                          stripXmlInstructionIfNeeded(expectedValue), stripXmlInstructionIfNeeded(content));
             if (expectedContentType != null) {
-                Header ct = get.getResponseHeader("Content-Type");
+                Header ct = response.getFirstHeader("Content-Type");
                 assertEquals("Wrong type of response", expectedContentType, ct.getValue());
             }
         } finally {
@@ -272,12 +273,7 @@ public class JAXRSClientServerNonSpringBookTest extends AbstractBusClientServerT
     }
     
     private String getStringFromInputStream(InputStream in) throws Exception {        
-        CachedOutputStream bos = new CachedOutputStream();
-        IOUtils.copy(in, bos);
-        String str = new String(bos.getBytes()); 
-        in.close();
-        bos.close();
-        return str;
+        return IOUtils.toString(in);
     }
 
 }

@@ -21,6 +21,7 @@ package org.apache.cxf.systest.jaxrs;
 
 import java.io.InputStream;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -153,12 +154,12 @@ public class JAXRSMultithreadedClientTest extends AbstractBusClientServerTestBas
         private CountDownLatch doneSignal;
         private boolean stateCanBeChanged;
         
-        public WebClientWorker(WebClient client,
-                               String bookName,
-                               String bookHeader,
-                               CountDownLatch startSignal,
-                               CountDownLatch doneSignal,
-                               boolean stateCanBeChanged) {
+        WebClientWorker(WebClient client,
+                        String bookName,
+                        String bookHeader,
+                        CountDownLatch startSignal,
+                        CountDownLatch doneSignal,
+                        boolean stateCanBeChanged) {
             this.client = client;
             this.bookName = bookName;
             this.bookHeader = bookHeader;
@@ -226,12 +227,12 @@ public class JAXRSMultithreadedClientTest extends AbstractBusClientServerTestBas
         private CountDownLatch doneSignal;
         private boolean stateCanBeChanged;
         
-        public RootProxyWorker(BookStore proxy,
-                               String bookName,
-                               String bookHeader,
-                               CountDownLatch startSignal,
-                               CountDownLatch doneSignal,
-                               boolean stateCanBeChanged) {
+        RootProxyWorker(BookStore proxy,
+                        String bookName,
+                        String bookHeader,
+                        CountDownLatch startSignal,
+                        CountDownLatch doneSignal,
+                        boolean stateCanBeChanged) {
             this.proxy = proxy;
             this.bookName = bookName;
             this.bookHeader = bookHeader;
@@ -279,8 +280,9 @@ public class JAXRSMultithreadedClientTest extends AbstractBusClientServerTestBas
         
         private void verifyResponse(Response response, String actualBookName, String actualHeaderName) 
             throws Exception { 
-            assertEquals(actualHeaderName, 
-                         response.getMetadata().getFirst("CustomHeader").toString());
+            List<Object> customHeaders = response.getMetadata().get("CustomHeader");
+            assertEquals(customHeaders.size(), 1);
+            assertEquals(actualHeaderName, customHeaders.get(0).toString());
             String responseValue = IOUtils.readStringFromStream((InputStream)response.getEntity());
             assertEquals(actualBookName, responseValue);
         }

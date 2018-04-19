@@ -42,7 +42,7 @@ class SSLSocketFactoryWrapper extends SSLSocketFactory {
     private String[] ciphers;
     private String protocol;
     
-    public SSLSocketFactoryWrapper(
+    SSLSocketFactoryWrapper(
         SSLSocketFactory sslSocketFactoryParam,
         String[]         ciphersParam,
         String           protocolParam
@@ -59,12 +59,12 @@ class SSLSocketFactoryWrapper extends SSLSocketFactory {
     public String[] getSupportedCipherSuites() {
         return sslSocketFactory.getSupportedCipherSuites(); 
     }
-    
+    /*
     public Socket createSocket() throws IOException {
         return enableCipherSuites(sslSocketFactory.createSocket(), 
                                   new Object[] {"unconnected", "unconnected"});
     }
-        
+    */  
     public Socket createSocket(Socket s, String host, int port, boolean autoClose)
         throws IOException, UnknownHostException  {
         return enableCipherSuites(sslSocketFactory.createSocket(s, host, port, autoClose),

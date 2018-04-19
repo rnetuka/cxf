@@ -75,6 +75,13 @@ public class JMSConfiguration {
      * Destination name to send out as replyTo address in the message 
      */
     private String replyToDestination;
+    private volatile Destination replyToDestinationDest;
+    
+    /**
+     * Session that was used to cache the replyToDestinationDest
+     */
+    private volatile Session replyDestinationSession;
+    
     private String messageType = JMSConstants.TEXT_MESSAGE_TYPE;
     private boolean pubSubDomain;
     private boolean replyPubSubDomain;
@@ -93,8 +100,6 @@ public class JMSConfiguration {
     // For jms spec. Do not configure manually
     private String targetService;
     private String requestURI;
-
-
 
     public void ensureProperlyConfigured() {
         ConnectionFactory cf = getConnectionFactory();
@@ -418,28 +423,39 @@ public class JMSConfiguration {
         }
         return resolver.resolveDestinationName(session, replyToDestinationName, pubSubDomain);
     }
-    
+
     public Destination getReplyToDestination(Session session, String userDestination) throws JMSException {
-        if (userDestination == null) {
+        if (userDestination != null) {
+            return destinationResolver.resolveDestinationName(session, userDestination, replyPubSubDomain);
+        }
+        if (replyToDestination == null) {
             return getReplyDestination(session);
         }
-        return destinationResolver.resolveDestinationName(session, userDestination, replyPubSubDomain);
-    }
-    
-    public Destination getReplyDestination(Session session) throws JMSException {
-        Destination result = replyDestinationDest;
+        Destination result = replyToDestinationDest;
         if (result == null) {
             synchronized (this) {
-                result = replyDestinationDest;
+                result = replyToDestinationDest;
                 if (result == null) {
-                    result = replyDestination == null 
-                        ? session.createTemporaryQueue()
-                        : destinationResolver.resolveDestinationName(session, replyDestination, replyPubSubDomain);
-                    replyDestinationDest = result;
+                    result = destinationResolver.resolveDestinationName(session, replyToDestination, replyPubSubDomain);
+                    replyToDestinationDest = result;
                 }
             }
         }
         return result;
+    }
+
+    public Destination getReplyDestination(Session session) throws JMSException {
+        if (this.replyDestinationDest == null || this.replyDestinationSession == null) {
+            synchronized (this) {
+                if (this.replyDestinationDest == null || this.replyDestinationSession == null) {
+                    this.replyDestinationDest = replyDestination == null
+                        ? session.createTemporaryQueue()
+                        : destinationResolver.resolveDestinationName(session, replyDestination, replyPubSubDomain);
+                    this.replyDestinationSession = session;
+                }
+            }
+        }
+        return this.replyDestinationDest;
     }
 
     public Destination getTargetDestination(Session session) throws JMSException {
@@ -447,7 +463,10 @@ public class JMSConfiguration {
     }
 
     public Destination getReplyDestination(Session session, String replyToName) throws JMSException {
-        return destinationResolver.resolveDestinationName(session, replyToName, replyPubSubDomain);
+        if (replyToName != null) {
+            return destinationResolver.resolveDestinationName(session, replyToName, replyPubSubDomain);
+        }
+        return getReplyDestination(session);
     }
 
     public TransactionManager getTransactionManager() {

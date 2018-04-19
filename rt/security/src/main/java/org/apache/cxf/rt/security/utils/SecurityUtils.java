@@ -31,6 +31,7 @@ import javax.security.auth.callback.CallbackHandler;
 import org.apache.cxf.common.classloader.ClassLoaderUtils;
 import org.apache.cxf.common.classloader.ClassLoaderUtils.ClassLoaderHolder;
 import org.apache.cxf.common.logging.LogUtils;
+import org.apache.cxf.common.util.PropertyUtils;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.phase.PhaseInterceptorChain;
 import org.apache.cxf.resource.ResourceManager;
@@ -134,13 +135,17 @@ public final class SecurityUtils {
     }
     
     public static Properties loadProperties(Object o) {
+        return loadProperties(null, o);
+    }
+    
+    public static Properties loadProperties(ResourceManager manager, Object o) {
         if (o instanceof Properties) {
             return (Properties)o;
         } 
         
         URL url = null;
         if (o instanceof String) {
-            url = SecurityUtils.loadResource(o);
+            url = SecurityUtils.loadResource(manager, o);
         } else if (o instanceof URL) {
             url = (URL)o;
         }
@@ -171,5 +176,18 @@ public final class SecurityUtils {
             return value;
         }
         return message.getContextualProperty("ws-" + property);
+    }
+    
+    /**
+     * Get the security property boolean for the given property. It also checks for the older "ws-"* property
+     * values. If none is configured, then the defaultValue parameter is returned.
+     */
+    public static boolean getSecurityPropertyBoolean(String property, Message message, boolean defaultValue) {
+        Object value = getSecurityPropertyValue(property, message);
+
+        if (value != null) {
+            return PropertyUtils.isTrue(value);
+        }
+        return defaultValue;
     }
 }

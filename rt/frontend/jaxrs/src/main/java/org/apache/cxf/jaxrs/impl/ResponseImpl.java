@@ -26,6 +26,7 @@ import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -376,6 +377,11 @@ public final class ResponseImpl extends Response {
             } catch (Exception ex) {
                 autoClose(cls, true);
                 reportMessageHandlerProblem("MSG_READER_PROBLEM", cls, mediaType, ex);
+            } finally {
+                ProviderFactory pf = ProviderFactory.getInstance(outMessage);
+                if (pf != null) {
+                    pf.clearThreadLocalProxies();
+                }
             }
         } else if (entity != null && cls.isAssignableFrom(entity.getClass())) {
             lastEntity = entity;
@@ -401,7 +407,7 @@ public final class ResponseImpl extends Response {
         }
         if (stringEntity != null) {
             try {
-                return new ByteArrayInputStream(stringEntity.getBytes("UTF-8"));
+                return new ByteArrayInputStream(stringEntity.getBytes(StandardCharsets.UTF_8));
             } catch (Exception ex) {
                 throw new ProcessingException(ex);
             }
@@ -434,7 +440,7 @@ public final class ResponseImpl extends Response {
     }
     
     protected void autoClose(Class<?> cls, boolean exception) {
-        if (!entityBufferred && cls != InputStream.class
+        if (!entityBufferred && !JAXRSUtils.isStreamingOutType(cls)
             && (exception || MessageUtils.isTrue(outMessage.getContextualProperty("response.stream.auto.close")))) {
             close();
         }

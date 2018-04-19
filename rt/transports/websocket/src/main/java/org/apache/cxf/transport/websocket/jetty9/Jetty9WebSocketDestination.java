@@ -39,7 +39,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.cxf.Bus;
-import org.apache.cxf.common.classloader.ClassLoaderUtils;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.service.model.EndpointInfo;
 import org.apache.cxf.transport.http.DestinationRegistry;
@@ -54,8 +53,12 @@ import org.apache.cxf.transport.websocket.jetty.WebSocketVirtualServletRequest;
 import org.apache.cxf.transport.websocket.jetty.WebSocketVirtualServletResponse;
 import org.apache.cxf.workqueue.WorkQueueManager;
 import org.eclipse.jetty.server.Request;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.handler.ContextHandler;
+import org.eclipse.jetty.webapp.WebAppContext;
 import org.eclipse.jetty.websocket.api.Session;
 import org.eclipse.jetty.websocket.api.WebSocketAdapter;
+import org.eclipse.jetty.websocket.server.WebSocketHandler;
 import org.eclipse.jetty.websocket.servlet.ServletUpgradeRequest;
 import org.eclipse.jetty.websocket.servlet.ServletUpgradeResponse;
 import org.eclipse.jetty.websocket.servlet.WebSocketCreator;
@@ -69,23 +72,17 @@ public class Jetty9WebSocketDestination extends JettyHTTPDestination implements
     private static final Logger LOG = LogUtils.getL7dLogger(Jetty9WebSocketDestination.class);
 
     //REVISIT make these keys configurable
-    private String requestIdKey = WebSocketConstants.DEFAULT_REQUEST_ID_KEY;
-    private String responseIdKey = WebSocketConstants.DEFAULT_RESPONSE_ID_KEY;
+    private static final String REQUEST_ID_KEY = WebSocketConstants.DEFAULT_REQUEST_ID_KEY;
+    private static final String RESPONSE_ID_KEY = WebSocketConstants.DEFAULT_RESPONSE_ID_KEY;
 
-    private WebSocketServletFactory webSocketFactory;
     private final Executor executor;
+
+    private WebSocketHandler webSockethandler;
+    private WebSocketServletFactory webSocketFactory;
 
     public Jetty9WebSocketDestination(Bus bus, DestinationRegistry registry, EndpointInfo ei,
                                      JettyHTTPServerEngineFactory serverEngineFactory) throws IOException {
         super(bus, registry, ei, serverEngineFactory);
-        try {
-            webSocketFactory = (WebSocketServletFactory)ClassLoaderUtils
-                .loadClass("org.eclipse.jetty.websocket.server.WebSocketServerFactory",
-                           WebSocketServletFactory.class).newInstance();
-        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        }
-        webSocketFactory.setCreator(new Creator());
         executor = bus.getExtension(WorkQueueManager.class).getAutomaticWorkQueue();
     }
     
@@ -98,36 +95,76 @@ public class Jetty9WebSocketDestination extends JettyHTTPDestination implements
                        final ServletContext context, 
                        final HttpServletRequest request, 
                        final HttpServletResponse response) throws IOException {
-        if (webSocketFactory.isUpgradeRequest(request, response)
-            && webSocketFactory.acceptWebSocket(request, response)) {
+        
+        WebSocketServletFactory wsf = getWebSocketFactory(config, context);
+       
+        if (wsf.isUpgradeRequest(request, response)
+            && wsf.acceptWebSocket(request, response)) {
             ((Request)request).setHandled(true);
             return;
         }
         super.invoke(config, context, request, response);
     }
-    @Override
-    protected String getAddress(EndpointInfo endpointInfo) {
+
+    private static String getNonWSAddress(EndpointInfo endpointInfo) {
         String address = endpointInfo.getAddress();
         if (address.startsWith("ws")) {
             address = "http" + address.substring(2);
         }
         return address;
     }
-        
+    @Override
+    protected String getAddress(EndpointInfo endpointInfo) {
+        return getNonWSAddress(endpointInfo);
+    }
+    
+    Server getServer(ServletConfig config, ServletContext context) {
+        WebAppContext.Context c = (WebAppContext.Context)context;
+        ContextHandler h = c.getContextHandler();
+        return h.getServer();
+    }
+    
+    private WebSocketServletFactory getWebSocketFactory(ServletConfig config, ServletContext context) {
+        if (webSocketFactory == null) {
+            Server server = getServer(config, context);
+            return getWebSocketFactory(server);
+        }
+        return webSocketFactory;
+    }
+
+    public synchronized WebSocketServletFactory getWebSocketFactory(Server server) {
+        if (webSocketFactory == null) {
+            webSockethandler = new WebSocketHandler() {
+                @Override
+                public void configure(WebSocketServletFactory factory) {
+                }
+            };
+            try {
+                webSockethandler.setServer(server);
+                webSockethandler.start();
+            } catch (Exception e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+            webSocketFactory = webSockethandler.getWebSocketFactory();
+            webSocketFactory.setCreator(new Creator());
+        }
+        return webSocketFactory;
+    }
+
     @Override
     protected JettyHTTPHandler createJettyHTTPHandler(JettyHTTPDestination jhd, boolean cmExact) {
-        return new JettyWebSocketHandler(jhd, cmExact, webSocketFactory);
+        return new JettyWebSocketHandler(jhd, cmExact, this);
     }
     
     @Override
     public void shutdown() {
         try {
-            webSocketFactory.cleanup();
+            webSockethandler.stop();
         } catch (Exception e) {
-            // ignore
-        } finally {
-            super.shutdown();
+            //nothing needed
         }
+        super.shutdown();
     }
     
     private void invoke(final byte[] data, final int offset, final int length, final Session session) {
@@ -144,9 +181,9 @@ public class Jetty9WebSocketDestination extends JettyHTTPDestination implements
                     WebSocketServletHolder holder = new Jetty9WebSocketHolder(session);
                     response = createServletResponse(holder);
                     request = createServletRequest(data, offset, length, holder);
-                    String reqid = request.getHeader(requestIdKey);
+                    String reqid = request.getHeader(REQUEST_ID_KEY);
                     if (reqid != null) {
-                        response.setHeader(responseIdKey, reqid);
+                        response.setHeader(RESPONSE_ID_KEY, reqid);
                     }
                     invoke(null, null, request, response);
                 } catch (InvalidPathException ex) {
@@ -222,7 +259,7 @@ public class Jetty9WebSocketDestination extends JettyHTTPDestination implements
     
     class Jetty9WebSocketHolder implements WebSocketServletHolder {
         final Session session;
-        public Jetty9WebSocketHolder(Session s) {
+        Jetty9WebSocketHolder(Session s) {
             session = s;
         }
         public String getAuthType() {
@@ -307,5 +344,6 @@ public class Jetty9WebSocketDestination extends JettyHTTPDestination implements
             }
         }
     }
+
 
 }

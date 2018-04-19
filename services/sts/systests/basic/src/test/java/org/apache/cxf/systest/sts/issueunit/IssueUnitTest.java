@@ -34,7 +34,6 @@ import org.apache.cxf.binding.soap.SoapBindingConstants;
 import org.apache.cxf.bus.spring.SpringBusFactory;
 import org.apache.cxf.helpers.DOMUtils;
 import org.apache.cxf.jaxws.JaxWsProxyFactoryBean;
-import org.apache.cxf.jaxws.context.WebServiceContextImpl;
 import org.apache.cxf.jaxws.context.WrappedMessageContext;
 import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.sts.STSConstants;
@@ -45,7 +44,7 @@ import org.apache.cxf.sts.service.EncryptionProperties;
 import org.apache.cxf.sts.token.provider.SAMLTokenProvider;
 import org.apache.cxf.sts.token.provider.TokenProviderParameters;
 import org.apache.cxf.sts.token.provider.TokenProviderResponse;
-import org.apache.cxf.sts.token.realm.SAMLRealm;
+import org.apache.cxf.sts.token.realm.RealmProperties;
 import org.apache.cxf.systest.sts.common.CommonCallbackHandler;
 import org.apache.cxf.systest.sts.common.SecurityTestUtil;
 import org.apache.cxf.systest.sts.deployment.STSServer;
@@ -66,7 +65,7 @@ import org.apache.wss4j.common.saml.SAMLKeyInfo;
 import org.apache.wss4j.common.saml.SamlAssertionWrapper;
 import org.apache.wss4j.dom.WSConstants;
 import org.apache.wss4j.dom.WSDocInfo;
-import org.apache.wss4j.dom.WSSecurityEngineResult;
+import org.apache.wss4j.dom.engine.WSSecurityEngineResult;
 import org.apache.wss4j.dom.handler.RequestData;
 import org.apache.wss4j.dom.processor.Processor;
 import org.apache.wss4j.dom.processor.SAMLTokenProcessor;
@@ -95,12 +94,9 @@ public class IssueUnitTest extends AbstractBusClientServerTestBase {
     
     @BeforeClass
     public static void startServers() throws Exception {
-        assertTrue(
-                   "Server failed to launch",
-                   // run the server in the same process
-                   // set this to false to fork
-                   launchServer(STSServer.class, true)
-        );
+        STSServer stsServer = new STSServer();
+        stsServer.setContext("cxf-transport.xml");
+        assertTrue(launchServer(stsServer));
     }
     
     @org.junit.AfterClass
@@ -251,7 +247,7 @@ public class IssueUnitTest extends AbstractBusClientServerTestBase {
         if (methods != null && methods.size() > 0) {
             confirmMethod = methods.get(0);
         }
-        assertTrue(confirmMethod.contains("bearer"));
+        assertTrue(confirmMethod != null && confirmMethod.contains("bearer"));
         
         bus.shutdown(true);
     }
@@ -350,7 +346,7 @@ public class IssueUnitTest extends AbstractBusClientServerTestBase {
         if (methods != null && methods.size() > 0) {
             confirmMethod = methods.get(0);
         }
-        assertTrue(confirmMethod.contains("bearer"));
+        assertTrue(confirmMethod != null && confirmMethod.contains("bearer"));
         
         bus.shutdown(true);
     }
@@ -387,12 +383,11 @@ public class IssueUnitTest extends AbstractBusClientServerTestBase {
         if (methods != null && methods.size() > 0) {
             confirmMethod = methods.get(0);
         }
-        assertTrue(confirmMethod.contains("bearer"));
+        assertTrue(confirmMethod != null && confirmMethod.contains("bearer"));
         
         bus.shutdown(true);
     }
-    
-  //CHECKSTYLE:OFF
+
     @org.junit.Test
     public void testSAMLinWSSecToOtherRealm() throws Exception {
         SpringBusFactory bf = new SpringBusFactory();
@@ -454,7 +449,7 @@ public class IssueUnitTest extends AbstractBusClientServerTestBase {
         if (methods != null && methods.size() > 0) {
             confirmMethod = methods.get(0);
         }
-        assertTrue(confirmMethod.contains("bearer"));
+        assertTrue(confirmMethod != null && confirmMethod.contains("bearer"));
         
         assertTrue("b-issuer".equals(assertion.getIssuerString()));
         String subjectName = assertion.getSaml2().getSubject().getNameID().getValue();
@@ -480,7 +475,8 @@ public class IssueUnitTest extends AbstractBusClientServerTestBase {
     ) throws Exception {
         return requestSecurityToken(tokenType, keyType, null, bus, endpointAddress, context, null, null, null);
     }
-    
+
+    // CHECKSTYLE:OFF
     private SecurityToken requestSecurityToken(
         String tokenType, 
         String keyType,
@@ -537,14 +533,15 @@ public class IssueUnitTest extends AbstractBusClientServerTestBase {
         
         return stsClient.requestSecurityToken(endpointAddress);
     }
-    
+    // CHECKSTYLE:ON
+
     private Properties getEncryptionProperties() {
         Properties properties = new Properties();
         properties.put(
             "org.apache.ws.security.crypto.provider", "org.apache.ws.security.components.crypto.Merlin"
         );
         properties.put("org.apache.ws.security.crypto.merlin.keystore.password", "stsspass");
-        properties.put("org.apache.ws.security.crypto.merlin.keystore.file", "stsstore.jks");
+        properties.put("org.apache.ws.security.crypto.merlin.keystore.file", "keys/stsstore.jks");
 
         return properties;
     }
@@ -554,7 +551,7 @@ public class IssueUnitTest extends AbstractBusClientServerTestBase {
      */
     private Element createSAMLAssertion(
         String tokenType, Crypto crypto, String signatureUsername, CallbackHandler callbackHandler,
-        Map<String, SAMLRealm> realms, String user, String issuer
+        Map<String, RealmProperties> realms, String user, String issuer
     ) throws WSSecurityException {
         SAMLTokenProvider samlTokenProvider = new SAMLTokenProvider();
         samlTokenProvider.setRealmMap(realms);
@@ -571,7 +568,7 @@ public class IssueUnitTest extends AbstractBusClientServerTestBase {
         assertTrue(providerResponse != null);
         assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
 
-        return providerResponse.getToken();
+        return (Element)providerResponse.getToken();
     }
             
     private TokenProviderParameters createProviderParameters(
@@ -593,8 +590,7 @@ public class IssueUnitTest extends AbstractBusClientServerTestBase {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
-        parameters.setWebServiceContext(webServiceContext);
+        parameters.setMessageContext(msgCtx);
 
         parameters.setAppliesToAddress(
             "https://localhost:" + STSPORT + "/SecurityTokenService/b-issuer/Transport");

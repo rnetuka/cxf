@@ -26,6 +26,7 @@ import java.io.Reader;
 import java.io.Writer;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -310,7 +311,7 @@ public class JAXBElementProvider<T> extends AbstractJAXBProvider<T>  {
         MediaType m, MultivaluedMap<String, Object> headers, OutputStream os) 
         throws IOException {
         try {
-            String encoding = HttpUtils.getSetEncoding(m, headers, null);
+            String encoding = HttpUtils.getSetEncoding(m, headers, StandardCharsets.UTF_8.name());
             if (InjectionUtils.isSupportedCollectionOrArray(cls)) {
                 marshalCollection(cls, obj, genericType, encoding, os, m, anns);
             } else {
@@ -360,7 +361,7 @@ public class JAXBElementProvider<T> extends AbstractJAXBProvider<T>  {
         }
         
         StringBuilder pi = new StringBuilder();
-        pi.append(XML_PI_START + (enc == null ? "UTF-8" : enc) + "\"?>");
+        pi.append(XML_PI_START + (enc == null ? StandardCharsets.UTF_8.name() : enc) + "\"?>");
         os.write(pi.toString().getBytes());
         String startTag = null;
         String endTag = null;
@@ -520,7 +521,7 @@ public class JAXBElementProvider<T> extends AbstractJAXBProvider<T>  {
         Collection<Attachment> attachments = getAttachments(true);
         if (attachments != null) {
             Object value = getContext().getContextualProperty(Message.MTOM_THRESHOLD);
-            Integer threshold = value != null ? Integer.valueOf(value.toString()) : 0;
+            Integer threshold = value != null ? Integer.valueOf(value.toString()) : Integer.valueOf(0);
             ms.setAttachmentMarshaller(new JAXBAttachmentMarshaller(
                 attachments, threshold));
         }

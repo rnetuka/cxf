@@ -182,7 +182,7 @@ public class EngineLifecycleTest extends Assert {
         
     private void verifyNoServer(String port) {
         try {
-            Socket socket = new Socket(InetAddress.getLocalHost(), Integer.parseInt(port));
+            Socket socket = new Socket(InetAddress.getLoopbackAddress().getHostName(), Integer.parseInt(port));
             socket.close();
         } catch (UnknownHostException e) {
             fail("Unknown host for local address");

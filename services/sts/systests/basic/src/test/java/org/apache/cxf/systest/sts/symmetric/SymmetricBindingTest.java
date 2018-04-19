@@ -95,18 +95,21 @@ public class SymmetricBindingTest extends AbstractBusClientServerTestBase {
                    // set this to false to fork
                    launchServer(StaxServer.class, true)
         );
-        assertTrue(
-                   "Server failed to launch",
-                   // run the server in the same process
-                   // set this to false to fork
-                   launchServer(STSServer.class, true)
-        );
-        assertTrue(
-                   "Server failed to launch",
-                   // run the server in the same process
-                   // set this to false to fork
-                   launchServer(StaxSTSServer.class, true)
-        );
+        STSServer stsServer = new STSServer();
+        stsServer.setContext("cxf-ut.xml");
+        assertTrue(launchServer(stsServer));
+        
+        stsServer = new STSServer();
+        stsServer.setContext("cxf-ut-encrypted.xml");
+        assertTrue(launchServer(stsServer));
+        
+        StaxSTSServer staxStsServer = new StaxSTSServer();
+        staxStsServer.setContext("stax-cxf-ut.xml");
+        assertTrue(launchServer(staxStsServer));
+        
+        staxStsServer = new StaxSTSServer();
+        staxStsServer.setContext("stax-cxf-ut-encrypted.xml");
+        assertTrue(launchServer(staxStsServer));
     }
     
     @Parameters(name = "{0}")
@@ -274,7 +277,7 @@ public class SymmetricBindingTest extends AbstractBusClientServerTestBase {
         
         // Make a successful request
         Client client = ((DispatchImpl<DOMSource>) dispatch).getClient();
-        client.getRequestContext().put("ws-security.sts.client", stsClient);
+        client.getRequestContext().put(SecurityConstants.STS_CLIENT, stsClient);
         
         if (test.isStreaming()) {
             client.getRequestContext().put(SecurityConstants.ENABLE_STREAMING_SECURITY, "true");
@@ -315,7 +318,7 @@ public class SymmetricBindingTest extends AbstractBusClientServerTestBase {
         
         // Make a successful request
         Client client = ((DispatchImpl<DOMSource>) dispatch).getClient();
-        client.getRequestContext().put("ws-security.sts.client", stsClient);
+        client.getRequestContext().put(SecurityConstants.STS_CLIENT, stsClient);
         //client.getRequestContext().put("find.dispatch.operation", Boolean.TRUE);
         
         
@@ -349,12 +352,12 @@ public class SymmetricBindingTest extends AbstractBusClientServerTestBase {
         stsClient.setServiceName("{http://docs.oasis-open.org/ws-sx/ws-trust/200512/}SecurityTokenService");
         stsClient.setEndpointName("{http://docs.oasis-open.org/ws-sx/ws-trust/200512/}UT_Port");
         
-        Map<String, Object> properties = new HashMap<String, Object>();
-        properties.put("security.username", "alice");
-        properties.put("security.callback-handler",
+        Map<String, Object> properties = new HashMap<>();
+        properties.put(SecurityConstants.USERNAME, "alice");
+        properties.put(SecurityConstants.CALLBACK_HANDLER,
                        "org.apache.cxf.systest.sts.common.CommonCallbackHandler");
-        properties.put("security.encryption.username", "mystskey");
-        properties.put("security.encryption.properties", "clientKeystore.properties");
+        properties.put(SecurityConstants.ENCRYPT_USERNAME, "mystskey");
+        properties.put(SecurityConstants.ENCRYPT_PROPERTIES, "clientKeystore.properties");
         properties.put("ws-security.is-bsp-compliant", "false");
         stsClient.setProperties(properties);
         
@@ -363,6 +366,6 @@ public class SymmetricBindingTest extends AbstractBusClientServerTestBase {
 
     private static void doubleIt(DoubleItPortType port, int numToDouble) {
         int resp = port.doubleIt(numToDouble);
-        assertEquals(numToDouble * 2 , resp);
+        assertEquals(numToDouble * 2, resp);
     }
 }

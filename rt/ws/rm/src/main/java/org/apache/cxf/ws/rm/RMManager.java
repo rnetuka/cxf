@@ -53,6 +53,9 @@ import org.apache.cxf.message.Message;
 import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.phase.PhaseInterceptorChain;
 import org.apache.cxf.service.Service;
+import org.apache.cxf.service.model.BindingInfo;
+import org.apache.cxf.service.model.InterfaceInfo;
+import org.apache.cxf.service.model.ServiceInfo;
 import org.apache.cxf.transport.Conduit;
 import org.apache.cxf.ws.addressing.AddressingProperties;
 import org.apache.cxf.ws.addressing.ContextUtils;
@@ -66,9 +69,11 @@ import org.apache.cxf.ws.rm.manager.DestinationPolicyType;
 import org.apache.cxf.ws.rm.manager.RM10AddressingNamespaceType;
 import org.apache.cxf.ws.rm.manager.SequenceTerminationPolicyType;
 import org.apache.cxf.ws.rm.manager.SourcePolicyType;
+import org.apache.cxf.ws.rm.persistence.PersistenceUtils;
 import org.apache.cxf.ws.rm.persistence.RMMessage;
 import org.apache.cxf.ws.rm.persistence.RMStore;
 import org.apache.cxf.ws.rm.policy.RMPolicyUtilities;
+import org.apache.cxf.ws.rm.soap.RedeliveryQueueImpl;
 import org.apache.cxf.ws.rm.soap.RetransmissionQueueImpl;
 import org.apache.cxf.ws.rm.soap.SoapFaultFactory;
 import org.apache.cxf.ws.rm.v200702.CloseSequenceType;
@@ -111,6 +116,7 @@ public class RMManager {
     private RMStore store;
     private SequenceIdentifierGenerator idGenerator;
     private RetransmissionQueue retransmissionQueue;
+    private RedeliveryQueue redeliveryQueue;
     private Map<Endpoint, RMEndpoint> reliableEndpoints = new ConcurrentHashMap<Endpoint, RMEndpoint>();
     private AtomicReference<Timer> timer = new AtomicReference<Timer>();
     private RMConfiguration configuration;
@@ -182,6 +188,14 @@ public class RMManager {
 
     public void setRetransmissionQueue(RetransmissionQueue rq) {
         retransmissionQueue = rq;
+    }
+
+    public RedeliveryQueue getRedeliveryQueue() {
+        return redeliveryQueue;
+    }
+
+    public void setRedeliveryQueue(RedeliveryQueue redeliveryQueue) {
+        this.redeliveryQueue = redeliveryQueue;
     }
 
     public SequenceIdentifierGenerator getIdGenerator() {
@@ -390,6 +404,14 @@ public class RMManager {
         }
         return rme;
     }
+    public RMEndpoint findReliableEndpoint(QName qn) {
+        for (RMEndpoint rpe : reliableEndpoints.values()) {
+            if (qn.equals(rpe.getApplicationEndpoint().getService().getName())) {
+                return rpe;
+            }
+        }
+        return null;
+    }
 
     public Destination getDestination(Message message) throws RMException {
         RMEndpoint rme = getReliableEndpoint(message);
@@ -461,8 +483,8 @@ public class RMManager {
             Map<String, Object> context = new HashMap<String, Object>(16);
             for (String key : message.getContextualPropertyKeys()) {
                 //copy other properties?
-                if (key.startsWith("ws-security")) {
-                    context.put(key, message.getContextualProperty(key));                  
+                if (key.startsWith("ws-security") || key.startsWith("security.")) {
+                    context.put(key, message.getContextualProperty(key));
                 }
             }
             
@@ -555,10 +577,10 @@ public class RMManager {
         }
         
         for (DestinationSequence ds : dss) {
-            reconverDestinationSequence(endpoint, conduit, rme.getDestination(), ds);
+            recoverDestinationSequence(endpoint, conduit, rme.getDestination(), ds);
         }
         retransmissionQueue.start();
-        
+        redeliveryQueue.start();
     }
     
     private void recoverSourceSequence(Endpoint endpoint, Conduit conduit, Source s, 
@@ -569,12 +591,14 @@ public class RMManager {
             return;
         }
         LOG.log(Level.FINE, "Number of messages in sequence: {0}", ms.size());
-            
+        // only recover the sequence if there are pending messages
         s.addSequence(ss, false);
         // choosing an arbitrary valid source sequence as the current source sequence
         if (s.getAssociatedSequence(null) == null && !ss.isExpired() && !ss.isLastMessage()) {
             s.setCurrent(ss);
         }
+        //make sure this is associated with the offering id
+        s.setCurrent(ss.getOfferingSequenceIdentifier(), ss);
         for (RMMessage m : ms) {                
             
             Message message = new MessageImpl();
@@ -595,6 +619,7 @@ public class RMManager {
             st.setMessageNumber(m.getMessageNumber());
             RMProperties rmps = new RMProperties();
             rmps.setSequence(st);
+            rmps.setCreatedTime(m.getCreatedTime());
             rmps.exposeAs(ss.getProtocol().getWSRMNamespace());
             if (ss.isLastMessage() && ss.getCurrentMessageNr() == m.getMessageNumber()) {
                 CloseSequenceType close = new CloseSequenceType();
@@ -610,7 +635,10 @@ public class RMManager {
             }
                                     
             try {
-                message.put(RMMessageConstants.SAVED_CONTENT, RewindableInputStream.makeRewindable(m.getContent()));
+                // RMMessage is stored in a serialized way, therefore
+                // RMMessage content must be splitted into soap root message
+                // and attachments
+                PersistenceUtils.decodeRMContent(m, message);
                 RMContextUtils.setProtocolVariation(message, ss.getProtocol());
                 retransmissionQueue.addUnacknowledged(message);
             } catch (IOException e) {
@@ -619,10 +647,59 @@ public class RMManager {
         }            
     }
 
-    private void reconverDestinationSequence(Endpoint endpoint, Conduit conduit, Destination d, 
+    private void recoverDestinationSequence(Endpoint endpoint, Conduit conduit, Destination d, 
                                              DestinationSequence ds) {
+        // always recover the sequence 
         d.addSequence(ds, false);
-        //TODO add the redelivery code
+        
+        Collection<RMMessage> ms = store.getMessages(ds.getIdentifier(), false);
+        if (null == ms || 0 == ms.size()) {
+            return;
+        }
+        LOG.log(Level.FINE, "Number of messages in sequence: {0}", ms.size());
+
+        for (RMMessage m : ms) {                
+            Message message = new MessageImpl();
+            Exchange exchange = new ExchangeImpl();
+            message.setExchange(exchange);
+            if (null != conduit) {
+                exchange.setConduit(conduit);
+            }
+            exchange.put(Endpoint.class, endpoint);
+            exchange.put(Service.class, endpoint.getService());
+            if (endpoint.getEndpointInfo().getService() != null) {
+                exchange.put(ServiceInfo.class, endpoint.getEndpointInfo().getService());
+                exchange.put(InterfaceInfo.class, endpoint.getEndpointInfo().getService().getInterface());
+            }
+            exchange.put(Binding.class, endpoint.getBinding());
+            exchange.put(BindingInfo.class, endpoint.getEndpointInfo().getBinding());
+            exchange.put(Bus.class, bus);
+            
+            SequenceType st = new SequenceType();
+            st.setIdentifier(ds.getIdentifier());
+            st.setMessageNumber(m.getMessageNumber());
+            RMProperties rmps = new RMProperties();
+            rmps.setSequence(st);
+            rmps.setCreatedTime(m.getCreatedTime());
+            RMContextUtils.storeRMProperties(message, rmps, false);                
+            try {
+                // RMMessage is stored in a serialized way, therefore
+                // RMMessage content must be splitted into soap root message
+                // and attachments
+                PersistenceUtils.decodeRMContent(m, message);
+                redeliveryQueue.addUndelivered(message);
+                // add  acknowledged undelivered message
+                ds.addDeliveringMessageNumber(m.getMessageNumber());
+            } catch (IOException e) {
+                LOG.log(Level.SEVERE, "Error reading persisted message data", e);
+            }
+        }
+
+        // if no messages are recovered and the sequence has been already terminated, remove the sequence
+        if (ds.isTerminated() && ds.allAcknowledgedMessagesDelivered()) {
+            d.removeSequence(ds);
+            store.removeDestinationSequence(ds.getIdentifier());
+        }
     }
 
     RMEndpoint createReliableEndpoint(final Endpoint endpoint) {
@@ -659,6 +736,9 @@ public class RMManager {
         }
         if (null == retransmissionQueue) {
             retransmissionQueue = new RetransmissionQueueImpl(this);
+        }
+        if (null == redeliveryQueue) {
+            redeliveryQueue = new RedeliveryQueueImpl(this);
         }
         if (null == idGenerator) {
             idGenerator = new DefaultSequenceIdentifierGenerator();

@@ -49,7 +49,7 @@ import org.apache.wss4j.common.saml.SAMLUtil;
 import org.apache.wss4j.common.saml.SamlAssertionWrapper;
 import org.apache.wss4j.dom.WSConstants;
 import org.apache.wss4j.dom.WSDocInfo;
-import org.apache.wss4j.dom.WSSConfig;
+import org.apache.wss4j.dom.engine.WSSConfig;
 import org.apache.wss4j.dom.handler.RequestData;
 import org.apache.wss4j.dom.saml.WSSSAMLKeyInfoProcessor;
 import org.apache.wss4j.dom.validate.Credential;
@@ -163,7 +163,7 @@ public class SAMLTokenValidator implements TokenValidator {
             WSSConfig wssConfig = WSSConfig.getNewInstance();
             requestData.setWssConfig(wssConfig);
             requestData.setCallbackHandler(callbackHandler);
-            requestData.setMsgContext(tokenParameters.getWebServiceContext().getMessageContext());
+            requestData.setMsgContext(tokenParameters.getMessageContext());
             requestData.setSubjectCertConstraints(certConstraints.getCompiledSubjectContraints());
 
             WSDocInfo docInfo = new WSDocInfo(validateTargetElement.getOwnerDocument());
@@ -188,7 +188,9 @@ public class SAMLTokenValidator implements TokenValidator {
                 }
             }
             if (secToken != null && secToken.isExpired()) {
-                LOG.fine("Token: " + secToken.getId() + " is in the cache but expired - revalidating");
+                if (LOG.isLoggable(Level.FINE)) {
+                    LOG.fine("Token: " + secToken.getId() + " is in the cache but expired - revalidating");
+                }
                 secToken = null;
             }
             
@@ -229,8 +231,12 @@ public class SAMLTokenValidator implements TokenValidator {
            
             // Get the realm of the SAML token
             String tokenRealm = null;
-            if (samlRealmCodec != null) {
-                tokenRealm = samlRealmCodec.getRealmFromToken(assertion);
+            SAMLRealmCodec codec = samlRealmCodec;
+            if (codec == null) {
+                codec = stsProperties.getSamlRealmCodec();
+            }
+            if (codec != null) {
+                tokenRealm = codec.getRealmFromToken(assertion);
                 // verify the realm against the cached token
                 if (secToken != null) {
                     Map<String, Object> props = secToken.getProperties();

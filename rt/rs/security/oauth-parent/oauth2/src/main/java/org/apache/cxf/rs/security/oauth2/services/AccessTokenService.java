@@ -19,15 +19,16 @@
 
 package org.apache.cxf.rs.security.oauth2.services;
 
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.logging.Level;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
@@ -51,7 +52,6 @@ import org.apache.cxf.rs.security.oauth2.utils.OAuthUtils;
 public class AccessTokenService extends AbstractTokenService {
     private List<AccessTokenGrantHandler> grantHandlers = new LinkedList<AccessTokenGrantHandler>();
     private List<AccessTokenResponseFilter> responseHandlers = new LinkedList<AccessTokenResponseFilter>();
-    private List<String> audiences = new LinkedList<String>();
     
     /**
      * Sets the list of optional grant handlers
@@ -60,13 +60,21 @@ public class AccessTokenService extends AbstractTokenService {
     public void setGrantHandlers(List<AccessTokenGrantHandler> handlers) {
         grantHandlers = handlers;
     }
+
+    @Override
+    protected void injectContextIntoOAuthProviders() {
+        super.injectContextIntoOAuthProviders();
+        for (AccessTokenGrantHandler grantHandler : grantHandlers) {
+            OAuthUtils.injectContextIntoOAuthProvider(getMessageContext(), grantHandler);    
+        }
+    }
     
     /**
      * Sets a grant handler
      * @param handler the grant handler
      */
     public void setGrantHandler(AccessTokenGrantHandler handler) {
-        grantHandlers.add(handler);
+        setGrantHandlers(Collections.singletonList(handler));
     }
 
     public void setResponseFilters(List<AccessTokenResponseFilter> handlers) {
@@ -92,18 +100,21 @@ public class AccessTokenService extends AbstractTokenService {
         if (!OAuthUtils.isGrantSupportedForClient(client, 
                                                   isCanSupportPublicClients(),
                                                   params.getFirst(OAuthConstants.GRANT_TYPE))) {
+            LOG.log(Level.FINE, "The grant type {} is not supported for the client",
+                     params.getFirst(OAuthConstants.GRANT_TYPE));
             return createErrorResponse(params, OAuthConstants.UNAUTHORIZED_CLIENT);    
         }
         
         try {
-            checkAudience(params);
+            checkAudience(client, params);
         } catch (OAuthServiceException ex) {
             return super.createErrorResponseFromBean(ex.getError());
-        }
-        
+        } 
+                
         // Find the grant handler
         AccessTokenGrantHandler handler = findGrantHandler(params);
         if (handler == null) {
+            LOG.fine("No Grant Handler found");
             return createErrorResponse(params, OAuthConstants.UNSUPPORTED_GRANT_TYPE);
         }
         
@@ -111,10 +122,17 @@ public class AccessTokenService extends AbstractTokenService {
         ServerAccessToken serverToken = null;
         try {
             serverToken = handler.createAccessToken(client, params);
-        } catch (OAuthServiceException ex) {
-            return handleException(ex, OAuthConstants.INVALID_GRANT);
+        } catch (WebApplicationException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            // This is done to bypass a Check-Style 
+            // restriction on a number of return statements 
+            OAuthServiceException oauthEx = ex instanceof OAuthServiceException 
+                ? (OAuthServiceException)ex : new OAuthServiceException(ex);
+            return handleException(oauthEx, OAuthConstants.INVALID_GRANT);
         }
         if (serverToken == null) {
+            LOG.fine("No access token was created");
             return createErrorResponse(params, OAuthConstants.INVALID_GRANT);
         }
         
@@ -132,23 +150,10 @@ public class AccessTokenService extends AbstractTokenService {
             filter.process(clientToken, serverToken); 
         }
     }
-    protected void checkAudience(MultivaluedMap<String, String> params) { 
-        if (audiences.isEmpty()) {
-            return;
-        }
-        
+    protected void checkAudience(Client c, MultivaluedMap<String, String> params) { 
         String audienceParam = params.getFirst(OAuthConstants.CLIENT_AUDIENCE);
-        if (audienceParam == null) {
-            throw new OAuthServiceException(new OAuthError(OAuthConstants.INVALID_REQUEST));
-        }
-        // must be URL
-        try {
-            new URL(audienceParam);
-        } catch (MalformedURLException ex) {
-            throw new OAuthServiceException(new OAuthError(OAuthConstants.INVALID_REQUEST));
-        }
-        
-        if (!audiences.contains(audienceParam)) {
+        if (!OAuthUtils.validateAudience(audienceParam, c.getRegisteredAudiences())) {
+            LOG.fine("Error validating the audience parameter");
             throw new OAuthServiceException(new OAuthError(OAuthConstants.ACCESS_DENIED));
         }
         
@@ -177,13 +182,5 @@ public class AccessTokenService extends AbstractTokenService {
         }
         
         return null;
-    }
-
-    public List<String> getAudiences() {
-        return audiences;
-    }
-
-    public void setAudiences(List<String> audiences) {
-        this.audiences = audiences;
     }
 }

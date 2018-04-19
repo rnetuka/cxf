@@ -26,6 +26,7 @@ import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -108,6 +109,7 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
     
     private boolean supportJaxbOnly;
     private boolean refreshTemplates;
+    private boolean secureProcessing = true;
     
     public void setSupportJaxbOnly(boolean support) {
         this.supportJaxbOnly = support;
@@ -515,12 +517,12 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
             }
             
             Reader r = new BufferedReader(
-                           new InputStreamReader(urlStream.openStream(), "UTF-8"));
+                           new InputStreamReader(urlStream.openStream(), StandardCharsets.UTF_8));
             Source source = new StreamSource(r);
             source.setSystemId(urlStream.toExternalForm());
             if (factory == null) {
                 factory = (SAXTransformerFactory)TransformerFactory.newInstance();
-                factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, Boolean.TRUE);
+                factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, secureProcessing);
                 if (uriResolver != null) {
                     factory.setURIResolver(uriResolver);
                 }
@@ -537,6 +539,10 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
         this.refreshTemplates = refresh;
     }
 
+    public void setSecureProcessing(boolean secureProcessing) {
+        this.secureProcessing = secureProcessing;
+    }
+
     private static class TemplatesImpl implements Templates {
 
         private Templates templates;
@@ -544,7 +550,7 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
         private Map<String, Object> transformParameters = new HashMap<String, Object>();
         private Map<String, String> outProps = new HashMap<String, String>();
         
-        public TemplatesImpl(Templates templates, URIResolver resolver) {
+        TemplatesImpl(Templates templates, URIResolver resolver) {
             this.templates = templates;
             this.resolver = resolver;
         }

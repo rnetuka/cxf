@@ -23,9 +23,12 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
 import java.net.Socket;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -35,6 +38,8 @@ import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.core.Form;
 import javax.ws.rs.core.Link;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.ext.ParamConverter;
+import javax.ws.rs.ext.ParamConverterProvider;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
 
@@ -44,13 +49,8 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.ProcessingInstruction;
 
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.methods.FileRequestEntity;
-import org.apache.commons.httpclient.methods.PostMethod;
-import org.apache.commons.httpclient.methods.RequestEntity;
 import org.apache.cxf.helpers.DOMUtils;
 import org.apache.cxf.helpers.IOUtils;
-import org.apache.cxf.io.CachedOutputStream;
 import org.apache.cxf.jaxrs.client.JAXRSClientFactory;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.jaxrs.ext.xml.XMLSource;
@@ -60,6 +60,13 @@ import org.apache.cxf.jaxrs.provider.JAXBElementProvider;
 import org.apache.cxf.jaxrs.provider.aegis.AegisElementProvider;
 import org.apache.cxf.staxutils.StaxUtils;
 import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.FileEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.util.EntityUtils;
 import org.apache.ws.commons.schema.constants.Constants;
 
 import org.junit.BeforeClass;
@@ -81,18 +88,119 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
     public void testGetGenericBook() throws Exception {
         String baseAddress = "http://localhost:" + PORT + "/the/thebooks8/books"; 
         WebClient wc = WebClient.create(baseAddress);
-        WebClient.getConfig(wc).getHttpConduit().getClient().setReceiveTimeout(10000000);
         Long id = wc.type("application/xml").accept("text/plain").post(new Book("CXF", 1L), Long.class);
         assertEquals(new Long(1), id);
         Book book = wc.replaceHeader("Accept", "application/xml").query("id", 1L).get(Book.class);
         assertEquals("CXF", book.getName());
     }
-    
+
+    @Test
+    public void testGetDocuments() throws Exception {
+        String baseAddress = "http://localhost:" + PORT + "/the/thedocs/resource/doc";
+        WebClient wc = WebClient.create(baseAddress);
+        Response r = wc.accept("application/json").get();
+        assertEquals("[{\"t\":\"doc\"}]", r.readEntity(String.class));
+    }
+
     @Test
     public void testGetBookWebEx() throws Exception {
         final String address = "http://localhost:" + PORT + "/the/thebooks/bookstore/books/webex"; 
         doTestGetBookWebEx(address);
         
+    }
+    
+    @Test
+    public void testGetBookText() throws Exception {
+        final String address = "http://localhost:" + PORT + "/the/thebooks/bookstore/books/text"; 
+        WebClient wc = WebClient.create(address).accept("text/*");
+        WebClient.getConfig(wc).getHttpConduit().getClient().setReceiveTimeout(10000000);
+        assertEquals(406, wc.get().getStatus());
+        
+    }
+    
+    @Test
+    public void testGetServicesPageNotFound() throws Exception {
+        final String address = "http://localhost:" + PORT + "/the/services;a=b"; 
+        WebClient wc = WebClient.create(address).accept("text/*");
+        WebClient.getConfig(wc).getHttpConduit().getClient().setReceiveTimeout(10000000);
+        assertEquals(404, wc.get().getStatus());
+    }
+    @Test
+    public void testGetServicesPage() throws Exception {
+        final String address = "http://localhost:" + PORT + "/the/services"; 
+        WebClient wc = WebClient.create(address).accept("text/*");
+        String s = wc.get(String.class);
+        assertTrue(s.contains("href=\"/the/services/?stylesheet=1\""));
+        assertTrue(s.contains("<title>CXF - Service list</title>"));
+        assertTrue(s.contains("<a href=\"http://localhost:" + PORT + "/the/"));
+    }
+    @Test
+    public void testGetServicesPageWithServletPatternMatchOnly() throws Exception {
+        final String address = "http://localhost:" + PORT + "/the/;a=b"; 
+        WebClient wc = WebClient.create(address).accept("text/*");
+        String s = wc.get(String.class);
+        assertTrue(s.contains("href=\"/the/?stylesheet=1\""));
+        assertTrue(s.contains("<title>CXF - Service list</title>"));
+        assertFalse(s.contains(";a=b"));
+        assertTrue(s.contains("<a href=\"http://localhost:" + PORT + "/the/"));
+    }
+    @Test
+    public void testGetServicesPageWithServletPatternMatchOnly2() throws Exception {
+        final String address = "http://localhost:" + PORT + "/services/list/;a=b"; 
+        WebClient wc = WebClient.create(address).accept("text/*");
+        String s = wc.get(String.class);
+        assertTrue(s.contains("href=\"/services/list/?stylesheet=1\""));
+        assertTrue(s.contains("<title>CXF - Service list</title>"));
+        assertFalse(s.contains(";a=b"));
+        assertTrue(s.contains("<a href=\"http://localhost:" + PORT + "/services/list/"));
+    }
+    
+    @Test
+    public void testEchoBookForm() throws Exception {
+        String address = "http://localhost:" + PORT + "/bus/thebooksform/bookform";
+        doTestEchoBookForm(address);
+    }
+    @Test
+    public void testEchoBookForm2() throws Exception {
+        String address = "http://localhost:" + PORT + "/bus/thebooksform/bookform2";
+        doTestEchoBookForm(address);
+    }
+    @Test
+    public void testEchoBookForm3() throws Exception {
+        String address = "http://localhost:" + PORT + "/bus/thebooksform/bookform3";
+        doTestEchoBookForm(address);
+    }
+    @Test
+    public void testEchoBookForm4() throws Exception {
+        String address = "http://localhost:" + PORT + "/bus/thebooksform/bookform4";
+        doTestEchoBookForm(address);
+    }
+
+    @Test
+    public void testEchoBookForm5() throws Exception {
+        String address = "http://localhost:" + PORT + "/bus/thebooksform/bookform5";
+        doTestEchoBookForm(address);
+    }
+
+    private void doTestEchoBookForm(String address) throws Exception {
+        WebClient wc = WebClient.create(address);
+        WebClient.getConfig(wc).getHttpConduit().getClient().setReceiveTimeout(10000000L);
+        
+        Book b = 
+            wc.form(new Form().param("name", "CXFForm").param("id", "125"))
+                .readEntity(Book.class);
+        assertEquals("CXFForm", b.getName());
+        assertEquals(125L, b.getId());
+    }
+    @Test
+    public void testEchoBookFormXml() throws Exception {
+        String address = "http://localhost:" + PORT + "/bus/thebooksform/bookform";
+        WebClient wc = WebClient.create(address);
+        Book b = 
+            wc.type("application/xml").post(new Book("CXFFormXml", 125L))
+                .readEntity(Book.class);
+        assertEquals("CXFFormXml", b.getName());
+        assertEquals(125L, b.getId());
     }
     
     @Test
@@ -140,7 +248,7 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
     public void testGetWadlFromWadlLocation() throws Exception {
         String address = "http://localhost:" + PORT + "/the/generated";    
         WebClient client = WebClient.create(address + "/bookstore" + "?_wadl&_type=xml");
-        Document doc = StaxUtils.read(new InputStreamReader(client.get(InputStream.class), "UTF-8"));
+        Document doc = StaxUtils.read(new InputStreamReader(client.get(InputStream.class), StandardCharsets.UTF_8));
         List<Element> resources = checkWadlResourcesInfo(doc, address, "/schemas/book.xsd", 2);
         assertEquals("", resources.get(0).getAttribute("type"));
         String type = resources.get(1).getAttribute("type");
@@ -258,7 +366,7 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
                               String refAttrName) throws Exception {
         WebClient client = WebClient.create(address + schemaSegment);
         WebClient.getConfig(client).getHttpConduit().getClient().setReceiveTimeout(10000000L);
-        Document doc = StaxUtils.read(new InputStreamReader(client.get(InputStream.class), "UTF-8"));
+        Document doc = StaxUtils.read(new InputStreamReader(client.get(InputStream.class), StandardCharsets.UTF_8));
         Element root = doc.getDocumentElement();
         assertEquals(Constants.URI_2001_SCHEMA_XSD, root.getNamespaceURI());
         assertEquals("schema", root.getLocalName());
@@ -277,7 +385,7 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
         WebClient client = WebClient.create(requestTypeURI);
         WebClient.getConfig(client).getHttpConduit().getClient().setReceiveTimeout(1000000);
         
-        Document doc = StaxUtils.read(new InputStreamReader(client.get(InputStream.class), "UTF-8"));
+        Document doc = StaxUtils.read(new InputStreamReader(client.get(InputStream.class), StandardCharsets.UTF_8));
         Element root = doc.getDocumentElement();
         assertEquals(WadlGenerator.WADL_NS, root.getNamespaceURI());
         assertEquals("application", root.getLocalName());
@@ -300,7 +408,7 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
     private List<Element> checkWadlResourcesInfo(String baseURI, String requestURI, 
                                         String schemaRef, int size) throws Exception {
         WebClient client = WebClient.create(requestURI + "?_wadl&_type=xml");
-        Document doc = StaxUtils.read(new InputStreamReader(client.get(InputStream.class), "UTF-8"));
+        Document doc = StaxUtils.read(new InputStreamReader(client.get(InputStream.class), StandardCharsets.UTF_8));
         return checkWadlResourcesInfo(doc, baseURI, schemaRef, size);
     }
     private List<Element> checkWadlResourcesInfo(Document doc, String baseURI, String schemaRef, int size) 
@@ -754,24 +862,25 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
     @Test
     public void testRetrieveBookAegis3() throws Exception {
         
-        Socket s = new Socket("localhost", Integer.parseInt(PORT));
+        try (Socket s = new Socket("localhost", Integer.parseInt(PORT));
+            InputStream is = this.getClass().getResourceAsStream("resources/retrieveRequest.txt")) {
         
-        InputStream is = this.getClass().getResourceAsStream("resources/retrieveRequest.txt");
-        byte[] bytes = IOUtils.readBytesFromStream(is);
-        s.getOutputStream().write(bytes);
-        s.getOutputStream().flush();
+            byte[] bytes = IOUtils.readBytesFromStream(is);
+            s.getOutputStream().write(bytes);
+            s.getOutputStream().flush();
         
-        BufferedReader r = new BufferedReader(new InputStreamReader(s.getInputStream()));
-        StringBuilder sb = new StringBuilder();
-        String str = null;
-        while ((str = r.readLine()) != null) {
-            sb.append(str);
+            BufferedReader r = new BufferedReader(new InputStreamReader(s.getInputStream()));
+            StringBuilder sb = new StringBuilder();
+            String str = null;
+            while ((str = r.readLine()) != null) {
+                sb.append(str);
+            }
+        
+            String aegisData = sb.toString();
+            s.getInputStream().close();
+            s.close();
+            assertTrue(aegisData.contains("CXF in Action - 2"));
         }
-        
-        String aegisData = sb.toString();
-        s.getInputStream().close();
-        s.close();
-        assertTrue(aegisData.contains("CXF in Action - 2"));
         
     }
     
@@ -800,8 +909,9 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
                                          endpointAddress, 
                                          BookStoreNoAnnotations.class,
                                          "classpath:/org/apache/cxf/systest/jaxrs/resources/resources.xml",
+                                         Collections.singletonList(new LongTypeParamConverterProvider()),
                                          null);
-        Book b = bStore.getBook(123L);
+        Book b = bStore.getBook(null);
         assertNotNull(b);
         assertEquals(123L, b.getId());
         assertEquals("CXF in Action", b.getName());
@@ -888,24 +998,22 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
     
     private void doPost(String endpointAddress, int expectedStatus, String contentType,
                         String inResource, String expectedResource) throws Exception {
-        
-        File input = new File(getClass().getResource(inResource).toURI());         
-        PostMethod post = new PostMethod(endpointAddress);
-        post.setRequestHeader("Content-Type", contentType);
-        RequestEntity entity = new FileRequestEntity(input, "text/xml");
-        post.setRequestEntity(entity);
-        HttpClient httpclient = new HttpClient();
-        
+        File input = new File(getClass().getResource(inResource).toURI());
+        CloseableHttpClient client = HttpClientBuilder.create().build();
+        HttpPost post = new HttpPost(endpointAddress);
+        post.setHeader("Content-Type", contentType);
+        post.setEntity(new FileEntity(input, ContentType.TEXT_XML));
+
         try {
-            int result = httpclient.executeMethod(post);
-            assertEquals(expectedStatus, result);
-            
+            CloseableHttpResponse response = client.execute(post);
+            assertEquals(expectedStatus, response.getStatusLine().getStatusCode());
+
             if (expectedStatus != 400) {
                 InputStream expected = getClass().getResourceAsStream(expectedResource);
-                assertEquals(stripXmlInstructionIfNeeded(getStringFromInputStream(expected)), 
-                             stripXmlInstructionIfNeeded(post.getResponseBodyAsString()));
+                assertEquals(stripXmlInstructionIfNeeded(getStringFromInputStream(expected)),
+                             stripXmlInstructionIfNeeded(EntityUtils.toString(response.getEntity())));
             } else {
-                assertTrue(post.getResponseBodyAsString()
+                assertTrue(EntityUtils.toString(response.getEntity())
                                .contains("Cannot find the declaration of element"));
             }
         } finally {
@@ -923,12 +1031,7 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
     }
     
     private String getStringFromInputStream(InputStream in) throws Exception {        
-        CachedOutputStream bos = new CachedOutputStream();
-        IOUtils.copy(in, bos);
-        String str = new String(bos.getBytes()); 
-        in.close();
-        bos.close();
-        return str;
+        return IOUtils.toString(in);
     }
 
         
@@ -956,6 +1059,25 @@ public class JAXRSClientServerSpringBookTest extends AbstractBusClientServerTest
         
         public void setName(String n) {
             name1 = n;
+        }
+        
+    }
+    static class LongTypeParamConverterProvider implements ParamConverterProvider, ParamConverter<Long> {
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public <T> ParamConverter<T> getConverter(Class<T> cls, Type t, Annotation[] anns) {
+            return cls == Long.class ? (ParamConverter<T>)this : null;
+        }
+
+        @Override
+        public Long fromString(String s) {
+            return null;
+        }
+
+        @Override
+        public String toString(Long l) {
+            return l == null ? "123" : String.valueOf(l);
         }
         
     }

@@ -38,8 +38,11 @@ import javax.ws.rs.client.ClientRequestFilter;
 import javax.ws.rs.client.ClientResponseContext;
 import javax.ws.rs.client.ClientResponseFilter;
 import javax.ws.rs.client.Entity;
+import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.InvocationCallback;
 import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.Feature;
+import javax.ws.rs.core.FeatureContext;
 import javax.ws.rs.core.GenericEntity;
 import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.HttpHeaders;
@@ -47,6 +50,8 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.MessageBodyReader;
+import javax.ws.rs.ext.ParamConverter;
+import javax.ws.rs.ext.ParamConverterProvider;
 import javax.ws.rs.ext.ReaderInterceptor;
 import javax.ws.rs.ext.ReaderInterceptorContext;
 import javax.ws.rs.ext.WriterInterceptor;
@@ -60,14 +65,17 @@ import com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
 import org.apache.cxf.jaxrs.client.JAXRSClientFactory;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.jaxrs.provider.JAXBElementProvider;
+import org.apache.cxf.jaxrs.utils.JAXRSUtils;
 import org.apache.cxf.systest.jaxrs.BookStore.BookInfo;
 import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class JAXRS20ClientServerBookTest extends AbstractBusClientServerTestBase {
+    
     public static final String PORT = BookServer20.PORT;
     
     @BeforeClass
@@ -128,7 +136,7 @@ public class JAXRS20ClientServerBookTest extends AbstractBusClientServerTestBase
     
     @Test
     public void testGetBook() {
-        String address = "http://localhost:" + PORT + "/bookstore/bookheaders/simple";
+        String address = "http://localhost:" + PORT + "/bookstore/bookheaders/simple?a=b";
         doTestGetBook(address, false);
     }
     
@@ -142,13 +150,34 @@ public class JAXRS20ClientServerBookTest extends AbstractBusClientServerTestBase
     }
     
     @Test
+    public void testGetBookSpecTemplate() {
+        String address = "http://localhost:" + PORT + "/bookstore/{a}";
+        Client client = ClientBuilder.newClient();
+        client.register((Object)ClientFilterClientAndConfigCheck.class);
+        client.register(new BTypeParamConverterProvider());
+        client.property("clientproperty", "somevalue");
+        WebTarget webTarget = client.target(address).path("{b}")
+            .resolveTemplate("a", "bookheaders").resolveTemplate("b", "simple");
+        Invocation.Builder builder = webTarget.request("application/xml").header("a", new BType());
+
+        Response r = builder.get();
+        Book book = r.readEntity(Book.class);
+        assertEquals(124L, book.getId());
+        assertEquals("b", r.getHeaderString("a"));
+    }
+    @Test
     public void testGetBookSpec() {
         String address = "http://localhost:" + PORT + "/bookstore/bookheaders/simple";
         Client client = ClientBuilder.newClient();
         client.register((Object)ClientFilterClientAndConfigCheck.class);
+        client.register(new BTypeParamConverterProvider());
         client.property("clientproperty", "somevalue");
-        Book book = client.target(address).request("application/xml").get(Book.class);
+        WebTarget webTarget = client.target(address);
+        Invocation.Builder builder = webTarget.request("application/xml").header("a", new BType());
+        Response r = builder.get();
+        Book book = r.readEntity(Book.class);
         assertEquals(124L, book.getId());
+        assertEquals("b", r.getHeaderString("a"));
     }
     
     @Test
@@ -156,6 +185,17 @@ public class JAXRS20ClientServerBookTest extends AbstractBusClientServerTestBase
         String address = "http://localhost:" + PORT + "/bookstore/bookheaders/simple";
         Client client = ClientBuilder.newClient();
         client.register(new BookInfoReader());
+        WebTarget target = client.target(address);
+        BookInfo book = target.request("application/xml").get(BookInfo.class);
+        assertEquals(124L, book.getId());
+        book = target.request("application/xml").get(BookInfo.class);
+        assertEquals(124L, book.getId());
+    }
+    @Test
+    public void testGetBookSpecProviderWithFeature() {
+        String address = "http://localhost:" + PORT + "/bookstore/bookheaders/simple";
+        Client client = ClientBuilder.newClient();
+        client.register(new ClientTestFeature());
         WebTarget target = client.target(address);
         BookInfo book = target.request("application/xml").get(BookInfo.class);
         assertEquals(124L, book.getId());
@@ -484,7 +524,7 @@ public class JAXRS20ClientServerBookTest extends AbstractBusClientServerTestBase
     
     private static class CustomInvocationCallback implements InvocationCallback<List<Book>> {
         private Holder<List<Book>> holder;
-        public CustomInvocationCallback(Holder<List<Book>> holder) {
+        CustomInvocationCallback(Holder<List<Book>> holder) {
             this.holder = holder;
         }
         
@@ -503,7 +543,7 @@ public class JAXRS20ClientServerBookTest extends AbstractBusClientServerTestBase
     }
     private static class GenericInvocationCallback<T> implements InvocationCallback<T> {
         private Holder<T> holder;
-        public GenericInvocationCallback(Holder<T> holder) {
+        GenericInvocationCallback(Holder<T> holder) {
             this.holder = holder;
         }
         
@@ -635,7 +675,7 @@ public class JAXRS20ClientServerBookTest extends AbstractBusClientServerTestBase
         String address = "http://localhost:" + PORT + "/bookstores";
         List<Object> providers = new ArrayList<Object>();
         providers.add(new ClientCacheRequestFilter());
-        providers.add(new ClientHeaderResponseFilter());
+        providers.add(new ClientHeaderResponseFilter(true));
         WebClient wc = WebClient.create(address, providers);
         Book theBook = new Book("Echo", 123L);
         Response r = wc.post(theBook);
@@ -687,6 +727,14 @@ public class JAXRS20ClientServerBookTest extends AbstractBusClientServerTestBase
     public void testBookExistsServerAddressOverwrite() throws Exception {
         String address = "http://localhost:" + PORT + "/bookstore/books/checkN";
         WebClient wc = WebClient.create(address);
+        wc.accept("text/plain").type("text/plain");
+        assertTrue(wc.post("s", Boolean.class));
+    }
+    @Test
+    public void testBookExistsServerAddressOverwriteWithQuery() throws Exception {
+        String address = "http://localhost:" + PORT + "/bookstore/books/checkNQuery?a=b";
+        WebClient wc = WebClient.create(address);
+        WebClient.getConfig(wc).getHttpConduit().getClient().setReceiveTimeout(10000000);
         wc.accept("text/plain").type("text/plain");
         assertTrue(wc.post("s", Boolean.class));
     }
@@ -785,6 +833,9 @@ public class JAXRS20ClientServerBookTest extends AbstractBusClientServerTestBase
 
         @Override
         public void filter(ClientRequestContext context) throws IOException {
+            String opName = 
+                (String)JAXRSUtils.getCurrentMessage().getExchange().get("org.apache.cxf.resource.operation.name");
+            assertFalse(opName.endsWith("?a=b"));
             context.getHeaders().putSingle("Simple", "simple");
             if (context.hasEntity()) {
                 context.getHeaders().putSingle("Content-Type", MediaType.APPLICATION_XML_TYPE);
@@ -806,15 +857,26 @@ public class JAXRS20ClientServerBookTest extends AbstractBusClientServerTestBase
     }
     
     private static class ClientHeaderResponseFilter implements ClientResponseFilter {
-
+        private boolean local;
+        ClientHeaderResponseFilter() {
+            
+        }
+        ClientHeaderResponseFilter(boolean local) {
+            this.local = local;
+        }
         @Override
         public void filter(ClientRequestContext reqContext, 
                            ClientResponseContext respContext) throws IOException {
-            respContext.getHeaders().putSingle(HttpHeaders.LOCATION, "http://localhost/redirect");
+            MultivaluedMap<String, String> headers = respContext.getHeaders();
+            if (!local) {
+                Assert.assertEquals(1, headers.get("Date").size());
+            }
+            headers.putSingle(HttpHeaders.LOCATION, "http://localhost/redirect");
             
         }
         
     }
+    
     
     public static class ClientReaderInterceptor implements ReaderInterceptor {
 
@@ -852,6 +914,41 @@ public class JAXRS20ClientServerBookTest extends AbstractBusClientServerTestBase
             WebApplicationException {
             Book book = new JAXBElementProvider<Book>().readFrom(Book.class, Book.class, anns, mt, headers, is);
             return new BookInfo(book);
+        }
+        
+    }
+    private static class ClientTestFeature implements Feature {
+
+        @Override
+        public boolean configure(FeatureContext context) {
+            context.register(new BookInfoReader());
+            return true;
+        }
+        
+    }
+    
+    static class BType {
+        public String b() {
+            return "b";
+        }
+    }
+    
+    static class BTypeParamConverterProvider implements ParamConverterProvider, ParamConverter<BType> {
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public <T> ParamConverter<T> getConverter(Class<T> cls, Type t, Annotation[] anns) {
+            return cls == BType.class ? (ParamConverter<T>)this : null;
+        }
+
+        @Override
+        public BType fromString(String s) {
+            return null;
+        }
+
+        @Override
+        public String toString(BType bType) {
+            return bType.b();
         }
         
     }

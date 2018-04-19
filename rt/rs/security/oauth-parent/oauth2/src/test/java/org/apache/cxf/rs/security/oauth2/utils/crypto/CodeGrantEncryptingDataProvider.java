@@ -19,8 +19,11 @@
 package org.apache.cxf.rs.security.oauth2.utils.crypto;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
+import org.apache.cxf.rs.security.oauth2.common.Client;
+import org.apache.cxf.rs.security.oauth2.common.UserSubject;
 import org.apache.cxf.rs.security.oauth2.grants.code.AuthorizationCodeDataProvider;
 import org.apache.cxf.rs.security.oauth2.grants.code.AuthorizationCodeRegistration;
 import org.apache.cxf.rs.security.oauth2.grants.code.ServerAuthorizationCodeGrant;
@@ -51,5 +54,11 @@ public class CodeGrantEncryptingDataProvider extends EncryptingDataProvider
     public ServerAuthorizationCodeGrant removeCodeGrant(String code) throws OAuthServiceException {
         grants.remove(code);
         return ModelEncryptionSupport.decryptCodeGrant(this, code, key);
+    }
+
+    @Override
+    public List<ServerAuthorizationCodeGrant> getCodeGrants(Client c, UserSubject sub) throws OAuthServiceException {
+        // TODO Auto-generated method stub
+        return null;
     }
 }

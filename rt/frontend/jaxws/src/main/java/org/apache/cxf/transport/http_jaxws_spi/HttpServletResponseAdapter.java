@@ -51,7 +51,7 @@ class HttpServletResponseAdapter implements HttpServletResponse {
     private PrintWriter writer;
     private int status;
     
-    public HttpServletResponseAdapter(HttpExchange exchange) {
+    HttpServletResponseAdapter(HttpExchange exchange) {
         this.exchange = exchange;
     }
 
@@ -224,11 +224,11 @@ class HttpServletResponseAdapter implements HttpServletResponse {
         this.setStatus(sc);
     }
 
-    private class ServletOutputStreamAdapter extends ServletOutputStream {
+    private static class ServletOutputStreamAdapter extends ServletOutputStream {
 
         private OutputStream delegate;
 
-        public ServletOutputStreamAdapter(OutputStream delegate) {
+        ServletOutputStreamAdapter(OutputStream delegate) {
             this.delegate = delegate;
         }
 

@@ -23,6 +23,7 @@ import java.net.URI;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.core.HttpHeaders;
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.apache.cxf.jaxrs.model.ParameterType;
@@ -39,6 +40,29 @@ import org.junit.Test;
 
 public class HttpUtilsTest extends Assert {
 
+    @Test
+    public void testEncodePartiallyEncoded() {
+        assertEquals("/address", HttpUtils.encodePartiallyEncoded("/address", false));
+    }
+    @Test
+    public void testEncodePartiallyEncoded2() {
+        assertEquals("/add%20ress", HttpUtils.encodePartiallyEncoded("/add ress", false));
+    }
+    @Test
+    public void testEncodePartiallyEncoded3() {
+        assertEquals("/add%20ress", HttpUtils.encodePartiallyEncoded("/add%20ress", false));
+    }
+    @Test
+    public void testEncodePartiallyEncoded4() {
+        assertEquals("http://localhost:8080/", 
+                     HttpUtils.encodePartiallyEncoded("http://localhost:8080/", false));
+    }
+    @Test
+    public void testEncodePartiallyEncoded5() {
+        assertEquals("http://localhost:8080/1/%202", 
+                     HttpUtils.encodePartiallyEncoded("http://localhost:8080/1/ 2", false));
+    }
+    
     @Test
     public void testUrlDecode() {
         assertEquals("+ ", HttpUtils.urlDecode("%2B+"));
@@ -58,6 +82,22 @@ public class HttpUtilsTest extends Assert {
         URI c = HttpUtils.relativize(a, b);
         
         assertEquals("../images/subdir/image.png", c.toString());
+    }
+    
+    @Test
+    public void testMediaTypeWithUTF8() {
+        assertEquals("UTF-8",
+                     HttpUtils.getEncoding(MediaType.valueOf("application/json;charset=UTF-8"), "UTF-16"));
+    }
+    @Test
+    public void testMediaTypeWithUTF8WithQuotes() {
+        assertEquals("UTF-8",
+                     HttpUtils.getEncoding(MediaType.valueOf("application/json;charset=\"UTF-8\""), "UTF-16"));
+    }
+    @Test
+    public void testMediaTypeWithNoCharset() {
+        assertEquals("UTF-16",
+                     HttpUtils.getEncoding(MediaType.valueOf("application/json"), "UTF-16"));
     }
     
     @Test

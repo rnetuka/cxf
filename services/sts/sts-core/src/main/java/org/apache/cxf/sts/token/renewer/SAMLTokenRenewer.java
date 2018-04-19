@@ -23,6 +23,7 @@ import java.security.Principal;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +31,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.security.auth.callback.CallbackHandler;
-import javax.xml.ws.handler.MessageContext;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -47,7 +47,7 @@ import org.apache.cxf.sts.token.provider.AbstractSAMLTokenProvider;
 import org.apache.cxf.sts.token.provider.ConditionsProvider;
 import org.apache.cxf.sts.token.provider.DefaultConditionsProvider;
 import org.apache.cxf.sts.token.provider.TokenProviderParameters;
-import org.apache.cxf.sts.token.realm.SAMLRealm;
+import org.apache.cxf.sts.token.realm.RealmProperties;
 import org.apache.cxf.ws.security.sts.provider.STSException;
 import org.apache.cxf.ws.security.tokenstore.SecurityToken;
 import org.apache.cxf.ws.security.tokenstore.TokenStore;
@@ -60,8 +60,8 @@ import org.apache.wss4j.common.saml.builder.SAML1ComponentBuilder;
 import org.apache.wss4j.common.saml.builder.SAML2ComponentBuilder;
 import org.apache.wss4j.dom.WSConstants;
 import org.apache.wss4j.dom.WSDocInfo;
-import org.apache.wss4j.dom.WSSConfig;
-import org.apache.wss4j.dom.WSSecurityEngineResult;
+import org.apache.wss4j.dom.engine.WSSConfig;
+import org.apache.wss4j.dom.engine.WSSecurityEngineResult;
 import org.apache.wss4j.dom.handler.RequestData;
 import org.apache.wss4j.dom.handler.WSHandlerConstants;
 import org.apache.wss4j.dom.handler.WSHandlerResult;
@@ -85,7 +85,7 @@ public class SAMLTokenRenewer extends AbstractSAMLTokenProvider implements Token
     private static final Logger LOG = LogUtils.getL7dLogger(SAMLTokenRenewer.class);
     private boolean signToken = true;
     private ConditionsProvider conditionsProvider = new DefaultConditionsProvider();
-    private Map<String, SAMLRealm> realmMap = new HashMap<>();
+    private Map<String, RealmProperties> realmMap = new HashMap<>();
     private long maxExpiry = DEFAULT_MAX_EXPIRY;
     // boolean to enable/disable the check of proof of possession
     private boolean verifyProofOfPossession = true;
@@ -265,19 +265,20 @@ public class SAMLTokenRenewer extends AbstractSAMLTokenProvider implements Token
     }
     
     /**
-     * Set the map of realm->SAMLRealm for this token provider
-     * @param realms the map of realm->SAMLRealm for this token provider
+     * Set the map of realm->RealmProperties for this token provider
+     * @param realms the map of realm->RealmProperties for this token provider
      */
-    public void setRealmMap(Map<String, SAMLRealm> realms) {
-        this.realmMap = realms;
+    public void setRealmMap(Map<String, ? extends RealmProperties> realms) {
+        this.realmMap.clear();
+        this.realmMap.putAll(realms);
     }
     
     /**
-     * Get the map of realm->SAMLRealm for this token provider
-     * @return the map of realm->SAMLRealm for this token provider
+     * Get the map of realm->RealmProperties for this token provider
+     * @return the map of realm->RealmProperties for this token provider
      */
-    public Map<String, SAMLRealm> getRealmMap() {
-        return realmMap;
+    public Map<String, RealmProperties> getRealmMap() {
+        return Collections.unmodifiableMap(realmMap);
     }
     
     private void validateAssertion(
@@ -426,7 +427,7 @@ public class SAMLTokenRenewer extends AbstractSAMLTokenProvider implements Token
         if (signToken) {
             STSPropertiesMBean stsProperties = tokenParameters.getStsProperties();
             String realm = tokenParameters.getRealm();
-            SAMLRealm samlRealm = null;
+            RealmProperties samlRealm = null;
             if (realm != null && realmMap.containsKey(realm)) {
                 samlRealm = realmMap.get(realm);
             }
@@ -477,7 +478,7 @@ public class SAMLTokenRenewer extends AbstractSAMLTokenProvider implements Token
         providerParameters.setStsProperties(renewerParameters.getStsProperties());
         providerParameters.setTokenRequirements(renewerParameters.getTokenRequirements());
         providerParameters.setTokenStore(renewerParameters.getTokenStore());
-        providerParameters.setWebServiceContext(renewerParameters.getWebServiceContext());
+        providerParameters.setMessageContext(renewerParameters.getMessageContext());
         
         // Store token to renew in the additional properties in case you want to base some
         // Conditions on the token
@@ -547,7 +548,7 @@ public class SAMLTokenRenewer extends AbstractSAMLTokenProvider implements Token
             TokenRenewerParameters tokenParameters,
             SAMLKeyInfo subjectKeyInfo
         ) {
-            MessageContext messageContext = tokenParameters.getWebServiceContext().getMessageContext();
+            Map<String, Object> messageContext = tokenParameters.getMessageContext();
             final List<WSHandlerResult> handlerResults = 
                 CastUtils.cast((List<?>) messageContext.get(WSHandlerConstants.RECV_RESULTS));
 

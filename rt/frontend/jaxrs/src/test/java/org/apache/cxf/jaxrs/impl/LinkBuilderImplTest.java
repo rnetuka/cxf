@@ -41,7 +41,7 @@ public class LinkBuilderImplTest extends Assert {
     }
     
     @Test
-    public void testbBuildObjects() throws Exception {
+    public void testBuildObjects() throws Exception {
         StringBuilder path1 = new StringBuilder().append("p1");
         ByteArrayInputStream path2 = new ByteArrayInputStream("p2".getBytes()) {
             @Override
@@ -56,6 +56,12 @@ public class LinkBuilderImplTest extends Assert {
         Link link = builder.build(path1, path2, path3);
         assertNotNull(link);
         assertEquals(link.toString(), expected);
+    }
+    
+    @Test
+    public void testSelfLink() throws Exception {
+        Link link = new LinkBuilderImpl().baseUri("http://localhost:8080/resource/1").rel("self").build();
+        assertEquals("<http://localhost:8080/resource/1>;rel=\"self\"", link.toString());
     }
     
     @Test
@@ -103,6 +109,17 @@ public class LinkBuilderImplTest extends Assert {
         Link link = linkBuilder.build();
         String resource = link.toString();
         assertTrue(resource.contains("<consumesappjson>"));
+    }
+    
+    @Test
+    public void testInvalidString() throws Exception {
+        try {
+            Link.Builder linkBuilder = Link.fromMethod(TestResource.class, "consumesAppJson");
+            linkBuilder.link("</cxf>>");
+            fail("IllegalArgumentException is expected");
+        } catch (java.lang.IllegalArgumentException e) {
+            // expected
+        }
     }
     
     @Path("resource")

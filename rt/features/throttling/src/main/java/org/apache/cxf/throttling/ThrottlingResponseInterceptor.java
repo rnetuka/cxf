@@ -20,6 +20,7 @@
 package org.apache.cxf.throttling;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -62,6 +63,15 @@ public class ThrottlingResponseInterceptor extends AbstractPhaseInterceptor<Mess
                 }
                 r.add(e.getValue());
             }
+            if (rsp.getResponseCode() == 503 && rsp.getDelay() > 0 
+                && !rsp.getResponseHeaders().containsKey("Retry-After")) {
+                String retryAfter = Long.toString(rsp.getDelay() / 1000);
+                headers.put("Retry-After", Collections.singletonList(retryAfter));
+            }
+        }
+        ThrottlingCounter tCounter = message.getExchange().get(ThrottlingCounter.class);
+        if (tCounter != null) {
+            tCounter.decrementAndGet();
         }
     }
 }

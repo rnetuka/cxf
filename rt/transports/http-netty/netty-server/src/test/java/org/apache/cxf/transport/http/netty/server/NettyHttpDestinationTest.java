@@ -22,6 +22,7 @@ package org.apache.cxf.transport.http.netty.server;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -113,11 +114,11 @@ public class NettyHttpDestinationTest extends Assert {
     private class EasyMockJettyHTTPDestination
         extends NettyHttpDestination {
 
-        public EasyMockJettyHTTPDestination(Bus bus,
-                                            DestinationRegistry registry,
-                                            EndpointInfo endpointInfo,
-                                            NettyHttpServerEngineFactory serverEngineFactory,
-                                            NettyHttpServerEngine easyMockEngine) throws IOException {
+        EasyMockJettyHTTPDestination(Bus bus,
+                                     DestinationRegistry registry,
+                                     EndpointInfo endpointInfo,
+                                     NettyHttpServerEngineFactory serverEngineFactory,
+                                     NettyHttpServerEngine easyMockEngine) throws IOException {
             super(bus, registry, endpointInfo, serverEngineFactory);
             engine = easyMockEngine;
         }
@@ -656,7 +657,7 @@ public class NettyHttpDestinationTest extends Assert {
                 EasyMock.expect(request.getRequestURI()).andReturn("/foo");
                 EasyMock.expect(request.getRequestURL())
                     .andReturn(new StringBuffer("http://localhost/foo")).anyTimes();
-                EasyMock.expect(request.getCharacterEncoding()).andReturn("UTF-8");
+                EasyMock.expect(request.getCharacterEncoding()).andReturn(StandardCharsets.UTF_8.name());
                 EasyMock.expect(request.getQueryString()).andReturn(query).times(2);    
                 EasyMock.expect(request.getHeader("Accept")).andReturn("*/*");  
                 EasyMock.expect(request.getContentType()).andReturn("text/xml charset=utf8").times(2);
@@ -751,7 +752,7 @@ public class NettyHttpDestinationTest extends Assert {
         request.getPathInfo();
         EasyMock.expectLastCall().andReturn("/bar/foo");
         request.getCharacterEncoding();
-        EasyMock.expectLastCall().andReturn("UTF-8");
+        EasyMock.expectLastCall().andReturn(StandardCharsets.UTF_8.name());
         request.getQueryString();
         EasyMock.expectLastCall().andReturn("wsdl");    
         response.setContentType("text/xml");
@@ -885,10 +886,10 @@ public class NettyHttpDestinationTest extends Assert {
     }
     
     private static class TestJettyDestination extends NettyHttpDestination {
-        public TestJettyDestination(Bus bus,
-                                    DestinationRegistry registry,
-                                    EndpointInfo endpointInfo,
-                                    NettyHttpServerEngineFactory serverEngineFactory) throws IOException {
+        TestJettyDestination(Bus bus,
+                             DestinationRegistry registry,
+                             EndpointInfo endpointInfo,
+                             NettyHttpServerEngineFactory serverEngineFactory) throws IOException {
             super(bus, registry, endpointInfo, serverEngineFactory);
         }
         

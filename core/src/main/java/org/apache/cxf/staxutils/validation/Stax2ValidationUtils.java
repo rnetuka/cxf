@@ -57,6 +57,7 @@ class Stax2ValidationUtils {
     static {
         boolean hasw = false;
         try {
+            new ResolvingGrammarReaderController(null, null); // will throw if msv isn't available
             new W3CMultiSchemaFactory(); // will throw if wrong woodstox.
             hasw = true;
         } catch (Throwable t) {
@@ -65,7 +66,7 @@ class Stax2ValidationUtils {
         HAS_WOODSTOX = hasw;
     }
     
-    public Stax2ValidationUtils() {
+    Stax2ValidationUtils() {
         if (!HAS_WOODSTOX) {
             throw new RuntimeException("Could not load woodstox");
         }

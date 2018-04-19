@@ -19,6 +19,8 @@
 
 package org.apache.cxf.rs.security.oauth2.provider;
 
+import javax.ws.rs.core.MultivaluedMap;
+
 import org.apache.cxf.jaxrs.ext.MessageContext;
 import org.apache.cxf.rs.security.oauth2.common.UserSubject;
 
@@ -32,8 +34,10 @@ public interface SubjectCreator {
     /**
      * Create a {@link UserSubject} 
      * @param mc the {@link MessageContext} of this request
+     * @param params the request parameters
      * @return {@link UserSubject}
      * @throws OAuthServiceException
      */
-    UserSubject createUserSubject(MessageContext mc) throws OAuthServiceException;
+    UserSubject createUserSubject(MessageContext mc,
+                                  MultivaluedMap<String, String> params) throws OAuthServiceException;
 }

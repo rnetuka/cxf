@@ -38,7 +38,7 @@ import org.apache.cxf.BusFactory;
 import org.apache.cxf.common.util.ClasspathScanner;
 import org.apache.cxf.helpers.FileUtils;
 import org.apache.cxf.jaxrs.model.ClassResourceInfo;
-import org.apache.cxf.jaxrs.model.wadl.DocumentationProvider;
+import org.apache.cxf.jaxrs.model.doc.DocumentationProvider;
 import org.apache.cxf.jaxrs.model.wadl.WadlGenerator;
 import org.apache.cxf.jaxrs.utils.InjectionUtils;
 import org.apache.cxf.jaxrs.utils.ResourceUtils;
@@ -130,7 +130,12 @@ public class Java2WADLMojo extends AbstractMojo {
     private boolean useJson;
 
     /**
-     * @parameter default-value="false"
+     * @parameter default-value="true"
+     */
+    private boolean incrementNamespacePrefix;
+    
+    /**
+     * @parameter default-value="true"
      */
     private boolean singleResourceMultipleMethods;
    
@@ -138,6 +143,11 @@ public class Java2WADLMojo extends AbstractMojo {
      * @parameter default-value="false"
      */
     private boolean useSingleSlashResource;
+    
+    /**
+     * @parameter default-value="false"
+     */
+    private boolean includeDefaultWadlSchemaLocation;
     
     /**
      * @parameter default-value="false"
@@ -163,6 +173,32 @@ public class Java2WADLMojo extends AbstractMojo {
      * @parameter default-value="false"
      */
     private boolean ignoreOverloadedMethods;
+
+    /**
+     * @parameter default-value="true"
+     */
+    private boolean useJaxbContextForQnames;
+
+    
+    /**
+     * @parameter default-value="true"
+     */
+    private boolean usePathParamsToCompareOperations;
+    
+    /**
+     * @parameter default-value="true"
+     */
+    private boolean supportCollections;
+
+    /**
+     * @parameter default-value="true"
+     */
+    private boolean supportJaxbXmlType;
+
+    /**
+     * @parameter default-value="true"
+     */
+    private boolean supportJaxbSubstitutions;
     
     /**
      * @parameter
@@ -192,6 +228,7 @@ public class Java2WADLMojo extends AbstractMojo {
     private ClassLoader resourceClassLoader;
     
     public void execute() throws MojoExecutionException {
+        System.setProperty("org.apache.cxf.JDKBugHacks.defaultUsesCaches", "true");
         List<Class<?>> resourceClasses = loadResourceClasses();
         initClassResourceInfoList(resourceClasses);
         WadlGenerator wadlGenerator = new WadlGenerator(getBus());
@@ -215,12 +252,19 @@ public class Java2WADLMojo extends AbstractMojo {
     
     private void setExtraProperties(WadlGenerator wg) {
         wg.setSingleResourceMultipleMethods(singleResourceMultipleMethods);
+        wg.setIncrementNamespacePrefix(incrementNamespacePrefix);
         wg.setUseSingleSlashResource(useSingleSlashResource);
+        wg.setIncludeDefaultWadlSchemaLocation(includeDefaultWadlSchemaLocation);
         wg.setIgnoreForwardSlash(ignoreForwardSlash);
         wg.setAddResourceAndMethodIds(addResourceAndMethodIds);
         wg.setLinkAnyMediaTypeToXmlSchema(linkAnyMediaTypeToXmlSchema);
         wg.setCheckAbsolutePathSlash(checkAbsolutePathSlash);
         wg.setIgnoreOverloadedMethods(ignoreOverloadedMethods);
+        wg.setUseJaxbContextForQnames(useJaxbContextForQnames);
+        wg.setUsePathParamsToCompareOperations(usePathParamsToCompareOperations);
+        wg.setSupportCollections(supportCollections);
+        wg.setSupportJaxbXmlType(supportJaxbXmlType);
+        wg.setSupportJaxbSubstitutions(supportJaxbSubstitutions);
         if (applicationTitle != null) {
             wg.setApplicationTitle(applicationTitle);
         } 

@@ -47,7 +47,6 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSession;
-import javax.net.ssl.X509KeyManager;
 
 import org.apache.cxf.Bus;
 import org.apache.cxf.common.util.StringUtils;
@@ -65,7 +64,6 @@ import org.apache.cxf.transport.http.Address;
 import org.apache.cxf.transport.http.Headers;
 import org.apache.cxf.transport.http.URLConnectionHTTPConduit;
 import org.apache.cxf.transport.http.asyncclient.AsyncHTTPConduitFactory.UseAsyncPolicy;
-import org.apache.cxf.transport.https.AliasedX509ExtendedKeyManager;
 import org.apache.cxf.transport.https.HttpsURLConnectionInfo;
 import org.apache.cxf.transports.http.configuration.HTTPClientPolicy;
 import org.apache.cxf.version.Version;
@@ -106,6 +104,7 @@ public class AsyncHTTPConduit extends URLConnectionHTTPConduit {
     volatile SSLContext sslContext;
     volatile SSLSession session;
     volatile CloseableHttpAsyncClient client;
+        
 
     public AsyncHTTPConduit(Bus b,
                             EndpointInfo ei, 
@@ -218,9 +217,10 @@ public class AsyncHTTPConduit extends URLConnectionHTTPConduit {
         e.setEntity(entity);
 
         RequestConfig.Builder b = RequestConfig.custom()
-            .setSocketTimeout((int) csPolicy.getReceiveTimeout())
-            .setConnectTimeout((int) csPolicy.getConnectionTimeout());
-        Proxy p = proxyFactory.createProxy(csPolicy , uri);
+                .setConnectTimeout((int) csPolicy.getConnectionTimeout())
+                .setSocketTimeout((int) csPolicy.getReceiveTimeout())
+                .setConnectionRequestTimeout((int) csPolicy.getReceiveTimeout());
+        Proxy p = proxyFactory.createProxy(csPolicy, uri);
         if (p != null && p.type() != Proxy.Type.DIRECT) {
             InetSocketAddress isa = (InetSocketAddress)p.address();
             HttpHost proxy = new HttpHost(isa.getHostName(), isa.getPort());
@@ -470,6 +470,7 @@ public class AsyncHTTPConduit extends URLConnectionHTTPConduit {
                     outbuf.shutdown();
                 }
                 public void cancelled() {
+                    handleCancelled();
                     inbuf.shutdown();
                     outbuf.shutdown();
                 }
@@ -609,12 +610,15 @@ public class AsyncHTTPConduit extends URLConnectionHTTPConduit {
             }
             notifyAll();
         }
+        protected synchronized void handleCancelled() {
+            notifyAll();
+        }
 
         protected synchronized HttpResponse getHttpResponse() throws IOException {
             while (httpResponse == null) {
                 if (exception == null) { //already have an exception, skip waiting
                     try {
-                        wait(csPolicy.getReceiveTimeout());
+                        wait();
                     } catch (InterruptedException e) {
                         throw new IOException(e);
                     }
@@ -861,7 +865,6 @@ public class AsyncHTTPConduit extends URLConnectionHTTPConduit {
 
     }
 
-
     public synchronized SSLContext getSSLContext(TLSClientParameters tlsClientParameters)
         throws GeneralSecurityException {
         
@@ -878,10 +881,11 @@ public class AsyncHTTPConduit extends URLConnectionHTTPConduit {
         SSLContext ctx = provider == null ? SSLContext.getInstance(protocol) : SSLContext
             .getInstance(protocol, provider);
         ctx.getClientSessionContext().setSessionTimeout(tlsClientParameters.getSslCacheTimeout());
+        
         KeyManager[] keyManagers = tlsClientParameters.getKeyManagers();
-        if (tlsClientParameters.getCertAlias() != null) {
-            keyManagers = getKeyManagersWithCertAlias(tlsClientParameters, keyManagers);
-        }
+        org.apache.cxf.transport.https.SSLUtils.configureKeyManagersWithCertAlias(
+            tlsClientParameters, keyManagers);
+
         ctx.init(keyManagers, tlsClientParameters.getTrustManagers(),
                  tlsClientParameters.getSecureRandom());
         
@@ -930,27 +934,5 @@ public class AsyncHTTPConduit extends URLConnectionHTTPConduit {
         }
         return list.toArray(new String[list.size()]);
     }
-
-    protected static KeyManager[] getKeyManagersWithCertAlias(TLSClientParameters tlsClientParameters,
-                                                      KeyManager[] keyManagers) throws GeneralSecurityException {
-        if (tlsClientParameters.getCertAlias() != null) {
-            KeyManager ret[] = new KeyManager[keyManagers.length];  
-            for (int idx = 0; idx < keyManagers.length; idx++) {
-                if (keyManagers[idx] instanceof X509KeyManager) {
-                    try {
-                        ret[idx] = new AliasedX509ExtendedKeyManager(tlsClientParameters.getCertAlias(),
-                                                                             (X509KeyManager)keyManagers[idx]);
-                    } catch (Exception e) {
-                        throw new GeneralSecurityException(e);
-                    }
-                } else {
-                    ret[idx] = keyManagers[idx]; 
-                }
-            }
-            return ret;
-        }
-        return keyManagers;
-    }
-
 
 }

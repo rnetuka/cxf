@@ -624,12 +624,16 @@ public class MAPAggregatorTest extends Assert {
             srArgs.zeroLengthAction = args.zeroLengthAction;
             srArgs.fault = args.fault;
             srArgs.noMessageId = args.noMessageId;
-            
+
+            Endpoint endpoint = control.createMock(Endpoint.class);
+            exchange.getEndpoint();
+            EasyMock.expectLastCall().andReturn(endpoint).anyTimes();
+
             setUpResponder(message,
                            exchange,
-                           srArgs);
-            
-            Endpoint endpoint = control.createMock(Endpoint.class);
+                           srArgs, 
+                           endpoint);
+
             endpoint.getOutInterceptors();
             EasyMock.expectLastCall().andReturn(new ArrayList<Interceptor<? extends Message>>()).anyTimes();
             Service serv = control.createMock(Service.class);
@@ -637,8 +641,6 @@ public class MAPAggregatorTest extends Assert {
             EasyMock.expectLastCall().andReturn(serv).anyTimes();
             serv.getOutInterceptors();
             EasyMock.expectLastCall().andReturn(new ArrayList<Interceptor<? extends Message>>()).anyTimes();
-            exchange.getEndpoint();
-            EasyMock.expectLastCall().andReturn(endpoint).anyTimes();
         }
         control.replay();
         return message;
@@ -694,7 +696,7 @@ public class MAPAggregatorTest extends Assert {
         AddressingProperties maps = mapsInContext 
                                         ? new AddressingProperties()
                                         : null;
-        if (zeroLengthAction) {
+        if (zeroLengthAction && maps != null) {
             maps.setAction(ContextUtils.getAttributedURI(""));
         }
         setUpMessageProperty(message,
@@ -729,7 +731,8 @@ public class MAPAggregatorTest extends Assert {
 
     private void setUpResponder(Message message,
                                 Exchange exchange,
-                                SetupResponderArgs args) throws Exception {
+                                SetupResponderArgs args,
+                                Endpoint endpoint) throws Exception {
 
         setUpMessageProperty(message,
                              REQUESTOR_ROLE,
@@ -763,7 +766,7 @@ public class MAPAggregatorTest extends Assert {
         if (!args.outbound) {
             setUpOneway(message, exchange, args.oneway);
             if (args.oneway || args.decoupled) {
-                setUpRebase(message, exchange);
+                setUpRebase(message, exchange, endpoint);
             }
         }
         
@@ -792,7 +795,7 @@ public class MAPAggregatorTest extends Assert {
                                  maps);            
             if (args.fault) {
                 // REVISIT test double rebase does not occur
-                setUpRebase(message, exchange);
+                setUpRebase(message, exchange, endpoint);
             }
             expectedTo = args.decoupled
                          ? args.fault
@@ -813,15 +816,12 @@ public class MAPAggregatorTest extends Assert {
             //EasyMock.expectLastCall().andReturn(null);
         }
     }
-    
-    private void setUpRebase(Message message, Exchange exchange)
+
+    private void setUpRebase(Message message, Exchange exchange, Endpoint endpoint)
         throws Exception {
         setUpMessageProperty(message,
                              "org.apache.cxf.ws.addressing.partial.response.sent",
                              Boolean.FALSE);
-        Endpoint endpoint = control.createMock(Endpoint.class);
-        exchange.getEndpoint();
-        EasyMock.expectLastCall().andReturn(endpoint);
         Binding binding = control.createMock(Binding.class);
         endpoint.getBinding();        
         EasyMock.expectLastCall().andReturn(binding).anyTimes();
@@ -1026,7 +1026,7 @@ public class MAPAggregatorTest extends Assert {
     private static class TestBindingOperationInfo extends BindingOperationInfo {
         private Map<QName, BindingFaultInfo> faults;
         
-        public TestBindingOperationInfo(OperationInfo oi) {
+        TestBindingOperationInfo(OperationInfo oi) {
             opInfo = oi;
             
             Collection<FaultInfo> of = opInfo.getFaults();

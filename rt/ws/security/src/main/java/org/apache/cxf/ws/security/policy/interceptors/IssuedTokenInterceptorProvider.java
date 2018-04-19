@@ -32,12 +32,15 @@ import org.apache.cxf.interceptor.Fault;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.phase.AbstractPhaseInterceptor;
 import org.apache.cxf.phase.Phase;
+import org.apache.cxf.rt.security.utils.SecurityUtils;
 import org.apache.cxf.ws.policy.AbstractPolicyInterceptorProvider;
 import org.apache.cxf.ws.policy.AssertionInfo;
 import org.apache.cxf.ws.policy.AssertionInfoMap;
 import org.apache.cxf.ws.security.SecurityConstants;
 import org.apache.cxf.ws.security.policy.PolicyUtils;
 import org.apache.cxf.ws.security.tokenstore.SecurityToken;
+import org.apache.cxf.ws.security.trust.DefaultSTSTokenCacher;
+import org.apache.cxf.ws.security.trust.STSTokenCacher;
 import org.apache.cxf.ws.security.trust.STSTokenRetriever;
 import org.apache.cxf.ws.security.trust.STSTokenRetriever.TokenRequestParams;
 import org.apache.cxf.ws.security.wss4j.PolicyBasedWSS4JInInterceptor;
@@ -47,8 +50,9 @@ import org.apache.cxf.ws.security.wss4j.PolicyBasedWSS4JStaxOutInterceptor;
 import org.apache.cxf.ws.security.wss4j.WSS4JInInterceptor;
 import org.apache.cxf.ws.security.wss4j.policyvalidators.PolicyValidatorParameters;
 import org.apache.cxf.ws.security.wss4j.policyvalidators.SecurityPolicyValidator;
+import org.apache.cxf.ws.security.wss4j.policyvalidators.ValidatorUtils;
 import org.apache.wss4j.dom.WSConstants;
-import org.apache.wss4j.dom.WSSecurityEngineResult;
+import org.apache.wss4j.dom.engine.WSSecurityEngineResult;
 import org.apache.wss4j.dom.handler.WSHandlerConstants;
 import org.apache.wss4j.dom.handler.WSHandlerResult;
 import org.apache.wss4j.policy.SP11Constants;
@@ -103,7 +107,7 @@ public class IssuedTokenInterceptorProvider extends AbstractPolicyInterceptorPro
     }
     
     static class IssuedTokenOutInterceptor extends AbstractPhaseInterceptor<Message> {
-        public IssuedTokenOutInterceptor() {
+        IssuedTokenOutInterceptor() {
             super(Phase.PREPARE_SEND);
         }    
         public void handleMessage(Message message) throws Fault {
@@ -129,8 +133,16 @@ public class IssuedTokenInterceptorProvider extends AbstractPolicyInterceptorPro
                     params.setTrust13(NegotiationUtils.getTrust13(aim));
                     params.setTokenTemplate(itok.getRequestSecurityTokenTemplate());
 
-                    SecurityToken tok = STSTokenRetriever.getToken(message, params);
-                    
+                    // Get a custom STSTokenCacher implementation if specified
+                    STSTokenCacher tokenCacher =
+                        (STSTokenCacher)SecurityUtils.getSecurityPropertyValue(
+                            SecurityConstants.STS_TOKEN_CACHER_IMPL, message
+                        );
+                    if (tokenCacher == null) {
+                        tokenCacher = new DefaultSTSTokenCacher();
+                    }
+                    SecurityToken tok = STSTokenRetriever.getToken(message, params, tokenCacher);
+
                     if (tok != null) {
                         assertIssuedToken(itok, aim);
                         for (AssertionInfo ai : ais) {
@@ -150,7 +162,7 @@ public class IssuedTokenInterceptorProvider extends AbstractPolicyInterceptorPro
     }
     
     static class IssuedTokenInInterceptor extends AbstractPhaseInterceptor<Message> {
-        public IssuedTokenInInterceptor() {
+        IssuedTokenInInterceptor() {
             super(Phase.PRE_PROTOCOL);
             addAfter(WSS4JInInterceptor.class.getName());
             addAfter(PolicyBasedWSS4JInInterceptor.class.getName());
@@ -207,7 +219,7 @@ public class IssuedTokenInterceptorProvider extends AbstractPolicyInterceptorPro
             
             QName qName = issuedAis.iterator().next().getAssertion().getName();
             Map<QName, SecurityPolicyValidator> validators = 
-                PolicyUtils.getSecurityPolicyValidators(message);
+                ValidatorUtils.getSecurityPolicyValidators(message);
             if (validators.containsKey(qName)) {
                 validators.get(qName).validatePolicies(parameters, issuedAis);
             }

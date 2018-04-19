@@ -43,7 +43,9 @@ import org.junit.runners.Parameterized.Parameters;
 @RunWith(value = org.junit.runners.Parameterized.class)
 public class SupportingTokenTest extends AbstractBusClientServerTestBase {
     static final String PORT = allocatePort(Server.class);
+    static final String TLS_PORT = allocatePort(TLSServer.class);
     static final String STAX_PORT = allocatePort(StaxServer.class);
+    static final String TLS_STAX_PORT = allocatePort(TLSStaxServer.class);
     
     private static final String NAMESPACE = "http://www.example.org/contract/DoubleIt";
     private static final QName SERVICE_QNAME = new QName(NAMESPACE, "DoubleItService");
@@ -66,7 +68,19 @@ public class SupportingTokenTest extends AbstractBusClientServerTestBase {
                    "Server failed to launch",
                    // run the server in the same process
                    // set this to false to fork
+                   launchServer(TLSServer.class, true)
+        );
+        assertTrue(
+                   "Server failed to launch",
+                   // run the server in the same process
+                   // set this to false to fork
                    launchServer(StaxServer.class, true)
+        );
+        assertTrue(
+                   "Server failed to launch",
+                   // run the server in the same process
+                   // set this to false to fork
+                   launchServer(TLSStaxServer.class, true)
         );
     }
     
@@ -196,6 +210,62 @@ public class SupportingTokenTest extends AbstractBusClientServerTestBase {
         portQName = new QName(NAMESPACE, "DoubleItEncryptedSupportingPort3");
         port = service.getPort(portQName, DoubleItPortType.class);
         updateAddressPort(port, test.getPort());
+        
+        if (test.isStreaming()) {
+            SecurityTestUtil.enableStreaming(port);
+        }
+        
+        try {
+            port.doubleIt(25);
+            fail("Failure expected on not encrypting the UsernameToken");
+        } catch (javax.xml.ws.soap.SOAPFaultException ex) {
+            String error = "The received token does not match the encrypted supporting token requirement";
+            assertTrue(ex.getMessage().contains(error)
+                       || ex.getMessage().contains("UsernameToken not satisfied"));
+        }
+        
+        ((java.io.Closeable)port).close();
+        bus.shutdown(true);
+    }
+    
+    @org.junit.Test
+    public void testEncryptedSupportingOverTLS() throws Exception {
+
+        SpringBusFactory bf = new SpringBusFactory();
+        URL busFile = SupportingTokenTest.class.getResource("tls-client.xml");
+
+        Bus bus = bf.createBus(busFile.toString());
+        SpringBusFactory.setDefaultBus(bus);
+        SpringBusFactory.setThreadDefaultBus(bus);
+
+        URL wsdl = SupportingTokenTest.class.getResource("DoubleItTokens.wsdl");
+        Service service = Service.create(wsdl, SERVICE_QNAME);
+       
+        // Successful invocation
+        QName portQName = new QName(NAMESPACE, "DoubleItEncryptedSupportingPort4");
+        DoubleItPortType port = service.getPort(portQName, DoubleItPortType.class);
+        
+        if (PORT.equals(test.getPort())) {
+            updateAddressPort(port, TLS_PORT);
+        } else if (STAX_PORT.equals(test.getPort())) {
+            updateAddressPort(port, TLS_STAX_PORT);
+        } 
+        
+        if (test.isStreaming()) {
+            SecurityTestUtil.enableStreaming(port);
+        }
+        
+        port.doubleIt(25);
+        
+        // This should fail, as the client is not encrypting the UsernameToken
+        portQName = new QName(NAMESPACE, "DoubleItEncryptedSupportingPort5");
+        port = service.getPort(portQName, DoubleItPortType.class);
+        
+        if (PORT.equals(test.getPort())) {
+            updateAddressPort(port, TLS_PORT);
+        } else if (STAX_PORT.equals(test.getPort())) {
+            updateAddressPort(port, TLS_STAX_PORT);
+        }
         
         if (test.isStreaming()) {
             SecurityTestUtil.enableStreaming(port);

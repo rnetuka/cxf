@@ -24,6 +24,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 
@@ -34,7 +35,6 @@ import org.w3c.dom.Element;
 
 import org.apache.cxf.helpers.DOMUtils;
 import org.apache.cxf.helpers.IOUtils;
-import org.apache.cxf.io.CachedOutputStream;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.jaxrs.model.AbstractResourceInfo;
 import org.apache.cxf.jaxrs.model.wadl.WadlGenerator;
@@ -59,7 +59,7 @@ public class JAXRSClientServerProxySpringBookTest extends AbstractBusClientServe
     public void testGetWadlResourcesInfo() throws Exception {
         WebClient client = WebClient.create("http://localhost:" + PORT + "/test" + "?_wadl&_type=xml");
         WebClient.getConfig(client).getHttpConduit().getClient().setReceiveTimeout(10000000);
-        Document doc = StaxUtils.read(new InputStreamReader(client.get(InputStream.class), "UTF-8"));
+        Document doc = StaxUtils.read(new InputStreamReader(client.get(InputStream.class), StandardCharsets.UTF_8));
         Element root = doc.getDocumentElement();
         assertEquals(WadlGenerator.WADL_NS, root.getNamespaceURI());
         assertEquals("application", root.getLocalName());
@@ -228,12 +228,7 @@ public class JAXRSClientServerProxySpringBookTest extends AbstractBusClientServe
     }
     
     private String getStringFromInputStream(InputStream in) throws Exception {        
-        CachedOutputStream bos = new CachedOutputStream();
-        IOUtils.copy(in, bos);
-        String str = new String(bos.getBytes()); 
-        in.close();
-        bos.close();
-        return str;
+        return IOUtils.toString(in);
     }
 
     private String stripXmlInstructionIfNeeded(String str) {

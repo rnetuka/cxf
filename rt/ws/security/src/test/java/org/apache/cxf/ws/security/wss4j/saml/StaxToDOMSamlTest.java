@@ -45,7 +45,7 @@ import org.apache.wss4j.common.ConfigurationConstants;
 import org.apache.wss4j.common.crypto.CryptoFactory;
 import org.apache.wss4j.common.saml.builder.SAML1Constants;
 import org.apache.wss4j.common.saml.builder.SAML2Constants;
-import org.apache.wss4j.dom.WSSecurityEngine;
+import org.apache.wss4j.dom.WSConstants;
 import org.apache.wss4j.dom.handler.WSHandlerConstants;
 import org.apache.wss4j.stax.ext.WSSConstants;
 import org.apache.wss4j.stax.ext.WSSSecurityProperties;
@@ -67,8 +67,8 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         inProperties.put(WSHandlerConstants.ACTION, WSHandlerConstants.SAML_TOKEN_UNSIGNED);
         final Map<QName, Object> customMap = new HashMap<QName, Object>();
         CustomSamlValidator validator = new CustomSamlValidator();
-        customMap.put(WSSecurityEngine.SAML_TOKEN, validator);
-        customMap.put(WSSecurityEngine.SAML2_TOKEN, validator);
+        customMap.put(WSConstants.SAML_TOKEN, validator);
+        customMap.put(WSConstants.SAML2_TOKEN, validator);
         inProperties.put(WSS4JInInterceptor.VALIDATOR_MAP, customMap);
         inProperties.put(SecurityConstants.VALIDATE_SAML_SUBJECT_CONFIRMATION, "false");
         
@@ -104,8 +104,8 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         inProperties.put(WSHandlerConstants.ACTION, WSHandlerConstants.SAML_TOKEN_UNSIGNED);
         final Map<QName, Object> customMap = new HashMap<QName, Object>();
         CustomSamlValidator validator = new CustomSamlValidator();
-        customMap.put(WSSecurityEngine.SAML_TOKEN, validator);
-        customMap.put(WSSecurityEngine.SAML2_TOKEN, validator);
+        customMap.put(WSConstants.SAML_TOKEN, validator);
+        customMap.put(WSConstants.SAML2_TOKEN, validator);
         inProperties.put(WSS4JInInterceptor.VALIDATOR_MAP, customMap);
         inProperties.put(SecurityConstants.VALIDATE_SAML_SUBJECT_CONFIRMATION, "false");
         
@@ -143,8 +143,8 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         inProperties.put(WSHandlerConstants.SIG_VER_PROP_FILE, "insecurity.properties");
         final Map<QName, Object> customMap = new HashMap<QName, Object>();
         CustomSamlValidator validator = new CustomSamlValidator();
-        customMap.put(WSSecurityEngine.SAML_TOKEN, validator);
-        customMap.put(WSSecurityEngine.SAML2_TOKEN, validator);
+        customMap.put(WSConstants.SAML_TOKEN, validator);
+        customMap.put(WSConstants.SAML2_TOKEN, validator);
         inProperties.put(WSS4JInInterceptor.VALIDATOR_MAP, customMap);
         
         WSS4JInInterceptor inInterceptor = new WSS4JInInterceptor(inProperties);
@@ -165,7 +165,7 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         properties.setCallbackHandler(new PasswordCallbackHandler());
         
         properties.setSignatureKeyIdentifier(
-            WSSecurityTokenConstants.KeyIdentifier_SecurityTokenDirectReference
+            WSSecurityTokenConstants.KEYIDENTIFIER_SECURITY_TOKEN_DIRECT_REFERENCE
         );
         
         WSS4JStaxOutInterceptor ohandler = new WSS4JStaxOutInterceptor(properties);
@@ -187,8 +187,8 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         inProperties.put(WSHandlerConstants.SIG_VER_PROP_FILE, "insecurity.properties");
         final Map<QName, Object> customMap = new HashMap<QName, Object>();
         CustomSamlValidator validator = new CustomSamlValidator();
-        customMap.put(WSSecurityEngine.SAML_TOKEN, validator);
-        customMap.put(WSSecurityEngine.SAML2_TOKEN, validator);
+        customMap.put(WSConstants.SAML_TOKEN, validator);
+        customMap.put(WSConstants.SAML2_TOKEN, validator);
         inProperties.put(WSS4JInInterceptor.VALIDATOR_MAP, customMap);
         
         WSS4JInInterceptor inInterceptor = new WSS4JInInterceptor(inProperties);
@@ -223,8 +223,8 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         final Map<QName, Object> customMap = new HashMap<QName, Object>();
         CustomSamlValidator validator = new CustomSamlValidator();
         validator.setRequireSAML1Assertion(false);
-        customMap.put(WSSecurityEngine.SAML_TOKEN, validator);
-        customMap.put(WSSecurityEngine.SAML2_TOKEN, validator);
+        customMap.put(WSConstants.SAML_TOKEN, validator);
+        customMap.put(WSConstants.SAML2_TOKEN, validator);
         inProperties.put(WSS4JInInterceptor.VALIDATOR_MAP, customMap);
         inProperties.put(SecurityConstants.VALIDATE_SAML_SUBJECT_CONFIRMATION, "false");
         
@@ -261,8 +261,8 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         final Map<QName, Object> customMap = new HashMap<QName, Object>();
         CustomSamlValidator validator = new CustomSamlValidator();
         validator.setRequireSAML1Assertion(false);
-        customMap.put(WSSecurityEngine.SAML_TOKEN, validator);
-        customMap.put(WSSecurityEngine.SAML2_TOKEN, validator);
+        customMap.put(WSConstants.SAML_TOKEN, validator);
+        customMap.put(WSConstants.SAML2_TOKEN, validator);
         inProperties.put(WSS4JInInterceptor.VALIDATOR_MAP, customMap);
         inProperties.put(SecurityConstants.VALIDATE_SAML_SUBJECT_CONFIRMATION, "false");
         
@@ -301,8 +301,8 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         final Map<QName, Object> customMap = new HashMap<QName, Object>();
         CustomSamlValidator validator = new CustomSamlValidator();
         validator.setRequireSAML1Assertion(false);
-        customMap.put(WSSecurityEngine.SAML_TOKEN, validator);
-        customMap.put(WSSecurityEngine.SAML2_TOKEN, validator);
+        customMap.put(WSConstants.SAML_TOKEN, validator);
+        customMap.put(WSConstants.SAML2_TOKEN, validator);
         inProperties.put(WSS4JInInterceptor.VALIDATOR_MAP, customMap);
         
         WSS4JInInterceptor inInterceptor = new WSS4JInInterceptor(inProperties);
@@ -323,7 +323,7 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         properties.setCallbackHandler(new PasswordCallbackHandler());
         
         properties.setSignatureKeyIdentifier(
-            WSSecurityTokenConstants.KeyIdentifier_SecurityTokenDirectReference
+            WSSecurityTokenConstants.KEYIDENTIFIER_SECURITY_TOKEN_DIRECT_REFERENCE
         );
         
         WSS4JStaxOutInterceptor ohandler = new WSS4JStaxOutInterceptor(properties);
@@ -346,8 +346,8 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         final Map<QName, Object> customMap = new HashMap<QName, Object>();
         CustomSamlValidator validator = new CustomSamlValidator();
         validator.setRequireSAML1Assertion(false);
-        customMap.put(WSSecurityEngine.SAML_TOKEN, validator);
-        customMap.put(WSSecurityEngine.SAML2_TOKEN, validator);
+        customMap.put(WSConstants.SAML_TOKEN, validator);
+        customMap.put(WSConstants.SAML2_TOKEN, validator);
         inProperties.put(WSS4JInInterceptor.VALIDATOR_MAP, customMap);
         
         WSS4JInInterceptor inInterceptor = new WSS4JInInterceptor(inProperties);
@@ -385,8 +385,8 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         inProperties.put(WSHandlerConstants.SIG_VER_PROP_FILE, "insecurity.properties");
         final Map<QName, Object> customMap = new HashMap<QName, Object>();
         CustomSamlValidator validator = new CustomSamlValidator();
-        customMap.put(WSSecurityEngine.SAML_TOKEN, validator);
-        customMap.put(WSSecurityEngine.SAML2_TOKEN, validator);
+        customMap.put(WSConstants.SAML_TOKEN, validator);
+        customMap.put(WSConstants.SAML2_TOKEN, validator);
         inProperties.put(WSS4JInInterceptor.VALIDATOR_MAP, customMap);
         
         WSS4JInInterceptor inInterceptor = new WSS4JInInterceptor(inProperties);
@@ -414,7 +414,7 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
             CryptoFactory.getProperties("alice.properties", this.getClass().getClassLoader());
         properties.setSignatureCryptoProperties(cryptoProperties);
         properties.setSignatureKeyIdentifier(
-            WSSecurityTokenConstants.KeyIdentifier_SecurityTokenDirectReference
+            WSSecurityTokenConstants.KEYIDENTIFIER_SECURITY_TOKEN_DIRECT_REFERENCE
         );
         properties.setCallbackHandler(new PasswordCallbackHandler());
         
@@ -445,8 +445,8 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         inProperties.put(WSHandlerConstants.SIG_VER_PROP_FILE, "insecurity.properties");
         final Map<QName, Object> customMap = new HashMap<QName, Object>();
         CustomSamlValidator validator = new CustomSamlValidator();
-        customMap.put(WSSecurityEngine.SAML_TOKEN, validator);
-        customMap.put(WSSecurityEngine.SAML2_TOKEN, validator);
+        customMap.put(WSConstants.SAML_TOKEN, validator);
+        customMap.put(WSConstants.SAML2_TOKEN, validator);
         inProperties.put(WSS4JInInterceptor.VALIDATOR_MAP, customMap);
         
         WSS4JInInterceptor inInterceptor = new WSS4JInInterceptor(inProperties);
@@ -498,8 +498,8 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         inProperties.put(WSHandlerConstants.SIG_VER_PROP_FILE, "insecurity.properties");
         final Map<QName, Object> customMap = new HashMap<QName, Object>();
         CustomSamlValidator validator = new CustomSamlValidator();
-        customMap.put(WSSecurityEngine.SAML_TOKEN, validator);
-        customMap.put(WSSecurityEngine.SAML2_TOKEN, validator);
+        customMap.put(WSConstants.SAML_TOKEN, validator);
+        customMap.put(WSConstants.SAML2_TOKEN, validator);
         inProperties.put(WSS4JInInterceptor.VALIDATOR_MAP, customMap);
         
         WSS4JInInterceptor inInterceptor = new WSS4JInInterceptor(inProperties);
@@ -528,7 +528,7 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
             CryptoFactory.getProperties("alice.properties", this.getClass().getClassLoader());
         properties.setSignatureCryptoProperties(cryptoProperties);
         properties.setSignatureKeyIdentifier(
-            WSSecurityTokenConstants.KeyIdentifier_SecurityTokenDirectReference
+            WSSecurityTokenConstants.KEYIDENTIFIER_SECURITY_TOKEN_DIRECT_REFERENCE
         );
         
         WSS4JStaxOutInterceptor ohandler = new WSS4JStaxOutInterceptor(properties);
@@ -566,8 +566,8 @@ public class StaxToDOMSamlTest extends AbstractSecurityTest {
         inProperties.put(WSHandlerConstants.SIG_VER_PROP_FILE, "insecurity.properties");
         final Map<QName, Object> customMap = new HashMap<QName, Object>();
         CustomSamlValidator validator = new CustomSamlValidator();
-        customMap.put(WSSecurityEngine.SAML_TOKEN, validator);
-        customMap.put(WSSecurityEngine.SAML2_TOKEN, validator);
+        customMap.put(WSConstants.SAML_TOKEN, validator);
+        customMap.put(WSConstants.SAML2_TOKEN, validator);
         inProperties.put(WSS4JInInterceptor.VALIDATOR_MAP, customMap);
         
         WSS4JInInterceptor inInterceptor = new WSS4JInInterceptor(inProperties);

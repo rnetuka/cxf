@@ -19,7 +19,7 @@
     under the License.
 
 -->
-<beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:util="http://www.springframework.org/schema/util" xsi:schemaLocation="         http://www.springframework.org/schema/util         http://www.springframework.org/schema/util/spring-util-2.0.xsd          http://www.springframework.org/schema/beans         http://www.springframework.org/schema/beans/spring-beans-2.0.xsd">
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:util="http://www.springframework.org/schema/util" xsi:schemaLocation="         http://www.springframework.org/schema/util         http://www.springframework.org/schema/util/spring-util.xsd          http://www.springframework.org/schema/beans         http://www.springframework.org/schema/beans/spring-beans.xsd">
     <bean id="contextSource" class="org.springframework.ldap.core.support.LdapContextSource">
         <property name="url" value="ldap://localhost:portno"/>
         <property name="userDn" value="UID=admin,DC=example,DC=com"/>
@@ -49,5 +49,32 @@
                 <value>OU=other-users,DC=example,DC=com</value>
             </list>
         </property>
+    </bean>
+    
+    <bean id="testGroupClaimsHandler" class="org.apache.cxf.sts.claims.LdapGroupClaimsHandler">
+        <property name="ldapTemplate" ref="ldapTemplate" />
+        <property name="userBaseDN" value="OU=users,DC=example,DC=com" />
+        <property name="groupBaseDN" value="OU=groups,DC=example,DC=com" />
+    </bean>
+    
+    <bean id="testGroupClaimsHandlerOtherUsers" class="org.apache.cxf.sts.claims.LdapGroupClaimsHandler">
+        <property name="ldapTemplate" ref="ldapTemplate" />
+        <property name="userBaseDN" value="OU=other-users,DC=example,DC=com" />
+        <property name="groupBaseDN" value="OU=groups,DC=example,DC=com" />
+    </bean>
+    
+    <bean id="customFilter" class="org.springframework.ldap.filter.EqualsFilter">
+        <constructor-arg>
+            <value>businessCategory</value>
+        </constructor-arg>
+        <constructor-arg>
+            <value>widgets</value>
+        </constructor-arg>
+    </bean>
+    <bean id="testGroupClaimsHandlerFilter" class="org.apache.cxf.sts.claims.LdapGroupClaimsHandler">
+        <property name="ldapTemplate" ref="ldapTemplate" />
+        <property name="userBaseDN" value="OU=other-users,DC=example,DC=com" />
+        <property name="groupBaseDN" value="OU=groups,DC=example,DC=com" />
+        <property name="customFilters" ref="customFilter" />
     </bean>
 </beans>

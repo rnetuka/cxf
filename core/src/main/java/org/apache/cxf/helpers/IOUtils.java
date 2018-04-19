@@ -22,7 +22,6 @@ package org.apache.cxf.helpers;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -32,6 +31,7 @@ import java.io.Reader;
 import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
 
 import org.apache.cxf.io.CopyingOutputStream;
 import org.apache.cxf.io.Transferable;
@@ -48,6 +48,15 @@ public final class IOUtils {
         if (is == null) {
             return true;
         }
+        try {
+            // if available is 0 it does not mean it is empty; it can also throw IOException
+            if (is.available() > 0) {
+                return false;
+            }
+        } catch (IOException ex) {
+            // ignore
+        }
+        
         final byte[] bytes = new byte[1];
         try {
             if (is.markSupported()) {
@@ -58,16 +67,14 @@ public final class IOUtils {
                     is.reset();
                 }
             }
-            // if available is 0 it does not mean it is empty; it can also throw IOException
-            if (is.available() > 0) {
-                return false;
-            }
         } catch (IOException ex) {
             // ignore
         }
+        if (!(is instanceof PushbackInputStream)) {
+            return false;
+        }
         // it may be an attachment stream
-        PushbackInputStream pbStream = 
-            is instanceof PushbackInputStream ? (PushbackInputStream)is : new PushbackInputStream(is);
+        PushbackInputStream pbStream = (PushbackInputStream)is;
         boolean isEmpty = isEof(pbStream.read(bytes));
         if (!isEmpty) {
             pbStream.unread(bytes);
@@ -135,6 +142,9 @@ public final class IOUtils {
 
     public static int copy(final InputStream input, final OutputStream output)
         throws IOException {
+        if (input == null) {
+            return 0;
+        }
         if (output instanceof CopyingOutputStream) {
             return ((CopyingOutputStream)output).copyFrom(input);
         }
@@ -264,15 +274,8 @@ public final class IOUtils {
         if (Transferable.class.isAssignableFrom(inputStream.getClass())) {
             ((Transferable)inputStream).transferTo(destinationFile);
         } else {
-            FileOutputStream fout = new FileOutputStream(destinationFile);
-            try {
-                copyAndCloseInput(inputStream, fout);
-            } finally {
-                try {
-                    fout.close();
-                } catch (IOException ex) {
-                    //ignore
-                }
+            try (OutputStream out = Files.newOutputStream(destinationFile.toPath())) {
+                copyAndCloseInput(inputStream, out);
             }
         }
     }
@@ -308,31 +311,24 @@ public final class IOUtils {
 
         StringBuilder buf = new StringBuilder();
         final char[] buffer = new char[bufSize];
-        int n = 0;
-        n = input.read(buffer);
-        while (-1 != n) {
-            if (n == 0) {
-                throw new IOException("0 bytes read in violation of InputStream.read(byte[])");
+        try {
+            int n = input.read(buffer);
+            while (-1 != n) {
+                if (n == 0) {
+                    throw new IOException("0 bytes read in violation of InputStream.read(byte[])");
+                }
+                buf.append(buffer, 0, n);
+                n = input.read(buffer);
             }
-            buf.append(new String(buffer, 0, n));
-            n = input.read(buffer);
+            return buf.toString();
+        } finally {
+            input.close();
         }
-        input.close();
-        return buf.toString();
     }
 
     public static String readStringFromStream(InputStream in)
         throws IOException {
-
-        StringBuilder sb = new StringBuilder(1024);
-
-        for (int i = in.read(); i != -1; i = in.read()) {
-            sb.append((char) i);
-        }
-
-        in.close();
-
-        return sb.toString();
+        return toString(in);
     }
 
     /**
@@ -407,9 +403,11 @@ public final class IOUtils {
         if (i < DEFAULT_BUFFER_SIZE) {
             i = DEFAULT_BUFFER_SIZE;
         }
-        ByteArrayOutputStream bos = new ByteArrayOutputStream(i);
-        copy(in, bos);
-        in.close();
-        return bos.toByteArray();
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream(i)) {
+            copy(in, bos);
+            return bos.toByteArray();
+        } finally {
+            in.close();
+        }
     }
 }

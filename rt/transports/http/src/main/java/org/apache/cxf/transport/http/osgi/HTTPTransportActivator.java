@@ -85,5 +85,8 @@ public class HTTPTransportActivator implements BundleActivator {
     }
 
     public void stop(BundleContext context) throws Exception {
+        if (httpServiceTracker != null) {
+            httpServiceTracker.close();
+        }
     }
 }

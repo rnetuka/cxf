@@ -42,7 +42,7 @@ import org.apache.wss4j.common.ext.WSSecurityException;
 import org.apache.wss4j.common.token.BinarySecurity;
 import org.apache.wss4j.common.token.X509Security;
 import org.apache.wss4j.dom.WSConstants;
-import org.apache.wss4j.dom.WSSConfig;
+import org.apache.wss4j.dom.engine.WSSConfig;
 import org.apache.wss4j.dom.handler.RequestData;
 import org.apache.wss4j.dom.validate.Credential;
 import org.apache.wss4j.dom.validate.SignatureTrustValidator;
@@ -113,14 +113,19 @@ public class X509TokenValidator implements TokenValidator {
     public TokenValidatorResponse validateToken(TokenValidatorParameters tokenParameters) {
         LOG.fine("Validating X.509 Token");
         STSPropertiesMBean stsProperties = tokenParameters.getStsProperties();
-        Crypto sigCrypto = stsProperties.getSignatureCrypto();
         CallbackHandler callbackHandler = stsProperties.getCallbackHandler();
 
+        // See CXF-4028
+        Crypto crypto = stsProperties.getEncryptionCrypto();
+        if (crypto == null) {
+            crypto = stsProperties.getSignatureCrypto();
+        }
+
         RequestData requestData = new RequestData();
-        requestData.setSigVerCrypto(sigCrypto);
+        requestData.setSigVerCrypto(crypto);
         requestData.setWssConfig(WSSConfig.getNewInstance());
         requestData.setCallbackHandler(callbackHandler);
-        requestData.setMsgContext(tokenParameters.getWebServiceContext().getMessageContext());
+        requestData.setMsgContext(tokenParameters.getMessageContext());
         requestData.setSubjectCertConstraints(certConstraints.getCompiledSubjectContraints());
 
         TokenValidatorResponse response = new TokenValidatorResponse();
@@ -177,8 +182,8 @@ public class X509TokenValidator implements TokenValidator {
         try {
             Credential credential = new Credential();
             credential.setBinarySecurityToken(binarySecurity);
-            if (sigCrypto != null) {
-                X509Certificate cert = ((X509Security)binarySecurity).getX509Certificate(sigCrypto);
+            if (crypto != null) {
+                X509Certificate cert = ((X509Security)binarySecurity).getX509Certificate(crypto);
                 credential.setCertificates(new X509Certificate[]{cert});
             }
 

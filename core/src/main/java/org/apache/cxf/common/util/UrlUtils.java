@@ -21,8 +21,10 @@ package org.apache.cxf.common.util;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.StringTokenizer;
@@ -43,7 +45,7 @@ public final class UrlUtils {
 
     public static String urlEncode(String value) {
         
-        return urlEncode(value, "UTF-8");
+        return urlEncode(value, StandardCharsets.UTF_8.name());
     }
     
     public static String urlEncode(String value, String enc) {
@@ -71,7 +73,8 @@ public final class UrlUtils {
         boolean needDecode = false;
         int escapesCount = 0;
         int i = 0;
-        while (i < value.length()) {
+        final int length = value.length();
+        while (i < length) {
             char ch = value.charAt(i++);
             if (ch == ESCAPE_CHAR) {
                 escapesCount += 1;
@@ -84,7 +87,7 @@ public final class UrlUtils {
         if (needDecode) {
             final byte[] valueBytes = StringUtils.toBytes(value, enc);
             ByteBuffer in = ByteBuffer.wrap(valueBytes);
-            ByteBuffer out = ByteBuffer.allocate(in.capacity() - 2 * escapesCount);
+            ByteBuffer out = ByteBuffer.allocate(in.capacity() - (2 * escapesCount) + 1);
             while (in.hasRemaining()) {
                 final int b = in.get();
                 if (!isPath && b == PLUS_CHAR) {
@@ -94,8 +97,9 @@ public final class UrlUtils {
                         final int u = digit16((byte) in.get());
                         final int l = digit16((byte) in.get());
                         out.put((byte) ((u << 4) + l));
-                    } catch (final ArrayIndexOutOfBoundsException e) {
-                        throw new RuntimeException("Invalid URL encoding: ", e);
+                    } catch (final BufferUnderflowException e) {
+                        throw new IllegalArgumentException(
+                                "Invalid URL encoding: Incomplete trailing escape (%) pattern");
                     }
                 } else {
                     out.put((byte) b);
@@ -111,14 +115,14 @@ public final class UrlUtils {
     private static int digit16(final byte b) {
         final int i = Character.digit((char) b, RADIX);
         if (i == -1) {
-            throw new RuntimeException("Invalid URL encoding: not a valid digit (radix " + RADIX + "): " + b);
+            throw new IllegalArgumentException("Invalid URL encoding: not a valid digit (radix " + RADIX + "): " + b);
         }
         return i;
     }
 
     
     public static String urlDecode(String value) {
-        return urlDecode(value, "UTF-8");
+        return urlDecode(value, StandardCharsets.UTF_8.name());
     }
     
     /**
@@ -127,7 +131,7 @@ public final class UrlUtils {
      * @param value value to decode
      */
     public static String pathDecode(String value) {
-        return urlDecode(value, "UTF-8", true);
+        return urlDecode(value, StandardCharsets.UTF_8.name(), true);
     }
     
     

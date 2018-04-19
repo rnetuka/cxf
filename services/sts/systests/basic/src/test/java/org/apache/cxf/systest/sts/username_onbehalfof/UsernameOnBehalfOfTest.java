@@ -28,6 +28,7 @@ import javax.xml.ws.Service;
 
 import org.apache.cxf.Bus;
 import org.apache.cxf.bus.spring.SpringBusFactory;
+import org.apache.cxf.rt.security.SecurityConstants;
 import org.apache.cxf.systest.sts.common.SecurityTestUtil;
 import org.apache.cxf.systest.sts.common.TestParam;
 import org.apache.cxf.systest.sts.common.TokenTestUtils;
@@ -42,8 +43,8 @@ import org.junit.runners.Parameterized.Parameters;
 /**
  * In this test case, a CXF client requests a Security Token from an STS, passing a username that
  * it has obtained from an unknown client as an "OnBehalfOf" element. This username is obtained
- * by parsing the "security.username" property. The client then invokes on the service 
- * provider using the returned token from the STS. 
+ * by parsing the SecurityConstants.USERNAME property. The client then invokes on the service
+ * provider using the returned token from the STS.
  */
 @RunWith(value = org.junit.runners.Parameterized.class)
 public class UsernameOnBehalfOfTest extends AbstractBusClientServerTestBase {
@@ -72,18 +73,13 @@ public class UsernameOnBehalfOfTest extends AbstractBusClientServerTestBase {
             // set this to false to fork
             launchServer(Server2.class, true)
         );
-        assertTrue(
-                   "Server failed to launch",
-                   // run the server in the same process
-                   // set this to false to fork
-                   launchServer(STSServer.class, true)
-        );
-        assertTrue(
-                   "Server failed to launch",
-                   // run the server in the same process
-                   // set this to false to fork
-                   launchServer(StaxSTSServer.class, true)
-        );
+        STSServer stsServer = new STSServer();
+        stsServer.setContext("cxf-x509.xml");
+        assertTrue(launchServer(stsServer));
+        
+        StaxSTSServer staxStsServer = new StaxSTSServer();
+        staxStsServer.setContext("stax-cxf-x509.xml");
+        assertTrue(launchServer(staxStsServer));
     }
     
     @Parameters(name = "{0}")
@@ -129,7 +125,7 @@ public class UsernameOnBehalfOfTest extends AbstractBusClientServerTestBase {
 
         // Transport port
         ((BindingProvider)port).getRequestContext().put(
-            "security.username", "alice"
+            SecurityConstants.USERNAME, "alice"
         );
         doubleIt(port, 25);
         
@@ -147,7 +143,7 @@ public class UsernameOnBehalfOfTest extends AbstractBusClientServerTestBase {
         }
         
         ((BindingProvider)port2).getRequestContext().put(
-            "security.username", "eve"
+            SecurityConstants.USERNAME, "eve"
         );
         // This time we expect a failure as the server validator doesn't accept "eve".
         try {

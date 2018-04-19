@@ -263,15 +263,20 @@ public class JettyHTTPServerEngineFactory {
      *        server will listen on all local addresses.
      * @param port listen port for server
      * @param protocol "http" or "https"
+     * @param id The key to reference into the tlsParametersMap. Can be null.
      * @return
      * @throws GeneralSecurityException
      * @throws IOException
      */
-    public synchronized JettyHTTPServerEngine createJettyHTTPServerEngine(String host, int port, 
-        String protocol) throws GeneralSecurityException, IOException {
-        LOG.fine("Creating Jetty HTTP Server Engine for port " + port + ".");        
-        JettyHTTPServerEngine ref = getOrCreate(this, host, port, null);
-        // checking the protocol    
+    public synchronized JettyHTTPServerEngine createJettyHTTPServerEngine(String host, int port,
+        String protocol, String id) throws GeneralSecurityException, IOException {
+        LOG.fine("Creating Jetty HTTP Server Engine for port " + port + ".");
+        TLSServerParameters tlsParameters = null;
+        if (id != null && tlsParametersMap != null && tlsParametersMap.containsKey(id)) {
+            tlsParameters = tlsParametersMap.get(id);
+        }
+        JettyHTTPServerEngine ref = getOrCreate(this, host, port, tlsParameters);
+        // checking the protocol
         if (!protocol.equals(ref.getProtocol())) {
             throw new IOException("Protocol mismatch for port " + port + ": "
                         + "engine's protocol is " + ref.getProtocol()
@@ -301,7 +306,12 @@ public class JettyHTTPServerEngineFactory {
         String protocol) throws GeneralSecurityException, IOException {
         return createJettyHTTPServerEngine(null, port, protocol);
     }
-    
+
+    public synchronized JettyHTTPServerEngine createJettyHTTPServerEngine(String host, int port,
+        String protocol) throws GeneralSecurityException, IOException {
+        return createJettyHTTPServerEngine(host, port, protocol, null);
+    }
+
     /**
      * This method removes the Server Engine from the port map and stops it.
      */
@@ -338,8 +348,11 @@ public class JettyHTTPServerEngineFactory {
                 
                 mBeanContainer = (Container.Listener) cls.
                     getConstructor(MBeanServer.class).newInstance(mbs);
-                
-                cls.getMethod("start", (Class<?>[]) null).invoke(mBeanContainer, (Object[]) null);
+                try {
+                    cls.getMethod("start", (Class<?>[]) null).invoke(mBeanContainer, (Object[]) null);
+                } catch (NoSuchMethodException mex) {
+                    //ignore, Jetty 9.1 removed this methods and it's not needed anymore
+                }
             } catch (Throwable ex) {
                 //ignore - just won't instrument jetty.  Probably don't have the
                 //jetty-management jar available

@@ -204,38 +204,43 @@ public class JMSConduit extends AbstractConduit implements JMSExchangeSender, Me
         
         // Synchronize on exchange early to make sure we do not miss the notify 
         synchronized (exchange) {
-            Destination replyToDestination = jmsConfig
-                .getReplyToDestination(session, headers.getJMSReplyTo());
-            String jmsMessageID = sendMessage(request, outMessage, replyToDestination, correlationId, closer,
-                                              session);
+            String replyTo = headers.getJMSReplyTo();
+            String jmsMessageID = sendMessage(request, outMessage,
+                                              jmsConfig.getReplyToDestination(session, replyTo),
+                                              correlationId, closer, session);
+            Destination replyDestination = jmsConfig.getReplyDestination(session, replyTo);
             boolean useSyncReceive = ((correlationId == null || userCID != null) && !jmsConfig.isPubSubDomain())
-                || !replyToDestination.equals(staticReplyDestination);
+                || !replyDestination.equals(staticReplyDestination);
             if (correlationId == null) {
                 correlationId = jmsMessageID;
                 correlationMap.put(correlationId, exchange);
             }
 
-            if (exchange.isSynchronous()) {
+            if (!exchange.isSynchronous()) {
+                return;
+            }
+
+            try {
                 if (useSyncReceive) {
-                    // TODO Not sure if replyToDestination is correct here
-                    javax.jms.Message replyMessage = JMSUtil.receive(session, replyToDestination,
+                    javax.jms.Message replyMessage = JMSUtil.receive(session, replyDestination,
                                                                      correlationId,
                                                                      jmsConfig.getReceiveTimeout(),
                                                                      jmsConfig.isPubSubNoLocal());
-                    correlationMap.remove(correlationId);
                     processReplyMessage(exchange, replyMessage);
                 } else {
                     try {
                         exchange.wait(jmsConfig.getReceiveTimeout());
                     } catch (InterruptedException e) {
-                        throw new RuntimeException("Interrupted while correlating", e);
+                        throw new JMSException("Interrupted while correlating " +  e.getMessage());
                     }
-                    if (exchange.get(CORRELATED) != Boolean.TRUE) {
-                        throw new RuntimeException("Timeout receiving message with correlationId "
+                    if (!Boolean.TRUE.equals(exchange.get(CORRELATED))) {
+                        throw new JMSException("Timeout receiving message with correlationId "
                                                    + correlationId);
                     }
 
                 }
+            } finally {
+                correlationMap.remove(correlationId);
             }
         }
     }
@@ -359,28 +364,40 @@ public class JMSConduit extends AbstractConduit implements JMSExchangeSender, Me
             String correlationId = jmsMessage.getJMSCorrelationID();
             LOG.log(Level.FINE, "Received reply message with correlation id " + correlationId);
 
-            // Try to correlate the incoming message with some timeout as it may have been
-            // added to the map after the message was sent
-            int count = 0;
-            Exchange exchange = null;
-            while (exchange == null && count < 100) {
-                exchange = correlationMap.remove(correlationId);
-                if (exchange == null) {
-                    Thread.sleep(1);
-                }
-                count++;
-            }
+            Exchange exchange = getExchange(correlationId);
             if (exchange == null) {
                 LOG.log(Level.WARNING, "Could not correlate message with correlationId " + correlationId);
-                return;
+            } else {
+                processReplyMessage(exchange, jmsMessage);
             }
-            processReplyMessage(exchange, jmsMessage);
         } catch (JMSException e) {
             throw JMSUtil.convertJmsException(e);
-        } catch (InterruptedException e) {
-            throw new RuntimeException("Interrupted while correlating", e);
         }
 
+    }
+
+    /**
+     *  Try to correlate the incoming message with some timeout as it may have been
+     *  added to the map after the message was sent
+     *  
+     * @param correlationId
+     * @return exchange for correlationId or null if none was found
+     */
+    private Exchange getExchange(String correlationId) {
+        int count = 0;
+        Exchange exchange = null;
+        while (exchange == null && count < 100) {
+            exchange = correlationMap.remove(correlationId);
+            if (exchange == null) {
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException("Interrupted while correlating", e);
+                }
+            }
+            count++;
+        }
+        return exchange;
     }
 
     /**

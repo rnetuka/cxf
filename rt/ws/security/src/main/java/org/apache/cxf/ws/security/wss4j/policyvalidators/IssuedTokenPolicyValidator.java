@@ -39,7 +39,7 @@ import org.apache.wss4j.common.saml.SAMLKeyInfo;
 import org.apache.wss4j.common.saml.SamlAssertionWrapper;
 import org.apache.wss4j.common.token.BinarySecurity;
 import org.apache.wss4j.dom.WSConstants;
-import org.apache.wss4j.dom.WSSecurityEngineResult;
+import org.apache.wss4j.dom.engine.WSSecurityEngineResult;
 import org.apache.wss4j.policy.SP11Constants;
 import org.apache.wss4j.policy.SP12Constants;
 import org.apache.wss4j.policy.SPConstants;
@@ -269,6 +269,9 @@ public class IssuedTokenPolicyValidator extends AbstractSamlPolicyValidator {
             X509Certificate[] certs = subjectKeyInfo.getCerts();
             if (certs != null && certs.length > 0) {
                 token.setX509Certificate(certs[0], null);
+            }
+            if (subjectKeyInfo.getPublicKey() != null) {
+                token.setKey(subjectKeyInfo.getPublicKey());
             }
         }
         if (assertionWrapper.getSaml1() != null) {

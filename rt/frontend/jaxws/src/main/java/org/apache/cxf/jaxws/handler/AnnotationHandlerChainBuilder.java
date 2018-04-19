@@ -20,6 +20,8 @@
 package org.apache.cxf.jaxws.handler;
 
 import java.net.URL;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ResourceBundle;
@@ -74,7 +76,7 @@ public class AnnotationHandlerChainBuilder extends HandlerChainBuilder {
     public List<Handler> buildHandlerChainFromClass(Class<?> clz, List<Handler> existingHandlers,
                                                     QName portQName, QName serviceQName, String bindingID) {
         LOG.fine("building handler chain");
-        classLoader = clz.getClassLoader();
+        classLoader = getClassLoader(clz);
         HandlerChainAnnotation hcAnn = findHandlerChainAnnotation(clz, true);
         List<Handler> chain = null;
         if (hcAnn == null) {
@@ -137,6 +139,18 @@ public class AnnotationHandlerChainBuilder extends HandlerChainBuilder {
             chain.addAll(existingHandlers);
         }
         return sortHandlers(chain);
+    }
+
+    private static ClassLoader getClassLoader(final Class<?> clazz) {
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            return AccessController.doPrivileged(new PrivilegedAction<ClassLoader>() {
+                public ClassLoader run() {
+                    return clazz.getClassLoader();
+                }
+            });
+        }
+        return clazz.getClassLoader();
     }
 
     private void processHandlerChainElement(Element el, List<Handler> chain,
@@ -211,14 +225,15 @@ public class AnnotationHandlerChainBuilder extends HandlerChainBuilder {
         if ("*".equals(namePattern)) {
             return true;
         }
-        if (!namePattern.contains(":")) {
+        final int idx = namePattern.indexOf(':');
+        if (idx < 0) {
             String xml = StaxUtils.toString(el);
             throw new WebServiceException(
                 BundleUtils.getFormattedString(BUNDLE,
                                                "NOT_A_QNAME_PATTER",
                                                namePattern, xml));                    
         }
-        String pfx = namePattern.substring(0, namePattern.indexOf(':'));
+        String pfx = namePattern.substring(0, idx);
         String ns = el.lookupNamespaceURI(pfx);
         if (ns == null) {
             ns = pfx;
@@ -226,7 +241,7 @@ public class AnnotationHandlerChainBuilder extends HandlerChainBuilder {
         if (!ns.equals(comp.getNamespaceURI())) {
             return false;
         }
-        String localPart = namePattern.substring(namePattern.indexOf(':') + 1,
+        String localPart = namePattern.substring(idx + 1,
                                                  namePattern.length());
         if (localPart.contains("*")) {
             //wildcard pattern matching

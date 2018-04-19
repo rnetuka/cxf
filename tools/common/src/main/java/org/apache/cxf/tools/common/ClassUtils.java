@@ -20,9 +20,10 @@
 package org.apache.cxf.tools.common;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -82,7 +83,7 @@ public class ClassUtils {
 
                 dirSet.add(path);
                 File file = new File(path);
-                if (file.isDirectory()) {
+                if (file.isDirectory() && file.list() != null) {
                     for (String str : file.list()) {
                         if (str.endsWith("java")) {
                             fileList.add(path + str);
@@ -131,8 +132,8 @@ public class ClassUtils {
                 .substring(0, to.getCanonicalPath().lastIndexOf(File.separator));
         File dirFile = new File(dir);
         dirFile.mkdirs();
-        try (FileInputStream input = new FileInputStream(from);
-            FileOutputStream output = new FileOutputStream(to)) {
+        try (InputStream input = Files.newInputStream(from.toPath());
+            OutputStream output = Files.newOutputStream(to.toPath())) {
             byte[] b = new byte[1024 * 3];
             int len = 0;
             while (len != -1) {

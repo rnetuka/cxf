@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
 import java.util.logging.Logger;
 
 import javax.ws.rs.Consumes;
@@ -43,7 +44,7 @@ import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stream.StreamSource;
 
 import org.w3c.dom.Document;
-
+import org.w3c.dom.Node;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.io.CachedOutputStream;
 import org.apache.cxf.jaxrs.ext.MessageContext;
@@ -71,7 +72,7 @@ public class SourceProvider<T> extends AbstractConfigurableProvider implements
     
     public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mt) {
         return Source.class.isAssignableFrom(type)
-            || Document.class.isAssignableFrom(type);
+            || Node.class.isAssignableFrom(type);
     }
     
     public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mt) {
@@ -186,11 +187,16 @@ public class SourceProvider<T> extends AbstractConfigurableProvider implements
         MediaType mt, MultivaluedMap<String, Object> headers, OutputStream os)
         throws IOException {
         
-        String encoding = HttpUtils.getSetEncoding(mt, headers, "UTF-8");
+        String encoding = HttpUtils.getSetEncoding(mt, headers, StandardCharsets.UTF_8.name());
         
-        XMLStreamReader reader = 
-            source instanceof Source ? StaxUtils.createXMLStreamReader((Source)source) 
-                    : StaxUtils.createXMLStreamReader((Document)source);
+        XMLStreamReader reader = null;
+        if (source instanceof Source) {
+            reader = StaxUtils.createXMLStreamReader((Source)source);
+        } else if (source instanceof Document) {
+            reader = StaxUtils.createXMLStreamReader((Document)source);
+        } else {
+            reader = StaxUtils.createXMLStreamReader(new DOMSource((Node)source));
+        }
         XMLStreamWriter writer = StaxUtils.createXMLStreamWriter(os, encoding);
         try {
             StaxUtils.copy(reader, writer);

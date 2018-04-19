@@ -29,15 +29,22 @@ public class MemoryClientTokenContextManager implements ClientTokenContextManage
 
     @Override
     public void setClientTokenContext(MessageContext mc, ClientTokenContext request) {
-        String stateParam = OAuthUtils.generateRandomTokenKey();
-        OAuthUtils.setSessionToken(mc, stateParam, "org.apache.cxf.websso.context", 0);
-        map.put(stateParam, request);
+        String key = getKey(mc, false);
+        if (key == null) {
+            key = OAuthUtils.generateRandomTokenKey();
+            OAuthUtils.setSessionToken(mc, key, "org.apache.cxf.websso.context", 0);
+        }
+        map.put(key, request);
         
     }
 
     @Override
     public ClientTokenContext getClientTokenContext(MessageContext mc) {
-        return map.get(getKey(mc, false));
+        String key = getKey(mc, false);
+        if (key != null) {
+            return map.get(key);
+        }
+        return null;
     }
 
     @Override

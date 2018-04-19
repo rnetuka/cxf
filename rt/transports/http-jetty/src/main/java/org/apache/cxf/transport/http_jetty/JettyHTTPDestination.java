@@ -275,7 +275,7 @@ public class JettyHTTPDestination extends ServletDestination {
     static class JettyOutputStream extends FilterOutputStream implements CopyingOutputStream {
         final HttpOutput out;
         boolean written;
-        public JettyOutputStream(HttpOutput o) {
+        JettyOutputStream(HttpOutput o) {
             super(o);
             out = o;
         }
@@ -323,7 +323,7 @@ public class JettyHTTPDestination extends ServletDestination {
     }
     static class CountingInputStream extends FilterInputStream {
         int count;
-        public CountingInputStream(InputStream in) {
+        CountingInputStream(InputStream in) {
             super(in);
         }
         public int getCount() {
@@ -368,8 +368,11 @@ public class JettyHTTPDestination extends ServletDestination {
                       final HttpServletRequest req, 
                       final HttpServletResponse resp) {
         if (engine != null && engine.getContinuationsEnabled()) {
-            inMessage.put(ContinuationProvider.class.getName(), 
-                      new JettyContinuationProvider(req, resp, inMessage));
+            super.setupContinuation(inMessage, req, resp);
+            if (!inMessage.containsKey(ContinuationProvider.class.getName())) {
+                inMessage.put(ContinuationProvider.class.getName(), 
+                    new JettyContinuationProvider(req, resp, inMessage));
+            }
         }
     }
     

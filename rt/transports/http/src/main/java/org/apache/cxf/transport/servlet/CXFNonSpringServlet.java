@@ -49,7 +49,8 @@ import org.apache.cxf.transport.servlet.servicelist.ServiceListGeneratorServlet;
 
 public class CXFNonSpringServlet extends AbstractHTTPServlet {
     private static final long serialVersionUID = -2437897227486327166L;
-   
+    private static final String IGNORE_SERVLET_CONTEXT_RESOLVER = "ignore.servlet.context.resolver";
+    
     protected Bus bus;
     private DestinationRegistry destinationRegistry;
     private boolean globalRegistry;
@@ -77,8 +78,7 @@ public class CXFNonSpringServlet extends AbstractHTTPServlet {
         }
         if (this.bus != null) {
             loader = initClassLoader();
-            ResourceManager resourceManager = bus.getExtension(ResourceManager.class);
-            resourceManager.addResourceResolver(new ServletContextResourceResolver(sc.getServletContext()));
+            registerServletContextResolver(sc);
             if (destinationRegistry == null) {
                 this.destinationRegistry = getDestinationRegistryFromBus();
             }
@@ -86,6 +86,24 @@ public class CXFNonSpringServlet extends AbstractHTTPServlet {
 
         this.controller = createServletController(sc);
         finalizeServletInit(sc);
+    }
+    
+    @Override
+    protected void finalizeServletInit(ServletConfig servletConfig) throws ServletException {
+        super.finalizeServletInit(servletConfig);
+        
+        if (this.destinationRegistry instanceof ServletConfigAware) {
+            ((ServletConfigAware)this.destinationRegistry).onServletConfigAvailable(servletConfig);
+        }
+    }
+
+    protected void registerServletContextResolver(ServletConfig sc) {
+        if (Boolean.valueOf(sc.getInitParameter(IGNORE_SERVLET_CONTEXT_RESOLVER))) {
+            return;
+        }
+        
+        ResourceManager resourceManager = bus.getExtension(ResourceManager.class);
+        resourceManager.addResourceResolver(new ServletContextResourceResolver(sc.getServletContext()));
     }
 
     protected ClassLoader initClassLoader() {
@@ -111,7 +129,7 @@ public class CXFNonSpringServlet extends AbstractHTTPServlet {
         this.bus = BusFactory.newInstance().createBus();
     }
     
-    private ServletController createServletController(ServletConfig servletConfig) {
+    protected ServletController createServletController(ServletConfig servletConfig) {
         HttpServlet serviceListGeneratorServlet = 
             new ServiceListGeneratorServlet(destinationRegistry, bus);
         ServletController newController =
@@ -193,6 +211,7 @@ public class CXFNonSpringServlet extends AbstractHTTPServlet {
             destinationRegistry = null;
         }
         destroyBus();
+        super.destroy();
     }
     
     public void destroyBus() {
@@ -206,7 +225,7 @@ public class CXFNonSpringServlet extends AbstractHTTPServlet {
         private String filterName;
         private String servletPath;
         private String pathInfo;
-        public HttpServletRequestFilter(HttpServletRequest request, String filterName) {
+        HttpServletRequestFilter(HttpServletRequest request, String filterName) {
             super(request);
             this.filterName = filterName;
         }

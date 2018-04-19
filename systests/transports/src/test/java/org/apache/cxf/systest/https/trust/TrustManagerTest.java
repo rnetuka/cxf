@@ -43,7 +43,8 @@ import org.junit.BeforeClass;
  */
 public class TrustManagerTest extends AbstractBusClientServerTestBase {
     static final String PORT = allocatePort(TrustServer.class);
-    
+    static final String PORT3 = allocatePort(TrustServer.class, 3);
+
     @BeforeClass
     public static void startServers() throws Exception {
         assertTrue(
@@ -51,6 +52,12 @@ public class TrustManagerTest extends AbstractBusClientServerTestBase {
             // run the server in the same process
             // set this to false to fork
             launchServer(TrustServer.class, true)
+        );
+        assertTrue(
+             "Server failed to launch",
+             // run the server in the same process
+             // set this to false to fork
+             launchServer(TrustServerNoSpring.class, true)
         );
     }
     
@@ -131,7 +138,46 @@ public class TrustManagerTest extends AbstractBusClientServerTestBase {
         ((java.io.Closeable)port).close();
         bus.shutdown(true);
     }
-    
+
+    // Here the Trust Manager checks the server cert. this time we are invoking on the
+    // service that is configured in code (not by spring)
+    @org.junit.Test
+    public void testValidServerCertX509TrustManager2() throws Exception {
+        SpringBusFactory bf = new SpringBusFactory();
+        URL busFile = TrustManagerTest.class.getResource("client-trust.xml");
+
+        Bus bus = bf.createBus(busFile.toString());
+        SpringBusFactory.setDefaultBus(bus);
+        SpringBusFactory.setThreadDefaultBus(bus);
+
+        URL url = SOAPService.WSDL_LOCATION;
+        SOAPService service = new SOAPService(url, SOAPService.SERVICE);
+        assertNotNull("Service is null", service);
+        final Greeter port = service.getHttpsPort();
+        assertNotNull("Port is null", port);
+
+        updateAddressPort(port, PORT3);
+
+        String validPrincipalName = "CN=Bethal,OU=Bethal,O=ApacheTest,L=Syracuse,C=US";
+
+        TLSClientParameters tlsParams = new TLSClientParameters();
+        X509TrustManager trustManager =
+            new ServerCertX509TrustManager(validPrincipalName);
+        TrustManager[] trustManagers = new TrustManager[1];
+        trustManagers[0] = trustManager;
+        tlsParams.setTrustManagers(trustManagers);
+        tlsParams.setDisableCNCheck(true);
+
+        Client client = ClientProxy.getClient(port);
+        HTTPConduit http = (HTTPConduit) client.getConduit();
+        http.setTlsClientParameters(tlsParams);
+
+        assertEquals(port.greetMe("Kitty"), "Hello Kitty");
+
+        ((java.io.Closeable)port).close();
+        bus.shutdown(true);
+    }
+
     @org.junit.Test
     public void testInvalidServerCertX509TrustManager() throws Exception {
         SpringBusFactory bf = new SpringBusFactory();
@@ -169,11 +215,11 @@ public class TrustManagerTest extends AbstractBusClientServerTestBase {
         } catch (Exception ex) {
             // expected
         }
-        
+
         ((java.io.Closeable)port).close();
         bus.shutdown(true);
     }
-    
+
     public static class NoOpX509TrustManager implements X509TrustManager {
 
         public NoOpX509TrustManager() {

@@ -40,9 +40,9 @@ import org.w3c.dom.Node;
 import org.apache.cxf.BusFactory;
 import org.apache.cxf.bus.spring.SpringBusFactory;
 import org.apache.cxf.common.logging.LogUtils;
+import org.apache.cxf.common.util.StringUtils;
+import org.apache.cxf.ext.logging.LoggingFeature;
 import org.apache.cxf.helpers.XPathUtils;
-import org.apache.cxf.interceptor.LoggingInInterceptor;
-import org.apache.cxf.interceptor.LoggingOutInterceptor;
 import org.apache.cxf.staxutils.StaxUtils;
 
 
@@ -63,17 +63,19 @@ public class ControlImpl  extends org.apache.cxf.greeter_control.ControlImpl {
     public boolean startGreeter(String cfgResource) {
         SpringBusFactory bf = new SpringBusFactory();
         System.setProperty("db.name", dbName);
-        greeterBus = bf.createBus(cfgResource);
+        if (StringUtils.isEmpty(cfgResource)) {
+            greeterBus = bf.createBus();
+        } else {
+            greeterBus = bf.createBus(cfgResource);
+        }
         System.clearProperty("db.name");
         BusFactory.setDefaultBus(greeterBus);
         LOG.info("Initialised bus " + greeterBus + " with cfg file resource: " + cfgResource);
         LOG.fine("greeterBus inInterceptors: " + greeterBus.getInInterceptors());
 
-        LoggingInInterceptor logIn = new LoggingInInterceptor();
-        LoggingOutInterceptor logOut = new LoggingOutInterceptor();
-        greeterBus.getInInterceptors().add(logIn);
-        greeterBus.getOutInterceptors().add(logOut);
-        greeterBus.getOutFaultInterceptors().add(logOut);
+        LoggingFeature lf = new LoggingFeature();
+        lf.setPrettyLogging(true);
+        lf.initialize(greeterBus);
 
         if (cfgResource.indexOf("provider") == -1) {
             endpoint = Endpoint.publish(address, implementor);

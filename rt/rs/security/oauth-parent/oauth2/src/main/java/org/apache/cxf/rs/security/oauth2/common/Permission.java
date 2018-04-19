@@ -20,15 +20,20 @@ package org.apache.cxf.rs.security.oauth2.common;
 
 import java.io.Serializable;
 
+import javax.persistence.Id;
+import javax.persistence.MappedSuperclass;
+import javax.persistence.Transient;
 /**
  * Base permission description
  * @see OAuthAuthorizationData
  */
+@MappedSuperclass
 public class Permission implements Serializable {
     private static final long serialVersionUID = 8988574955042726083L;
     private String permission;
     private String description;
-    private boolean isDefault;
+    private boolean isDefaultPermission;
+    private boolean invisibleToClient;
     
     public Permission() {
         
@@ -59,6 +64,7 @@ public class Permission implements Serializable {
      * Get the permission value such as "read_calendar"
      * @return the value
      */
+    @Id
     public String getPermission() {
         return permission;
     }
@@ -81,11 +87,66 @@ public class Permission implements Serializable {
      * optionally select 'add' and/or 'update' scopes, in addition to the default 'read' one. 
      * @param isDefault true if the permission has been allocated by default
      */
-    public void setDefault(boolean value) {
-        this.isDefault = value;
+    public void setDefaultPermission(boolean value) {
+        this.isDefaultPermission = value;
     }
 
+    public boolean isDefaultPermission() {
+        return isDefaultPermission;
+    }
+    
+    @Deprecated
+    @Transient
     public boolean isDefault() {
-        return isDefault;
+        return isDefaultPermission;
+    }
+
+    public boolean isInvisibleToClient() {
+        return invisibleToClient;
+    }
+
+    /**
+     * Set the visibility status; by default all the scopes approved by a user can 
+     * be optionally reported to the client in access token responses. Some scopes may need
+     * to stay 'invisible' to client.
+     * @param invisibleToClient
+     */
+    public void setInvisibleToClient(boolean invisibleToClient) {
+        this.invisibleToClient = invisibleToClient;
+    }
+    
+    @Override
+    public boolean equals(Object object) {
+        if (!(object instanceof Permission)) {
+            return false;
+        }
+        
+        Permission that = (Permission)object;
+        if (!this.getPermission().equals(that.getPermission())) {
+            return false;
+        }
+        if (this.getDescription() != null && that.getDescription() == null
+            || this.getDescription() == null && that.getDescription() != null
+            || this.getDescription() != null && !this.getDescription().equals(that.getDescription())) {
+            return false;
+        }
+        if (this.isInvisibleToClient() != that.isInvisibleToClient() //NOPMD
+            || this.isDefaultPermission() != that.isDefaultPermission()) { //NOPMD
+            return false;
+        }
+        
+        return true;
+    }
+    
+    @Override
+    public int hashCode() {
+        int hashCode = getPermission().hashCode();
+        if (getDescription() != null) {
+            hashCode = 31 * hashCode + getDescription().hashCode();
+        }
+        hashCode = 31 * hashCode + Boolean.valueOf(isInvisibleToClient()).hashCode();
+        hashCode = 31 * hashCode + Boolean.valueOf(isDefaultPermission()).hashCode();
+        
+        return hashCode;
     }
 }

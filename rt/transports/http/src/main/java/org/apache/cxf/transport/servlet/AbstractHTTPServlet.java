@@ -52,6 +52,7 @@ import org.apache.cxf.common.i18n.BundleUtils;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.common.util.PropertyUtils;
 import org.apache.cxf.common.util.StringUtils;
+import org.apache.cxf.helpers.FileUtils;
 import org.apache.cxf.helpers.IOUtils;
 import org.apache.cxf.resource.ResourceManager;
 import org.apache.cxf.transport.http.AbstractHTTPDestination;
@@ -119,7 +120,11 @@ public abstract class AbstractHTTPServlet extends HttpServlet implements Filter 
         useXForwardedHeaders = Boolean.valueOf(servletConfig.getInitParameter(USE_X_FORWARDED_HEADERS_PARAMETER));
     }
     
-    protected void finalizeServletInit(ServletConfig servletConfig) {
+    public void destroy() {
+        FileUtils.maybeDeleteDefaultTempDir();
+    }
+
+    protected void finalizeServletInit(ServletConfig servletConfig) throws ServletException {
         InputStream is = getResourceAsStream("/WEB-INF" + STATIC_RESOURCES_MAP_RESOURCE);
         if (is == null) {
             is = getResourceAsStream(STATIC_RESOURCES_MAP_RESOURCE);
@@ -131,6 +136,7 @@ public abstract class AbstractHTTPServlet extends HttpServlet implements Filter 
                 for (String name : props.stringPropertyNames()) {
                     staticContentTypes.put(name, props.getProperty(name));
                 }
+                is.close();
             } catch (IOException ex) {
                 String message = new org.apache.cxf.common.i18n.Message("STATIC_RESOURCES_MAP_LOAD_FAILURE",
                                                                         BUNDLE).toString();
@@ -348,7 +354,7 @@ public abstract class AbstractHTTPServlet extends HttpServlet implements Filter 
                 response.setHeader("Cache-Control", cacheControl.trim());
             }
             ServletOutputStream os = response.getOutputStream();
-            IOUtils.copy(is, os);
+            IOUtils.copyAndCloseInput(is, os);
             os.flush();
         } catch (IOException ex) {
             throw new ServletException("Static resource " + pathInfo 
@@ -402,7 +408,7 @@ public abstract class AbstractHTTPServlet extends HttpServlet implements Filter 
         private String pathInfo;
         private String servletPath;
         
-        public HttpServletRequestRedirectFilter(HttpServletRequest request, 
+        HttpServletRequestRedirectFilter(HttpServletRequest request, 
                                         String pathInfo,
                                         String servletPath,
                                         boolean customServletPath) {
@@ -451,9 +457,9 @@ public abstract class AbstractHTTPServlet extends HttpServlet implements Filter 
         private String originalProto;
         private String originalClientIp;
         
-        public HttpServletRequestXForwardedFilter(HttpServletRequest request, 
-                                                  String originalProto, 
-                                                  String originalIp) {
+        HttpServletRequestXForwardedFilter(HttpServletRequest request, 
+                                           String originalProto, 
+                                           String originalIp) {
             super(request);
             this.originalProto = originalProto;
             if (originalIp != null) {

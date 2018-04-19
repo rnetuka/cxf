@@ -50,7 +50,8 @@ public class SAMLSSOResponseValidator {
     private TokenReplayCache<String> replayCache;
     
     /**
-     * Enforce that Assertions must be signed if the POST binding was used. The default is true.
+     * Enforce that Assertions contained in the Response must be signed (if the Response itself is not
+     * signed). The default is true.
      */
     public void setEnforceAssertionsSigned(boolean enforceAssertionsSigned) {
         this.enforceAssertionsSigned = enforceAssertionsSigned;
@@ -108,9 +109,8 @@ public class SAMLSSOResponseValidator {
             }
             validateIssuer(assertion.getIssuer());
             
-            if (enforceAssertionsSigned && postBinding && assertion.getSignature() == null) {
-                LOG.fine("If the HTTP Post binding is used to deliver the Response, "
-                         + "the enclosed assertions must be signed");
+            if (!samlResponse.isSigned() && enforceAssertionsSigned && assertion.getSignature() == null) {
+                LOG.fine("The enclosed assertions in the SAML Response must be signed");
                 throw new WSSecurityException(WSSecurityException.ErrorCode.FAILURE, "invalidSAMLsecurity");
             }
             
@@ -118,7 +118,9 @@ public class SAMLSSOResponseValidator {
             if (assertion.getAuthnStatements() != null
                 && !assertion.getAuthnStatements().isEmpty()) {
                 org.opensaml.saml.saml2.core.Subject subject = assertion.getSubject();
-                if (validateAuthenticationSubject(subject, assertion.getID(), postBinding)) {
+                org.opensaml.saml.saml2.core.SubjectConfirmation subjectConf = 
+                    validateAuthenticationSubject(subject, assertion.getID(), postBinding);
+                if (subjectConf != null) {
                     validateAudienceRestrictionCondition(assertion.getConditions());
                     validAssertion = assertion;
                     // Store Session NotOnOrAfter
@@ -126,6 +128,10 @@ public class SAMLSSOResponseValidator {
                         if (authnStatment.getSessionNotOnOrAfter() != null) {
                             sessionNotOnOrAfter = authnStatment.getSessionNotOnOrAfter().toDate();
                         }
+                    }
+                    // Fall back to the SubjectConfirmationData NotOnOrAfter if we have no session NotOnOrAfter
+                    if (sessionNotOnOrAfter == null) {
+                        sessionNotOnOrAfter = subjectConf.getSubjectConfirmationData().getNotOnOrAfter().toDate();
                     }
                 }
             }
@@ -179,24 +185,24 @@ public class SAMLSSOResponseValidator {
     /**
      * Validate the Subject (of an Authentication Statement).
      */
-    private boolean validateAuthenticationSubject(
+    private org.opensaml.saml.saml2.core.SubjectConfirmation validateAuthenticationSubject(
         org.opensaml.saml.saml2.core.Subject subject, String id, boolean postBinding
     ) throws WSSecurityException {
         if (subject.getSubjectConfirmations() == null) {
-            return false;
+            return null;
         }
         
-        boolean foundBearerSubjectConf = false;
+        org.opensaml.saml.saml2.core.SubjectConfirmation validSubjectConf = null;
         // We need to find a Bearer Subject Confirmation method
         for (org.opensaml.saml.saml2.core.SubjectConfirmation subjectConf 
             : subject.getSubjectConfirmations()) {
             if (SAML2Constants.CONF_BEARER.equals(subjectConf.getMethod())) {
-                foundBearerSubjectConf = true;
                 validateSubjectConfirmation(subjectConf.getSubjectConfirmationData(), id, postBinding);
+                validSubjectConf = subjectConf;
             }
         }
         
-        return foundBearerSubjectConf;
+        return validSubjectConf;
     }
     
     /**
@@ -255,6 +261,9 @@ public class SAMLSSOResponseValidator {
         // InResponseTo must match the AuthnRequest request Id
         if (requestId != null && !requestId.equals(subjectConfData.getInResponseTo())) {
             LOG.fine("The InResponseTo String does match the original request id " + requestId);
+            throw new WSSecurityException(WSSecurityException.ErrorCode.FAILURE, "invalidSAMLsecurity");
+        } else if (requestId == null && subjectConfData.getInResponseTo() != null) {
+            LOG.fine("No InResponseTo String is allowed for the unsolicted case");
             throw new WSSecurityException(WSSecurityException.ErrorCode.FAILURE, "invalidSAMLsecurity");
         }
         

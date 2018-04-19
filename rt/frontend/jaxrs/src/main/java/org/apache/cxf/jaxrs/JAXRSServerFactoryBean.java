@@ -97,10 +97,10 @@ public class JAXRSServerFactoryBean extends AbstractJAXRSFactoryBean {
      * @param app
      */
     public void setApplication(Application app) {
-        setApplication(new ApplicationInfo(app, getBus()));
+        setApplicationInfo(new ApplicationInfo(app, getBus()));
     }
     
-    public void setApplication(ApplicationInfo provider) {
+    public void setApplicationInfo(ApplicationInfo provider) {
         appProvider = provider;
         Set<String> appNameBindings = AnnotationUtils.getNameBindings(provider.getProvider()
                                                                       .getClass().getAnnotations());
@@ -271,8 +271,8 @@ public class JAXRSServerFactoryBean extends AbstractJAXRSFactoryBean {
     /**
      * Sets the extension mappings, 
      * example, 'xml' is the key and 'text/xml' is the value.
-     * 
-     * @param lMaps the extension mappings
+     *
+     * @param extMaps the extension mappings
      */
     public void setExtensionMappings(Map<Object, Object> extMaps) {
         extensionMappings = extMaps;
@@ -435,7 +435,7 @@ public class JAXRSServerFactoryBean extends AbstractJAXRSFactoryBean {
     
     /**
      * Set the reference to the document (WADL, etc) describing the endpoint
-     * @param documentLocation document location
+     * @param docLocation document location
      */
     public void setDocLocation(String docLocation) {
         this.documentLocation = docLocation;

@@ -96,9 +96,9 @@ public class ProviderFactoryTest extends Assert {
         WildcardReader2 reader2 = new WildcardReader2();
         pf.registerUserProvider(reader2);
         List<ProviderInfo<MessageBodyReader<?>>> readers = pf.getMessageReaders();
-        assertEquals(10, readers.size());
-        assertSame(reader1, readers.get(6).getProvider());
-        assertSame(reader2, readers.get(7).getProvider());
+        assertEquals(11, readers.size());
+        assertSame(reader1, readers.get(7).getProvider());
+        assertSame(reader2, readers.get(8).getProvider());
     }
     
     @Test
@@ -124,13 +124,13 @@ public class ProviderFactoryTest extends Assert {
         
         // writers
         List<ProviderInfo<MessageBodyWriter<?>>> writers = pf.getMessageWriters();
-        assertEquals(8, writers.size());
-        Object lastWriter = writers.get(7).getProvider();
+        assertEquals(9, writers.size());
+        Object lastWriter = writers.get(8).getProvider();
         assertTrue(lastWriter instanceof StringTextProvider);
         //readers
         List<ProviderInfo<MessageBodyReader<?>>> readers = pf.getMessageReaders();
-        assertEquals(8, readers.size());
-        Object lastReader = readers.get(7).getProvider();
+        assertEquals(9, readers.size());
+        Object lastReader = readers.get(8).getProvider();
         assertTrue(lastReader instanceof StringTextProvider);
     }
     @Test
@@ -154,13 +154,13 @@ public class ProviderFactoryTest extends Assert {
         
         // writers
         List<ProviderInfo<MessageBodyWriter<?>>> writers = pf.getMessageWriters();
-        assertEquals(8, writers.size());
-        Object lastWriter = writers.get(7).getProvider();
+        assertEquals(9, writers.size());
+        Object lastWriter = writers.get(8).getProvider();
         assertTrue(lastWriter instanceof StringTextProvider);
         //readers
         List<ProviderInfo<MessageBodyReader<?>>> readers = pf.getMessageReaders();
-        assertEquals(8, readers.size());
-        Object lastReader = readers.get(7).getProvider();
+        assertEquals(9, readers.size());
+        Object lastReader = readers.get(8).getProvider();
         assertTrue(lastReader instanceof StringTextProvider);
     }
     @SuppressWarnings("rawtypes")
@@ -188,13 +188,13 @@ public class ProviderFactoryTest extends Assert {
         
         // writers
         List<ProviderInfo<MessageBodyWriter<?>>> writers = pf.getMessageWriters();
-        assertEquals(8, writers.size());
-        Object lastWriter = writers.get(7).getProvider();
+        assertEquals(9, writers.size());
+        Object lastWriter = writers.get(8).getProvider();
         assertFalse(lastWriter instanceof StringTextProvider);
         //readers
         List<ProviderInfo<MessageBodyReader<?>>> readers = pf.getMessageReaders();
-        assertEquals(8, readers.size());
-        Object lastReader = readers.get(7).getProvider();
+        assertEquals(9, readers.size());
+        Object lastReader = readers.get(8).getProvider();
         assertTrue(lastReader instanceof StringTextProvider);
     }
     @Test
@@ -221,13 +221,13 @@ public class ProviderFactoryTest extends Assert {
         
         // writers
         List<ProviderInfo<MessageBodyWriter<?>>> writers = pf.getMessageWriters();
-        assertEquals(8, writers.size());
-        Object lastWriter = writers.get(7).getProvider();
+        assertEquals(9, writers.size());
+        Object lastWriter = writers.get(8).getProvider();
         assertTrue(lastWriter instanceof StringTextProvider);
         //readers
         List<ProviderInfo<MessageBodyReader<?>>> readers = pf.getMessageReaders();
-        assertEquals(8, readers.size());
-        Object lastReader = readers.get(7).getProvider();
+        assertEquals(9, readers.size());
+        Object lastReader = readers.get(8).getProvider();
         assertFalse(lastReader instanceof StringTextProvider);
     }
     
@@ -240,9 +240,9 @@ public class ProviderFactoryTest extends Assert {
         ProviderFactory pf = ServerProviderFactory.createInstance(bus);
         pf.registerUserProvider(wc2);
         List<ProviderInfo<MessageBodyReader<?>>> readers = pf.getMessageReaders();
-        assertEquals(10, readers.size());
-        assertSame(wc2, readers.get(6).getProvider());
-        assertSame(wc1, readers.get(7).getProvider());
+        assertEquals(11, readers.size());
+        assertSame(wc2, readers.get(7).getProvider());
+        assertSame(wc1, readers.get(8).getProvider());
     }
     @Test
     public void testCustomProviderSortingWithBus2() {
@@ -253,9 +253,9 @@ public class ProviderFactoryTest extends Assert {
         ProviderFactory pf = ServerProviderFactory.createInstance(bus);
         pf.registerUserProvider(wc1);
         List<ProviderInfo<MessageBodyReader<?>>> readers = pf.getMessageReaders();
-        assertEquals(10, readers.size());
-        assertSame(wc1, readers.get(6).getProvider());
-        assertSame(wc2, readers.get(7).getProvider());
+        assertEquals(11, readers.size());
+        assertSame(wc1, readers.get(7).getProvider());
+        assertSame(wc2, readers.get(8).getProvider());
     }
     
     @Test
@@ -373,6 +373,42 @@ public class ProviderFactoryTest extends Assert {
     }
     
     @Test
+    public void testExceptionMappersHierarchy3() throws Exception {
+        Message m = new MessageImpl();
+        m.put("default.wae.mapper.least.specific", true);
+        ServerProviderFactory pf = ServerProviderFactory.getInstance();
+        
+        TestRuntimeExceptionMapper rm = new TestRuntimeExceptionMapper(); 
+        pf.registerUserProvider(rm);
+        ExceptionMapper<WebApplicationException> em = 
+            pf.createExceptionMapper(WebApplicationException.class, m);
+        assertSame(rm, em);
+        assertSame(rm, pf.createExceptionMapper(RuntimeException.class, m));
+        
+        WebApplicationExceptionMapper wm = new WebApplicationExceptionMapper(); 
+        pf.registerUserProvider(wm);
+        assertSame(wm, pf.createExceptionMapper(WebApplicationException.class, m));
+        assertSame(rm, pf.createExceptionMapper(RuntimeException.class, m));
+    }
+    @Test
+    public void testExceptionMappersHierarchy4() throws Exception {
+        Message m = new MessageImpl();
+        m.put("default.wae.mapper.least.specific", true);
+        ServerProviderFactory pf = ServerProviderFactory.getInstance();
+        ExceptionMapper<WebApplicationException> em = 
+            pf.createExceptionMapper(WebApplicationException.class, m);
+        assertTrue(em instanceof WebApplicationExceptionMapper);
+    }
+    @Test
+    public void testExceptionMappersHierarchy5() throws Exception {
+        Message m = new MessageImpl();
+        ServerProviderFactory pf = ServerProviderFactory.getInstance();
+        ExceptionMapper<WebApplicationException> em = 
+            pf.createExceptionMapper(WebApplicationException.class, m);
+        assertTrue(em instanceof WebApplicationExceptionMapper);
+    }
+    
+    @Test
     public void testExceptionMappersHierarchyWithGenerics() throws Exception {
         ServerProviderFactory pf = ServerProviderFactory.getInstance();
         RuntimeExceptionMapper1 exMapper1 = new RuntimeExceptionMapper1(); 
@@ -476,7 +512,8 @@ public class ProviderFactoryTest extends Assert {
         ProviderFactory pf = ServerProviderFactory.getInstance();
         ParamConverterProvider h = new CustomerParameterHandler();
         pf.registerUserProvider(h);
-        ParamConverter<Customer> h2 = pf.createParameterHandler(Customer.class, Customer.class, null);
+        ParamConverter<Customer> h2 = pf.createParameterHandler(Customer.class, Customer.class, null, 
+                                                                new MessageImpl());
         assertSame(h2, h);
     }
     

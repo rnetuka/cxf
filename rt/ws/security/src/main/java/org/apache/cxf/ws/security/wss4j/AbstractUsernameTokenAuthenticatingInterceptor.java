@@ -20,24 +20,34 @@ package org.apache.cxf.ws.security.wss4j;
 
 import java.security.Principal;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
 import javax.security.auth.Subject;
 import javax.xml.namespace.QName;
+import javax.xml.soap.SOAPException;
+import javax.xml.stream.XMLStreamException;
+
+import org.w3c.dom.Element;
 
 import org.apache.cxf.binding.soap.SoapMessage;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.common.security.SecurityToken;
 import org.apache.cxf.common.security.UsernameToken;
+import org.apache.cxf.helpers.CastUtils;
 import org.apache.cxf.interceptor.Fault;
 import org.apache.cxf.interceptor.security.DefaultSecurityContext;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.phase.PhaseInterceptorChain;
 import org.apache.cxf.security.SecurityContext;
 import org.apache.wss4j.common.ext.WSSecurityException;
-import org.apache.wss4j.dom.WSSecurityEngine;
+import org.apache.wss4j.dom.WSConstants;
+import org.apache.wss4j.dom.engine.WSSecurityEngine;
 import org.apache.wss4j.dom.handler.RequestData;
+import org.apache.wss4j.dom.handler.WSHandlerConstants;
+import org.apache.wss4j.dom.handler.WSHandlerResult;
 import org.apache.wss4j.dom.validate.UsernameTokenValidator;
 import org.apache.wss4j.dom.validate.Validator;
 
@@ -101,12 +111,26 @@ public abstract class AbstractUsernameTokenAuthenticatingInterceptor extends WSS
     }
     
     @Override
-    protected SecurityContext createSecurityContext(final Principal p) {
-        Message msg = PhaseInterceptorChain.getCurrentMessage();
-        if (msg == null) {
-            throw new IllegalStateException("Current message is not available");
+    protected void doResults(
+                             SoapMessage msg, 
+                             String actor,
+                             Element soapHeader,
+                             Element soapBody,
+                             WSHandlerResult wsResult, 
+                             boolean utWithCallbacks
+    ) throws SOAPException, XMLStreamException, WSSecurityException {
+        /*
+         * All ok up to this point. Now construct and setup the security result
+         * structure. The service may fetch this and check it.
+         */
+        List<WSHandlerResult> results = CastUtils.cast((List<?>)msg.get(WSHandlerConstants.RECV_RESULTS));
+        if (results == null) {
+            results = new LinkedList<>();
+            msg.put(WSHandlerConstants.RECV_RESULTS, results);
         }
-        return doCreateSecurityContext(p, msg.get(Subject.class));
+        results.add(0, wsResult);
+        
+        new UsernameTokenSecurityContextCreator().createSecurityContext(msg, wsResult);
     }
     
     /**
@@ -176,7 +200,7 @@ public abstract class AbstractUsernameTokenAuthenticatingInterceptor extends WSS
         Map<QName, Object> profiles = new HashMap<QName, Object>(1);
         
         Validator validator = new CustomValidator();
-        profiles.put(WSSecurityEngine.USERNAME_TOKEN, validator);
+        profiles.put(WSConstants.USERNAME_TOKEN, validator);
         return createSecurityEngine(profiles);
     }
     
@@ -232,4 +256,15 @@ public abstract class AbstractUsernameTokenAuthenticatingInterceptor extends WSS
         
     }
     
+    private static class UsernameTokenSecurityContextCreator extends DefaultWSS4JSecurityContextCreator {
+        
+        @Override
+        protected SecurityContext createSecurityContext(final Principal p) {
+            Message msg = PhaseInterceptorChain.getCurrentMessage();
+            if (msg == null) {
+                throw new IllegalStateException("Current message is not available");
+            }
+            return new DefaultSecurityContext(p, msg.get(Subject.class));
+        }
+    }
 }

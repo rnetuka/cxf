@@ -29,12 +29,13 @@ import java.util.concurrent.TimeUnit;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.methods.GetMethod;
-import org.apache.cxf.helpers.IOUtils;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
-
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.util.EntityUtils;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -44,7 +45,6 @@ public abstract class AbstractJAXRSContinuationsTest extends AbstractBusClientSe
     @Test
     public void testDefaultTimeout() throws Exception {
         WebClient wc = WebClient.create("http://localhost:" + getPort() + getBaseAddress() + "/books/defaulttimeout");
-        WebClient.getConfig(wc).getHttpConduit().getClient().setReceiveTimeout(1000000L);
         Response r = wc.get();
         assertEquals(503, r.getStatus());
     }
@@ -52,10 +52,33 @@ public abstract class AbstractJAXRSContinuationsTest extends AbstractBusClientSe
     @Test
     public void testImmediateResume() throws Exception {
         WebClient wc = WebClient.create("http://localhost:" + getPort() + getBaseAddress() + "/books/resume");
-        WebClient.getConfig(wc).getHttpConduit().getClient().setReceiveTimeout(1000000L);
         wc.accept("text/plain");
         String str = wc.get(String.class);
         assertEquals("immediateResume", str);
+    }
+    @Test
+    public void testResumeFromFastAppThread() throws Exception {
+        WebClient wc = WebClient.create("http://localhost:" + getPort() + getBaseAddress2() 
+            + "/books/resumeFromFastThread");
+        wc.accept("text/plain");
+        String str = wc.get(String.class);
+        assertEquals("resumeFromFastThread", str);
+    }
+    
+    @Test
+    public void testNoContent() throws Exception {
+        WebClient wc = WebClient.create("http://localhost:" + getPort() + getBaseAddress() + "/books/nocontent");
+        wc.accept("text/plain");
+        Response r = wc.get(Response.class);
+        assertEquals(204, r.getStatus());
+    }
+    @Test
+    public void testCustomStatusFromInterface() throws Exception {
+        WebClient wc = WebClient.create("http://localhost:" + getPort() + getBaseAddress() 
+            + "/books/async/nocontentInterface");
+        wc.accept("text/plain");
+        Response r = wc.get(Response.class);
+        assertEquals(206, r.getStatus());
     }
     
     @Test
@@ -69,7 +92,6 @@ public abstract class AbstractJAXRSContinuationsTest extends AbstractBusClientSe
     public void testImmediateResumeSubresource() throws Exception {
         WebClient wc = WebClient.create("http://localhost:" + getPort() 
                                         + getBaseAddress() + "/books/subresources/books/resume");
-        WebClient.getConfig(wc).getHttpConduit().getClient().setReceiveTimeout(1000000L);
         wc.accept("text/plain");
         String str = wc.get(String.class);
         assertEquals("immediateResume", str);
@@ -93,13 +115,30 @@ public abstract class AbstractJAXRSContinuationsTest extends AbstractBusClientSe
     }
     
     @Test
+    public void testGetBookNotFoundUnmappedImmediate() throws Exception {
+        WebClient wc = 
+            WebClient.create("http://localhost:" + getPort() + getBaseAddress() + "/books/notfound/unmappedImmediate");
+        wc.accept("text/plain");
+        Response r = wc.get();
+        assertEquals(500, r.getStatus());
+    }
+    
+    @Test
+    public void testGetBookMappedImmediate() throws Exception {
+        WebClient wc = 
+            WebClient.create("http://localhost:" + getPort() + getBaseAddress() + "/books/mappedImmediate");
+        wc.accept("text/plain");
+        Response r = wc.get();
+        assertEquals(401, r.getStatus());
+    }
+    
+    @Test
     public void testTimeoutAndCancel() throws Exception {
         doTestTimeoutAndCancel(getBaseAddress());
     }
     
     protected void doTestTimeoutAndCancel(String baseAddress) throws Exception {
         WebClient wc = WebClient.create("http://localhost:" + getPort() + baseAddress + "/books/cancel");
-        WebClient.getConfig(wc).getHttpConduit().getClient().setReceiveTimeout(1000000L);
         Response r = wc.get();
         assertEquals(503, r.getStatus());
         String retryAfter = r.getHeaderString(HttpHeaders.RETRY_AFTER);
@@ -157,13 +196,13 @@ public abstract class AbstractJAXRSContinuationsTest extends AbstractBusClientSe
     }
     
     private void checkBook(String address, String id, String expected) throws Exception {
-        GetMethod get = new GetMethod(address);
-        HttpClient httpclient = new HttpClient();
+        CloseableHttpClient client = HttpClientBuilder.create().build();
+        HttpGet get = new HttpGet(address);
         try {
-            int result = httpclient.executeMethod(get);
-            assertEquals(200, result);
+            CloseableHttpResponse response = client.execute(get);
+            assertEquals(200, response.getStatusLine().getStatusCode());
             assertEquals("Book description for id " + id + " is wrong",
-                         expected, IOUtils.toString(get.getResponseBodyAsStream()));
+                         expected, EntityUtils.toString(response.getEntity()));
         } finally {
             // Release current connection to the connection pool once you are done
             get.releaseConnection();
@@ -179,7 +218,7 @@ public abstract class AbstractJAXRSContinuationsTest extends AbstractBusClientSe
         private CountDownLatch startSignal;
         private CountDownLatch doneSignal;
         private Exception error;
-        public BookWorker(String address,
+        BookWorker(String address,
                           String id,
                           String expected,
                            CountDownLatch startSignal,
@@ -215,6 +254,9 @@ public abstract class AbstractJAXRSContinuationsTest extends AbstractBusClientSe
     }
     
     protected String getBaseAddress() {
+        return "/bookstore";
+    }
+    protected String getBaseAddress2() {
         return "/bookstore";
     }
     

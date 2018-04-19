@@ -92,10 +92,11 @@ public class ASMHelper {
     private static synchronized Class<?> getASMClass() throws ClassNotFoundException {
         if (cwClass == null) {
             //try the "real" asm first, then the others
-            tryClass("org.objectweb.asm.ClassWriter"); 
-            tryClass("org.apache.xbean.asm5.ClassWriter"); 
-            tryClass("org.apache.xbean.asm4.ClassWriter"); 
-            tryClass("org.apache.xbean.asm.ClassWriter"); 
+            tryClass("org.objectweb.asm.ClassWriter");
+            tryClass("org.apache.xbean.asm5.ClassWriter");
+            tryClass("org.apache.xbean.asm6.ClassWriter");
+            tryClass("org.apache.xbean.asm4.ClassWriter");
+            tryClass("org.apache.xbean.asm.ClassWriter");
             tryClass("org.springframework.asm.ClassWriter");
             if (cwClass == null) {
                 cwClass = getASMClassWriterClass();
@@ -311,7 +312,7 @@ public class ASMHelper {
     }
     
     
-    public Class<?> loadClass(String className, Class<?> clz , byte[] bytes) {
+    public Class<?> loadClass(String className, Class<?> clz, byte[] bytes) {
         TypeHelperClassLoader loader = getTypeHelperClassLoader(clz);
         synchronized (loader) {
             Class<?> cls = loader.lookupDefinedClass(className);
@@ -321,7 +322,7 @@ public class ASMHelper {
             return cls;
         }
     }
-    public Class<?> loadClass(String className, ClassLoader l , byte[] bytes) {
+    public Class<?> loadClass(String className, ClassLoader l, byte[] bytes) {
         TypeHelperClassLoader loader = getTypeHelperClassLoader(l);
         synchronized (loader) {
             Class<?> cls = loader.lookupDefinedClass(className);

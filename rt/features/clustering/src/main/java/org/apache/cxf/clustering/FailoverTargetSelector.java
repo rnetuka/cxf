@@ -47,17 +47,25 @@ import org.apache.cxf.transport.Conduit;
  */
 public class FailoverTargetSelector extends AbstractConduitSelector {
 
-    private static final Logger LOG =
-        LogUtils.getL7dLogger(FailoverTargetSelector.class);
+    private static final Logger LOG = LogUtils.getL7dLogger(FailoverTargetSelector.class);
+    private static final String COMPLETE_IF_SERVICE_NOT_AVAIL_PROPERTY = 
+        "org.apache.cxf.transport.complete_if_service_not_available";
+
     protected ConcurrentHashMap<InvocationKey, InvocationContext> inProgress 
         = new ConcurrentHashMap<InvocationKey, InvocationContext>();
     protected FailoverStrategy failoverStrategy;
     private boolean supportNotAvailableErrorsOnly = true;
+    private String clientBootstrapAddress;
     /**
      * Normal constructor.
      */
     public FailoverTargetSelector() {
         super();
+    }
+    
+    public FailoverTargetSelector(String clientBootstrapAddress) {
+        super();
+        this.setClientBootstrapAddress(clientBootstrapAddress);
     }
     
     /**
@@ -83,6 +91,16 @@ public class FailoverTargetSelector extends AbstractConduitSelector {
         
         InvocationKey key = new InvocationKey(exchange);
         if (getInvocationContext(key) == null) {
+            
+            if (getClientBootstrapAddress() != null
+                && getClientBootstrapAddress().equals(message.get(Message.ENDPOINT_ADDRESS))) {
+                List<String> addresses = failoverStrategy.getAlternateAddresses(exchange); 
+                if (addresses != null && !addresses.isEmpty()) {
+                    getEndpoint().getEndpointInfo().setAddress(addresses.get(0));
+                    message.put(Message.ENDPOINT_ADDRESS, addresses.get(0));
+                }
+            }
+            
             Endpoint endpoint = exchange.getEndpoint();
             BindingOperationInfo bindingOperationInfo =
                 exchange.getBindingOperationInfo();
@@ -99,7 +117,10 @@ public class FailoverTargetSelector extends AbstractConduitSelector {
     }
 
     protected void setupExchangeExceptionProperties(Exchange ex) {
-        ex.remove("org.apache.cxf.transport.no_io_exceptions");
+        if (!isSupportNotAvailableErrorsOnly()) {
+            ex.remove("org.apache.cxf.transport.no_io_exceptions");
+        }
+        ex.put(COMPLETE_IF_SERVICE_NOT_AVAIL_PROPERTY, true);
     }
     
     /**
@@ -144,6 +165,7 @@ public class FailoverTargetSelector extends AbstractConduitSelector {
                 removeConduit(old);
                 failover = performFailover(exchange, invocation);
             } else {
+                exchange.remove(COMPLETE_IF_SERVICE_NOT_AVAIL_PROPERTY);
                 setOriginalEndpoint(invocation);
             }
         } else {
@@ -273,12 +295,11 @@ public class FailoverTargetSelector extends AbstractConduitSelector {
                             "CHECK_FAILURE_IN_TRANSPORT",
                             new Object[] {ex, failover});
         }
-        if (failover 
-            && isSupportNotAvailableErrorsOnly()
-            && exchange.get(Message.RESPONSE_CODE) != null
-            && !PropertyUtils.isTrue(exchange.get("org.apache.cxf.transport.service_not_available"))) { 
-            failover = false;
+
+        if (isSupportNotAvailableErrorsOnly() && exchange.get(Message.RESPONSE_CODE) != null) {
+            failover = PropertyUtils.isTrue(exchange.get("org.apache.cxf.transport.service_not_available"));
         }
+
         return failover;
     }
     
@@ -365,6 +386,7 @@ public class FailoverTargetSelector extends AbstractConduitSelector {
                     endpointAddress = endpointAddress + (startsWithSlash ? pathInfo : (slash + pathInfo));
                 }
                 message.put(Message.ENDPOINT_ADDRESS, endpointAddress);
+                message.put(Message.REQUEST_URI, endpointAddress);
 
                 Exchange exchange = message.getExchange();
                 InvocationKey key = new InvocationKey(exchange);
@@ -387,6 +409,18 @@ public class FailoverTargetSelector extends AbstractConduitSelector {
         this.supportNotAvailableErrorsOnly = support;
     }
 
+    public String getClientBootstrapAddress() {
+        return clientBootstrapAddress;
+    }
+
+    public void setClientBootstrapAddress(String clientBootstrapAddress) {
+        this.clientBootstrapAddress = clientBootstrapAddress;
+    }
+
+    protected InvocationKey getInvocationKey(Exchange e) {
+        return new InvocationKey(e);
+    }
+
     /**
      * Used to wrap an Exchange for usage as a Map key. The raw Exchange
      * is not a suitable key type, as the hashCode is computed from its
@@ -395,9 +429,9 @@ public class FailoverTargetSelector extends AbstractConduitSelector {
      */
     protected static class InvocationKey {
         private Exchange exchange;
-        
-        InvocationKey(Exchange ex) {
-            exchange = ex;     
+
+        protected InvocationKey(Exchange ex) {
+            exchange = ex;
         }
         
         @Override
@@ -424,7 +458,7 @@ public class FailoverTargetSelector extends AbstractConduitSelector {
         private Map<String, Object> context;
         private List<Endpoint> alternateEndpoints;
         private List<String> alternateAddresses;
-        
+
         InvocationContext(Endpoint endpoint,
                           BindingOperationInfo boi,
                           Object[] prms, 
@@ -436,7 +470,7 @@ public class FailoverTargetSelector extends AbstractConduitSelector {
             context = ctx;
         }
 
-        Endpoint retrieveOriginalEndpoint(Endpoint endpoint) {
+        public Endpoint retrieveOriginalEndpoint(Endpoint endpoint) {
             if (endpoint != null) {
                 if (endpoint != originalEndpoint) {
                     getLogger().log(Level.INFO,
@@ -452,36 +486,36 @@ public class FailoverTargetSelector extends AbstractConduitSelector {
             }
             return originalEndpoint;
         }
-        
-        BindingOperationInfo getBindingOperationInfo() {
+
+        public BindingOperationInfo getBindingOperationInfo() {
             return bindingOperationInfo;
         }
-        
-        Object[] getParams() {
+
+        public Object[] getParams() {
             return params;
         }
-        
-        Map<String, Object> getContext() {
+
+        public Map<String, Object> getContext() {
             return context;
         }
-        
-        List<Endpoint> getAlternateEndpoints() {
+
+        public List<Endpoint> getAlternateEndpoints() {
             return alternateEndpoints;
         }
 
-        List<String> getAlternateAddresses() {
+        public List<String> getAlternateAddresses() {
             return alternateAddresses;
         }
 
-        void setAlternateEndpoints(List<Endpoint> alternates) {
+        protected void setAlternateEndpoints(List<Endpoint> alternates) {
             alternateEndpoints = alternates;
         }
 
-        void setAlternateAddresses(List<String> alternates) {
+        protected void setAlternateAddresses(List<String> alternates) {
             alternateAddresses = alternates;
         }
 
-        boolean hasAlternates() {
+        public boolean hasAlternates() {
             return !(alternateEndpoints == null && alternateAddresses == null);
         }
     }    

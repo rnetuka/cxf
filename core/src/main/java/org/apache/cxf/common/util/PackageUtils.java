@@ -19,6 +19,7 @@
 
 package org.apache.cxf.common.util;
 
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringTokenizer;
@@ -47,6 +48,40 @@ public final class PackageUtils {
             className = className.substring(2);
         }
         return getPackageName(className);
+    }
+    
+    public static String getSharedPackageName(List<Class<?>> classes) {
+        if (classes.isEmpty()) {
+            return "";
+        }
+        List<List<String>> lParts = new  ArrayList<List<String>>(classes.size());
+        List<String> currentParts = new ArrayList<String>();
+        for (Class<?> cls : classes) {
+            if (!Proxy.isProxyClass(cls)) {
+                lParts.add(StringUtils.getParts(getPackageName(cls), "\\."));
+            }
+        }
+        for (int i = 0; i < lParts.get(0).size(); i++) {
+            int j = 1;
+            for (; j < lParts.size(); j++) {
+                if (i > (lParts.get(j).size() - 1) || !lParts.get(j).get(i).equals(lParts.get(0).get(i))) {
+                    break;
+                }  
+            }
+            if (j == lParts.size()) {
+                currentParts.add(lParts.get(j - 1).get(i));
+            } else {
+                break;
+            }
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String part : currentParts) {
+            if (sb.length() > 0) {
+                sb.append(".");
+            }
+            sb.append(part);
+        }
+        return sb.toString();
     }
     
     public static String parsePackageName(String namespace, String defaultPackageName) {

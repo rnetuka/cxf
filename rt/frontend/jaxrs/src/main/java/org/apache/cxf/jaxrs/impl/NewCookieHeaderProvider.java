@@ -37,6 +37,12 @@ public class NewCookieHeaderProvider implements HeaderDelegate<NewCookie> {
     private static final String SECURE = "Secure";
     private static final String EXPIRES = "Expires";
     private static final String HTTP_ONLY = "HttpOnly";
+    
+    /** from RFC 2068, token special case characters */
+    
+    private static final String TSPECIALS_PATH = "\"()<>@,;:\\[]?={} \t";
+    private static final String TSPECIALS_ALL = TSPECIALS_PATH + "/";
+    private static final String DOUBLE_QUOTE = "\""; 
         
     public NewCookie fromString(String c) {
         
@@ -63,6 +69,9 @@ public class NewCookieHeaderProvider implements HeaderDelegate<NewCookie> {
             String paramName = sepIndex != -1 ? theToken.substring(0, sepIndex) : theToken;
             String paramValue = sepIndex == -1 || sepIndex == theToken.length() - 1 
                 ? null : theToken.substring(sepIndex + 1);
+            if (paramValue != null) {
+                paramValue = stripQuotes(paramValue);
+            }
             
             if (paramName.equalsIgnoreCase(MAX_AGE)) {
                 maxAge = Integer.parseInt(paramValue);
@@ -92,21 +101,27 @@ public class NewCookieHeaderProvider implements HeaderDelegate<NewCookie> {
         
         return new NewCookie(name, value, path, domain, version, comment, maxAge, expires, isSecure, httpOnly);
     }
-
+    
+    @Override
     public String toString(NewCookie value) {
+
+        if (null == value) {
+            throw new NullPointerException("Null cookie input");
+        }
+
         StringBuilder sb = new StringBuilder();
-        sb.append(value.getName()).append('=').append(value.getValue());
+        sb.append(value.getName()).append('=').append(maybeQuoteAll(value.getValue()));
         if (value.getComment() != null) {
-            sb.append(';').append(COMMENT).append('=').append(value.getComment());
+            sb.append(';').append(COMMENT).append('=').append(maybeQuoteAll(value.getComment()));
         }
         if (value.getDomain() != null) {
-            sb.append(';').append(DOMAIN).append('=').append(value.getDomain());
+            sb.append(';').append(DOMAIN).append('=').append(maybeQuoteAll(value.getDomain()));
         }
         if (value.getMaxAge() != -1) {
             sb.append(';').append(MAX_AGE).append('=').append(value.getMaxAge());
         }
         if (value.getPath() != null) {
-            sb.append(';').append(PATH).append('=').append(value.getPath());
+            sb.append(';').append(PATH).append('=').append(maybeQuotePath(value.getPath()));
         }
         if (value.getExpiry() != null) {
             sb.append(';').append(EXPIRES).append('=').append(HttpUtils.toHttpDate(value.getExpiry()));
@@ -119,6 +134,70 @@ public class NewCookieHeaderProvider implements HeaderDelegate<NewCookie> {
         }
         sb.append(';').append(VERSION).append('=').append(value.getVersion());
         return sb.toString();
+
     }
 
+    /**
+     * Append the input value string to the given buffer, wrapping it with
+     * quotes if need be.
+     * 
+     * @param value
+     * @return String
+     */
+    static String maybeQuote(String tSpecials, String value) {
+        if (needsQuote(tSpecials, value)) {
+            StringBuilder buff = new StringBuilder();
+            buff.append('"');
+            if (value != null) {
+                buff.append(value);
+            }
+            buff.append('"');
+            return buff.toString();
+        } else {
+            return value == null ? "" : value;
+        }
+    }
+    static String maybeQuoteAll(String value) {
+        return maybeQuote(TSPECIALS_ALL, value);
+    }
+    static String maybeQuotePath(String value) {
+        return maybeQuote(TSPECIALS_PATH, value);
+    }
+
+    /**
+     * Return true iff the string contains special characters that need to be
+     * quoted.
+     * 
+     * @param value
+     * @return boolean
+     */
+    static boolean needsQuote(String tSpecials, String value) {
+        if (null == value) {
+            return true;
+        }
+        int len = value.length();
+        if (0 == len) {
+            return true;
+        }
+        if ('"' == value.charAt(0) && '"' == value.charAt(len - 1)) {
+            // already wrapped with quotes
+            return false;         
+        } 
+
+        for (int i = 0; i < len; i++) {
+            char c = value.charAt(i);
+            if (c < 0x20 || c >= 0x7f || tSpecials.indexOf(c) != -1) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    static String stripQuotes(String paramValue) {
+        if (paramValue.startsWith(DOUBLE_QUOTE)
+            && paramValue.endsWith(DOUBLE_QUOTE) && paramValue.length() > 1) {
+            paramValue = paramValue.substring(1, paramValue.length() - 1);
+        }
+        return paramValue;
+    }
 }

@@ -33,6 +33,7 @@ import javax.ws.rs.NotFoundException;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.container.CompletionCallback;
 import javax.ws.rs.container.ConnectionCallback;
@@ -43,7 +44,7 @@ import javax.ws.rs.core.Response;
 import org.apache.cxf.phase.PhaseInterceptorChain;
 
 @Path("/bookstore")
-public class BookContinuationStore {
+public class BookContinuationStore implements BookAsyncInterface {
 
     private Map<String, String> books = new HashMap<String, String>();
     private Executor executor = new ThreadPoolExecutor(5, 5, 0, TimeUnit.SECONDS,
@@ -65,6 +66,33 @@ public class BookContinuationStore {
     @Produces("text/plain")
     public void getBookDescriptionImmediateResume(@Suspended AsyncResponse async) {
         async.resume("immediateResume");
+    }
+    @GET
+    @Path("/books/resumeFromFastThread")
+    @Produces("text/plain")
+    public void getBookDescriptionResumeFromFastThread(@Suspended final AsyncResponse async) {
+        executor.execute(new Runnable() {
+            public void run() {
+                try {
+                    Thread.sleep(1000);
+                } catch (Exception ex) {
+                    // ignore    
+                }
+                async.resume("resumeFromFastThread");
+            }
+        });
+    }
+    
+    @GET
+    @Path("/books/nocontent")
+    @Produces("text/plain")
+    public void getBookNoContent(AsyncResponse async) {
+        async.resume(null);
+    }
+    
+
+    public void getBookNoContentInterface(@Suspended AsyncResponse async) {
+        async.resume(Response.status(206).build());
     }
     
     @GET
@@ -127,6 +155,19 @@ public class BookContinuationStore {
     public void handleContinuationRequestNotFoundUnmapped(@Suspended AsyncResponse response) {
         response.register(new CallbackImpl());
         resumeSuspendedNotFoundUnmapped(response);
+    }
+    
+    @GET
+    @Path("books/notfound/unmappedImmediate")
+    @Produces("text/plain")
+    public void handleUnmappedImmediate(@Suspended AsyncResponse response) throws BookNotFoundFault {
+        throw new BookNotFoundFault("");
+    }
+    @GET
+    @Path("books/mappedImmediate")
+    @Produces("text/plain")
+    public void handleMappedImmediate(@Suspended AsyncResponse response) throws BookNotFoundFault {
+        throw new WebApplicationException(Response.status(401).build());
     }
     
     @GET
@@ -225,7 +266,7 @@ public class BookContinuationStore {
         private String id;
         private AtomicInteger timeoutExtendedCounter = new AtomicInteger();
         
-        public TimeoutHandlerImpl(String id, boolean resumeOnly) {
+        TimeoutHandlerImpl(String id, boolean resumeOnly) {
             this.id = id;
             this.resumeOnly = resumeOnly;
         }
@@ -259,6 +300,8 @@ public class BookContinuationStore {
         }
         
     }
+    
+    
 }
 
 

@@ -33,8 +33,8 @@ import javax.xml.namespace.QName;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+
 import org.apache.cxf.helpers.DOMUtils;
-import org.apache.cxf.jaxws.context.WebServiceContextImpl;
 import org.apache.cxf.jaxws.context.WrappedMessageContext;
 import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.security.SecurityContext;
@@ -63,7 +63,7 @@ import org.apache.cxf.sts.token.provider.SAMLTokenProvider;
 import org.apache.cxf.sts.token.provider.TokenProvider;
 import org.apache.cxf.sts.token.provider.TokenProviderParameters;
 import org.apache.cxf.sts.token.provider.TokenProviderResponse;
-import org.apache.cxf.sts.token.realm.SAMLRealm;
+import org.apache.cxf.sts.token.realm.RealmProperties;
 import org.apache.cxf.sts.token.validator.IssuerSAMLRealmCodec;
 import org.apache.cxf.sts.token.validator.SAMLTokenValidator;
 import org.apache.cxf.sts.token.validator.TokenValidator;
@@ -87,7 +87,6 @@ import org.apache.wss4j.common.saml.SamlAssertionWrapper;
 import org.apache.wss4j.common.saml.builder.SAML2Constants;
 import org.apache.wss4j.common.util.DOM2Writer;
 import org.apache.wss4j.dom.WSConstants;
-
 
 /**
  * Some unit tests for the issue operation.
@@ -159,11 +158,10 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
 
         // Issue a token
         RequestSecurityTokenResponseCollectionType response = 
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
         List<RequestSecurityTokenResponseType> securityTokenResponse = 
             response.getRequestSecurityTokenResponse();
         assertTrue(!securityTokenResponse.isEmpty());
@@ -231,11 +229,10 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
 
         // Issue a token
         RequestSecurityTokenResponseCollectionType response = 
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
         List<RequestSecurityTokenResponseType> securityTokenResponse = 
             response.getRequestSecurityTokenResponse();
         assertTrue(!securityTokenResponse.isEmpty());
@@ -301,13 +298,12 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
 
         // Issue a token
         
         // This should fail as the default DelegationHandler does not allow HolderOfKey
         try {
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
             fail("Failure expected as HolderOfKey is not allowed by default");
         } catch (STSException ex) {
             // expected
@@ -317,7 +313,7 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         issueOperation.setDelegationHandlers(Collections.singletonList(delegationHandler));
         
         RequestSecurityTokenResponseCollectionType response = 
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
         List<RequestSecurityTokenResponseType> securityTokenResponse = 
             response.getRequestSecurityTokenResponse();
         assertTrue(!securityTokenResponse.isEmpty());
@@ -383,13 +379,12 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
 
         // Issue a token
         
         // This should fail as the default DelegationHandler does not allow HolderOfKey
         try {
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
             fail("Failure expected as HolderOfKey is not allowed by default");
         } catch (STSException ex) {
             // expected
@@ -399,7 +394,7 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         issueOperation.setDelegationHandlers(Collections.singletonList(delegationHandler));
         
         RequestSecurityTokenResponseCollectionType response = 
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
         List<RequestSecurityTokenResponseType> securityTokenResponse = 
             response.getRequestSecurityTokenResponse();
         assertTrue(!securityTokenResponse.isEmpty());
@@ -465,13 +460,12 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
 
         // Issue a token
         
         // This should fail as the default DelegationHandler does not allow HolderOfKey
         try {
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
             fail("Failure expected as HolderOfKey is not allowed by default");
         } catch (STSException ex) {
             // expected
@@ -481,7 +475,7 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         issueOperation.setDelegationHandlers(Collections.singletonList(delegationHandler));
         
         RequestSecurityTokenResponseCollectionType response = 
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
         List<RequestSecurityTokenResponseType> securityTokenResponse = 
             response.getRequestSecurityTokenResponse();
         assertTrue(!securityTokenResponse.isEmpty());
@@ -547,13 +541,12 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
 
         // Issue a token
         
         // This should fail as the default DelegationHandler does not allow HolderOfKey
         try {
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
             fail("Failure expected as HolderOfKey is not allowed by default");
         } catch (STSException ex) {
             // expected
@@ -563,7 +556,7 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         issueOperation.setDelegationHandlers(Collections.singletonList(delegationHandler));
         
         RequestSecurityTokenResponseCollectionType response = 
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
         List<RequestSecurityTokenResponseType> securityTokenResponse = 
             response.getRequestSecurityTokenResponse();
         assertTrue(!securityTokenResponse.isEmpty());
@@ -633,15 +626,14 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
 
         // Issue a token - this should work
-        issueOperation.issue(request, webServiceContext);
+        issueOperation.issue(request, null, msgCtx);
         
         request.getAny().add(createAppliesToElement("http://dummy-service.com/dummy2"));
         // This should fail
         try {
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
             fail("Failure expected due to AudienceRestriction");
         } catch (STSException ex) {
             // expected
@@ -712,15 +704,14 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
 
         // Issue a token - this should work
-        issueOperation.issue(request, webServiceContext);
+        issueOperation.issue(request, null, msgCtx);
         
         request.getAny().add(createAppliesToElement("http://dummy-service.com/dummy2"));
         // This should fail
         try {
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
             fail("Failure expected due to AudienceRestriction");
         } catch (STSException ex) {
             // expected
@@ -784,13 +775,12 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
 
         // Issue a token
         
         // This should fail as the default DelegationHandler does not allow UsernameTokens
         try {
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
             fail("Failure expected as UsernameTokens are not accepted for OnBehalfOf by default");
         } catch (STSException ex) {
             // expected
@@ -800,7 +790,7 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         issueOperation.setDelegationHandlers(Collections.singletonList(delegationHandler));
         
         RequestSecurityTokenResponseCollectionType response = 
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
         List<RequestSecurityTokenResponseType> securityTokenResponse = 
             response.getRequestSecurityTokenResponse();
         assertTrue(!securityTokenResponse.isEmpty());
@@ -863,14 +853,13 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
         
         TokenDelegationHandler delegationHandler = new UsernameTokenDelegationHandler();
         issueOperation.setDelegationHandlers(Collections.singletonList(delegationHandler));
 
         // Issue a token - this will fail as the UsernameToken validation fails
         try {
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
             fail("Failure expected as no principal is available to create SAML assertion");
         } catch (STSException ex) {
             // expected
@@ -920,7 +909,7 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         stsProperties.setIdentityMapper(new CustomIdentityMapper());
         issueOperation.setStsProperties(stsProperties);
         
-        Map<String, SAMLRealm> realms = createSamlRealms();
+        Map<String, RealmProperties> realms = createSamlRealms();
         
         // Mock up a request
         RequestSecurityTokenType request = new RequestSecurityTokenType();
@@ -950,12 +939,11 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
         msgCtx.put("url", "https");
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
         
         // Validate a token - this will fail as the tokenProvider doesn't understand how to handle
         // realm "B"
         //try {
-        //    issueOperation.issue(request, webServiceContext);
+        //    issueOperation.issue(request, msgCtx);
         //} catch (STSException ex) {
         //    // expected
         //}
@@ -963,7 +951,7 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         samlTokenProvider.setRealmMap(realms);
         
         RequestSecurityTokenResponseCollectionType response = 
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, null, msgCtx);
         List<RequestSecurityTokenResponseType> securityTokenResponseList = 
             response.getRequestSecurityTokenResponse();
 
@@ -1052,15 +1040,15 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         // Mock up message context with user 'bob'
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
+        Principal principal = new CustomTokenPrincipal("bob");
         msgCtx.put(
                 SecurityContext.class.getName(), 
-                createSecurityContext(new CustomTokenPrincipal("bob"))
+                createSecurityContext(principal)
         );
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
 
         // Issue a token
         RequestSecurityTokenResponseCollectionType response = 
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, principal, msgCtx);
         List<RequestSecurityTokenResponseType> securityTokenResponse = 
             response.getRequestSecurityTokenResponse();
         assertTrue(!securityTokenResponse.isEmpty());
@@ -1174,15 +1162,15 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         // Mock up message context with user 'bob'
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
+        Principal principal = new CustomTokenPrincipal("bob");
         msgCtx.put(
                 SecurityContext.class.getName(), 
-                createSecurityContext(new CustomTokenPrincipal("bob"))
+                createSecurityContext(principal)
         );
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
 
         // Issue a token
         RequestSecurityTokenResponseCollectionType response = 
-            issueOperation.issue(request, webServiceContext);
+            issueOperation.issue(request, principal, msgCtx);
         List<RequestSecurityTokenResponseType> securityTokenResponse = 
             response.getRequestSecurityTokenResponse();
         assertTrue(!securityTokenResponse.isEmpty());
@@ -1224,7 +1212,7 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
      */
     private Element createSAMLAssertion(
             String tokenType, Crypto crypto, String signatureUsername, CallbackHandler callbackHandler,
-            Map<String, SAMLRealm> realms, String keyType
+            Map<String, RealmProperties> realms, String keyType
     ) throws WSSecurityException {
         SAMLTokenProvider samlTokenProvider = new SAMLTokenProvider();
         samlTokenProvider.setRealmMap(realms);
@@ -1240,7 +1228,7 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         assertTrue(providerResponse != null);
         assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
 
-        return providerResponse.getToken();
+        return (Element)providerResponse.getToken();
     }
 
     private TokenProviderParameters createProviderParameters(
@@ -1269,8 +1257,7 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
-        parameters.setWebServiceContext(webServiceContext);
+        parameters.setMessageContext(msgCtx);
 
         parameters.setAppliesToAddress("http://dummy-service.com/dummy");
 
@@ -1315,13 +1302,13 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
         return tokenType;
     }
 
-    private Map<String, SAMLRealm> createSamlRealms() {
+    private Map<String, RealmProperties> createSamlRealms() {
         // Create Realms
-        Map<String, SAMLRealm> samlRealms = new HashMap<String, SAMLRealm>();
-        SAMLRealm samlRealm = new SAMLRealm();
+        Map<String, RealmProperties> samlRealms = new HashMap<String, RealmProperties>();
+        RealmProperties samlRealm = new RealmProperties();
         samlRealm.setIssuer("A-Issuer");
         samlRealms.put("A", samlRealm);
-        samlRealm = new SAMLRealm();
+        samlRealm = new RealmProperties();
         samlRealm.setIssuer("B-Issuer");
         samlRealms.put("B", samlRealm);
         return samlRealms;
@@ -1333,7 +1320,7 @@ public class IssueOnbehalfofUnitTest extends org.junit.Assert {
                 "org.apache.wss4j.crypto.provider", "org.apache.wss4j.common.crypto.Merlin"
         );
         properties.put("org.apache.wss4j.crypto.merlin.keystore.password", "stsspass");
-        properties.put("org.apache.wss4j.crypto.merlin.keystore.file", "stsstore.jks");
+        properties.put("org.apache.wss4j.crypto.merlin.keystore.file", "keys/stsstore.jks");
 
         return properties;
     }

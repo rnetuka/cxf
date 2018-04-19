@@ -20,7 +20,7 @@
     <parent>
         <groupId>org.apache.cxf</groupId>
         <artifactId>cxf</artifactId>
-        <version>3.1.3-SNAPSHOT</version>
+        <version>3.1.12</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <artifactId>cxf-parent</artifactId>
@@ -46,7 +46,7 @@
         <cxf.asm.groupId>org.ow2.asm</cxf.asm.groupId>
         <cxf.asm.artifactId>asm</cxf.asm.artifactId>
         <cxf.asm.version>5.0.4</cxf.asm.version>
-        <cxf.osgi.asm.version>[3.0,6)</cxf.osgi.asm.version>
+        <cxf.osgi.asm.version>[3.0,6.1)</cxf.osgi.asm.version>
         <!-- OSGi related properties -->
         <cxf.fragment.host />
         <cxf.bundle.activator />
@@ -66,62 +66,74 @@
         <cxf.osgi.javax.xml.ws.version>[0.0,3)</cxf.osgi.javax.xml.ws.version>
         <!-- please maintain alphabetical order here -->
         <cxf.abdera.version>1.1.3</cxf.abdera.version>
-        <cxf.activemq.version>5.11.1</cxf.activemq.version>
+        <cxf.abdera.osgi.version>1.1.3_2</cxf.abdera.osgi.version>
+        <cxf.activemq.version>5.14.4</cxf.activemq.version>
         <cxf.ahc.version>1.9.8</cxf.ahc.version>
-        <cxf.apacheds.version>2.0.0-M20</cxf.apacheds.version>
-        <cxf.atmosphere.version>2.3.2</cxf.atmosphere.version>
-        <cxf.atmosphere.version.range>[2.0,3.0)</cxf.atmosphere.version.range>
+        <cxf.apacheds.version>2.0.0-M24</cxf.apacheds.version>
+        <cxf.atmosphere.version>2.3.7</cxf.atmosphere.version>
+        <cxf.atmosphere.version.range>[2.0,2.4)</cxf.atmosphere.version.range>
         <cxf.axiom.version>1.2.14</cxf.axiom.version>
-        <cxf.bcprov.version>1.52</cxf.bcprov.version>
+        <cxf.bcprov.version>1.57</cxf.bcprov.version>
         <cxf.cglib.bundle.version>2.2_2</cxf.cglib.bundle.version>
         <cxf.cglib.osgi.version>[2.1.3,3.0.0)</cxf.cglib.osgi.version>
+        <cxf.classmate.version>1.1.0</cxf.classmate.version>
         <cxf.commons-codec.version>1.10</cxf.commons-codec.version>
-        <cxf.commons-collections.version>3.2.1</cxf.commons-collections.version>
+        <cxf.commons-collections.version>3.2.2</cxf.commons-collections.version>
         <cxf.commons-lang.version>2.6</cxf.commons-lang.version>
+        <cxf.commons-lang3.version>3.5</cxf.commons-lang3.version>
         <cxf.derby.version>10.2.2.0</cxf.derby.version>
         <cxf.dropwizard.version>3.1.2</cxf.dropwizard.version>
-        <cxf.ehcache.version>2.9.0</cxf.ehcache.version>
+        <cxf.ehcache.version>2.10.3</cxf.ehcache.version>
+        <cxf.ehcache3.version>3.0.3</cxf.ehcache3.version>
         <cxf.fastinfoset.bundle.version>1.2.13_1</cxf.fastinfoset.bundle.version>
         <cxf.guava.version>18.0</cxf.guava.version>
-        <cxf.hazelcast.version>1.9.4</cxf.hazelcast.version>
-        <cxf.httpcomponents.asyncclient.version>4.1</cxf.httpcomponents.asyncclient.version>
+        <cxf.hazelcast.version>1.9.4.8</cxf.hazelcast.version>
+        <cxf.httpcomponents.asyncclient.version>4.1.3</cxf.httpcomponents.asyncclient.version>
         <cxf.httpcomponents.asyncclient.version.range>[4.0,4.2)</cxf.httpcomponents.asyncclient.version.range>
-        <cxf.httpcomponents.client.version>4.4.1</cxf.httpcomponents.client.version>
-        <cxf.httpcomponents.core.version>4.4.1</cxf.httpcomponents.core.version>
+        <cxf.httpcomponents.client.version>4.5.3</cxf.httpcomponents.client.version>
+        <cxf.httpcomponents.core.version>4.4.6</cxf.httpcomponents.core.version>
         <cxf.httpcomponents.core.version.range>[4.3,4.5.0)</cxf.httpcomponents.core.version.range>
-        <cxf.jackson.version>2.4.1</cxf.jackson.version>
+        <cxf.jackson.version>2.8.8</cxf.jackson.version>
         <cxf.james.mim4j.version>0.7.2</cxf.james.mim4j.version>
         <cxf.logback.classic.version>1.0.13</cxf.logback.classic.version>
         <cxf.log4j.version>1.2.17</cxf.log4j.version>
         <cxf.lucene.version>4.9.0</cxf.lucene.version>
-        <cxf.mina.version>2.0.9</cxf.mina.version>
+        <cxf.mina.version>2.0.14</cxf.mina.version>
+        <cxf.rx.java.version>1.1.3</cxf.rx.java.version>
         <cxf.javax.annotation-api.version>1.2</cxf.javax.annotation-api.version>
+        <cxf.jcache.version>1.0.0</cxf.jcache.version>
         <cxf.geronimo.jms.version>1.1.1</cxf.geronimo.jms.version>
         <cxf.geronimo.j2ee.management.version>1.0.1</cxf.geronimo.j2ee.management.version>
         <cxf.geronimo.jpa.version>1.0</cxf.geronimo.jpa.version>
+        <cxf.openjpa.version>2.4.2</cxf.openjpa.version>
         <cxf.geronimo.servlet.version>1.0</cxf.geronimo.servlet.version>
         <cxf.geronimo.servlet25.version>1.2</cxf.geronimo.servlet25.version>
         <cxf.geronimo.transaction.version>1.1.1</cxf.geronimo.transaction.version>
         <cxf.jasypt.bundle.version>1.9.0_1</cxf.jasypt.bundle.version>
+        <cxf.javassist.version>3.19.0-GA</cxf.javassist.version>
         <cxf.javax.ws.rs.version>2.0.1</cxf.javax.ws.rs.version>
         <cxf.jaxb.version>2.2.11</cxf.jaxb.version>
         <cxf.jaxb.impl.version>${cxf.jaxb.version}</cxf.jaxb.impl.version>
         <cxf.jaxb.core.version>${cxf.jaxb.version}</cxf.jaxb.core.version>
         <cxf.jaxb.xjc.version>${cxf.jaxb.version}</cxf.jaxb.xjc.version>
-        <cxf.joda.time.version>2.7</cxf.joda.time.version>
+        <cxf.joda.time.version>2.9.4</cxf.joda.time.version>
         <cxf.jdom.version>1.0</cxf.jdom.version>
-        <cxf.jettison.version>1.3.7</cxf.jettison.version>
-        <cxf.jetty8.version>8.1.17.v20150415</cxf.jetty8.version>
-        <cxf.jetty9.version>9.2.10.v20150310</cxf.jetty9.version>
+        <cxf.jettison.version>1.3.8</cxf.jettison.version>
+        <cxf.jetty8.version>8.1.19.v20160209</cxf.jetty8.version>
+        <cxf.jetty9.version>9.2.21.v20170120</cxf.jetty9.version>
+        <!-- Jetty 9.3.15+ and 9.4.x break atmosphere, don't upgrade until new version of
+             atmosphere is available -->
+        <!--cxf.jetty9.version>9.3.16.v20170120</cxf.jetty9.version-->
         <cxf.jetty.version>${cxf.jetty9.version}</cxf.jetty.version>
-        <cxf.jetty.osgi.version>[8.1,10)</cxf.jetty.osgi.version>
+        <cxf.jetty.osgi.version>[8.1,9.5)</cxf.jetty.osgi.version>
         <cxf.jibx.version>1.2.6</cxf.jibx.version>
         <cxf.junit.version>4.12</cxf.junit.version>
+        <cxf.hamcrest.version>1.3</cxf.hamcrest.version>
         <cxf.maven.core.version>3.0.5</cxf.maven.core.version>
         <cxf.msv.version>2013.6.1</cxf.msv.version>
         <cxf.neethi.version>3.0.3</cxf.neethi.version>
-        <cxf.netty.version>4.0.19.Final</cxf.netty.version>
-        <cxf.netty3.version>3.9.1.Final</cxf.netty3.version>
+        <cxf.netty.version>4.0.43.Final</cxf.netty.version>
+        <cxf.netty3.version>3.9.2.Final</cxf.netty3.version>
         <cxf.netty.version.range>[4,5)</cxf.netty.version.range>
         <cxf.oauth.bundle.version>20100527_1</cxf.oauth.bundle.version>
         <cxf.oauth.version>20100527</cxf.oauth.version>
@@ -129,69 +141,85 @@
         <cxf.opensaml.osgi.version>3.1.1_3</cxf.opensaml.osgi.version>
         <cxf.opensaml.osgi.version.range>[3.1,4)</cxf.opensaml.osgi.version.range>
         <cxf.rhino.version>1.7R2</cxf.rhino.version>
+        <cxf.reflections.bundle.version>0.9.10_3</cxf.reflections.bundle.version>
         <cxf.servlet-api.group>org.apache.geronimo.specs</cxf.servlet-api.group>
         <cxf.servlet-api.artifact>geronimo-servlet_3.0_spec</cxf.servlet-api.artifact>
         <cxf.servlet-api.version>1.0</cxf.servlet-api.version>
         <cxf.servlet-api-2.5.artifact>geronimo-servlet_2.5_spec</cxf.servlet-api-2.5.artifact>
         <cxf.servlet-api-2.5.version>1.1.2</cxf.servlet-api-2.5.version>
-        <cxf.slf4j.version>1.7.12</cxf.slf4j.version>
+        <cxf.slf4j.version>1.7.24</cxf.slf4j.version>
         <cxf.specs.jaxws.api.version>1.2</cxf.specs.jaxws.api.version>
-        <cxf.spring.version>4.1.6.RELEASE</cxf.spring.version>
-        <cxf.spring.security.version>3.2.5.RELEASE</cxf.spring.security.version>
+        <cxf.spring.version>4.1.9.RELEASE</cxf.spring.version>
+        <cxf.spring.boot.version>1.4.5.RELEASE</cxf.spring.boot.version>
+        <cxf.spring.security.version>3.2.10.RELEASE</cxf.spring.security.version>
         <cxf.spring.osgi.version>1.2.1</cxf.spring.osgi.version>
-        <cxf.spring.ldap.version>1.3.1.RELEASE</cxf.spring.ldap.version>
+        <cxf.spring.ldap.version>2.2.1.RELEASE</cxf.spring.ldap.version>
         <cxf.spring.mock>spring-test</cxf.spring.mock>
-        <cxf.swagger.version>1.3.12</cxf.swagger.version>
-        <cxf.swagger2.version>1.5.3</cxf.swagger2.version>
+        <cxf.swagger.version>1.3.13</cxf.swagger.version>
+        <cxf.swagger2.version>1.5.12</cxf.swagger2.version>
         <cxf.velocity.version>1.7</cxf.velocity.version>
         <cxf.woodstox.core.version>4.4.1</cxf.woodstox.core.version>
         <cxf.woodstox.stax2-api.version>3.1.4</cxf.woodstox.stax2-api.version>
         <cxf.wsdl4j.version>1.6.3</cxf.wsdl4j.version>
-        <cxf.wss4j.version>2.1.3-SNAPSHOT</cxf.wss4j.version>
+        <cxf.wss4j.version>2.1.10</cxf.wss4j.version>
         <cxf.xerces.version>2.11.0</cxf.xerces.version>
         <cxf.xmlbeans.version>2.6.0</cxf.xmlbeans.version>
-        <cxf.xmlschema.version>2.2.1</cxf.xmlschema.version>
+        <cxf.xmlschema.version>2.2.2</cxf.xmlschema.version>
         <cxf.xpp3.bundle.version>1.1.4c_6</cxf.xpp3.bundle.version>
         <cxf.validation.api.version>1.1.0.Final</cxf.validation.api.version>
+        <!-- the Export-Package is the same as the Maven artifact
+             version (with the Final), but we don't want an import package with a version
+             with a qualifier. We do want a range. -->
+        <cxf.validation.api.package.version>[1.0.0,2)</cxf.validation.api.package.version>
         <cxf.cdi.api.version>1.1</cxf.cdi.api.version>
         <cxf.json.api.version>1.0</cxf.json.api.version>
-        <cxf.jboss.weld.version>2.1.2.Final</cxf.jboss.weld.version>
+        <cxf.jboss.weld.version>2.4.0.Final</cxf.jboss.weld.version>
+        <cxf.jboss.logging.version>3.3.0.Final</cxf.jboss.logging.version>
         <cxf.osgi.validation.api.version>1.1.0</cxf.osgi.validation.api.version>
-        <cxf.hibernate.validator.version>5.0.2.Final</cxf.hibernate.validator.version>
+        <cxf.hibernate.validator.version>5.2.2.Final</cxf.hibernate.validator.version>
         <cxf.glassfish.json.version>1.0.4</cxf.glassfish.json.version>
+        <cxf.johnzon.version>1.0.0</cxf.johnzon.version>
         <cxf.javax.el.version>3.0.0</cxf.javax.el.version>
-        <cxf.hibernate-validator.bundle.version>5.0.2.Final_1</cxf.hibernate-validator.bundle.version>
         <!-- various OSGi related versions -->
         <cxf.aries.version>1.0.0</cxf.aries.version>
         <cxf.aries.parser.version>1.3.1</cxf.aries.parser.version> 
         <cxf.aries.version.range>[1.0,2)</cxf.aries.version.range>
         <cxf.osgi.version>4.2.0</cxf.osgi.version>
-        <cxf.karaf.version>3.0.2</cxf.karaf.version>
+        <cxf.karaf.version>3.0.8</cxf.karaf.version>
         <cxf.pax.logging.version>1.6.0</cxf.pax.logging.version>
-        <cxf.pax.exam.version>4.5.0</cxf.pax.exam.version>
+        <cxf.pax.exam.version>4.10.0</cxf.pax.exam.version>
         <cxf.felix.framework.version>2.0.5</cxf.felix.framework.version>
         <cxf.felix.configadmin.version>1.2.4</cxf.felix.configadmin.version>
         <cxf.xmlbeans.bundle.version>2.6.0_2</cxf.xmlbeans.bundle.version>
-        <cxf.servicemix.specs.version>2.4.0</cxf.servicemix.specs.version>
-        <cxf.servicemix.specs.version.jaxrs>2.4.0</cxf.servicemix.specs.version.jaxrs>
+        <cxf.servicemix.aspectj.version>1.8.7_2</cxf.servicemix.aspectj.version>
+        <cxf.servicemix.cglib.version>3.2.0_1</cxf.servicemix.cglib.version>
+        <cxf.servicemix.jodatime.version>2.3_1</cxf.servicemix.jodatime.version>
+        <cxf.servicemix.jsoup.version>1.5.2_2</cxf.servicemix.jsoup.version>
+        <cxf.servicemix.specs.version>2.6.0</cxf.servicemix.specs.version>
+        <cxf.servicemix.specs.version.jaxrs>2.6.0</cxf.servicemix.specs.version.jaxrs>
         <cxf.javax.mail.version>1.4.4</cxf.javax.mail.version>
         <cxf.jaxb.bundle.version>2.2.11_1</cxf.jaxb.bundle.version>
         <cxf.saaj-impl.bundle.version>1.3.23_2</cxf.saaj-impl.bundle.version>
         <cxf.stax-ex.version>1.7.6</cxf.stax-ex.version>
         <cxf.wsdl4j.bundle.version>1.6.3_1</cxf.wsdl4j.bundle.version>
-        <cxf.xmlsec.bundle.version>2.0.5</cxf.xmlsec.bundle.version>
+        <cxf.xmlsec.bundle.version>2.0.8</cxf.xmlsec.bundle.version>
         <cxf.rhino.bundle.version>1.7R2_3</cxf.rhino.bundle.version>
         <cxf.xmlresolver.bundle.version>1.2_5</cxf.xmlresolver.bundle.version>
         <cxf.xerces.bundle.version>2.11.0_1</cxf.xerces.bundle.version>
         <cxf.bcel.bundle.version>5.2_4</cxf.bcel.bundle.version>
-        <cxf.xalan.bundle.version>2.7.1_7</cxf.xalan.bundle.version>
+        <cxf.xalan.version>2.7.2</cxf.xalan.version>
+        <cxf.xalan.bundle.version>2.7.2_3</cxf.xalan.bundle.version>
         <cxf.oro.bundle.version>2.0.8_6</cxf.oro.bundle.version>
         <cxf.dom4j.bundle.version>1.6.1_5</cxf.dom4j.bundle.version>
         <cxf.jdom.bundle.version>1.1_4</cxf.jdom.bundle.version>
         <cxf.olingo.version>1.2.0</cxf.olingo.version>
-        <cxf.tika.version>1.6</cxf.tika.version>
+        <cxf.tika.version>1.14</cxf.tika.version>
         <cxf.jexl.version>2.1.1</cxf.jexl.version>
-        <cxf.htrace.version>3.2.0-incubating</cxf.htrace.version>
+        <cxf.htrace.version>4.0.1-incubating</cxf.htrace.version>
+        <cxf.brave.version>4.3.1</cxf.brave.version>
+        <cxf.brave.zipkin.version>1.24.0</cxf.brave.zipkin.version>
+        <cxf.brave.reporter.version>0.9.0</cxf.brave.reporter.version>
+        <cxf.findbugs.version>3.0.2</cxf.findbugs.version>
         <cxf.checkstyle.extension />
         <cxf.jaxb.context.class />
         <cxf.jaxb.context.class.property>none</cxf.jaxb.context.class.property>
@@ -254,7 +282,7 @@
                 <plugin>
                     <groupId>org.apache.servicemix.tooling</groupId>
                     <artifactId>depends-maven-plugin</artifactId>
-                    <version>1.2</version>
+                    <version>1.4.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -303,17 +331,12 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-checkstyle-plugin</artifactId>
-                    <version>2.15</version>
+                    <version>2.17</version>
                     <dependencies>
                         <dependency>
                             <groupId>org.apache.cxf.build-utils</groupId>
                             <artifactId>cxf-buildtools</artifactId>
                             <version>${cxf.build-utils.version}</version>
-                        </dependency>
-                        <dependency>
-                            <groupId>com.puppycrawl.tools</groupId>
-                            <artifactId>checkstyle</artifactId>
-                            <version>6.4.1</version>
                         </dependency>
                     </dependencies>
                     <configuration>
@@ -552,6 +575,7 @@
                 <configuration>
                     <instructions>
                         <Bundle-SymbolicName>${cxf.osgi.symbolic.name}</Bundle-SymbolicName>
+                        <Bundle-ActivationPolicy>lazy</Bundle-ActivationPolicy>
                         <Implementation-Vendor>The Apache Software Foundation</Implementation-Vendor>
                         <Implementation-Vendor-Id>org.apache</Implementation-Vendor-Id>
                         <Implementation-Version>${cxf.osgi.version.clean}</Implementation-Version>
@@ -574,6 +598,7 @@
                         </Export-Service>
                         <Bundle-Activator>${cxf.bundle.activator}</Bundle-Activator>
                     </instructions>
+                    <niceManifest>true</niceManifest>
                 </configuration>
             </plugin>
         </plugins>
@@ -659,7 +684,7 @@
             <dependency>
                 <groupId>org.apache.hbase</groupId>
                 <artifactId>hbase-client</artifactId>
-                <version>1.1.1</version>
+                <version>1.1.7</version>
                 <exclusions>
                     <exclusion>
                         <groupId>io.netty</groupId>
@@ -711,6 +736,12 @@
                 <scope>test</scope>
             </dependency>
             <dependency>
+                <groupId>org.hamcrest</groupId>
+                <artifactId>hamcrest-library</artifactId>
+                <version>${cxf.hamcrest.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
                 <groupId>nekohtml</groupId>
                 <artifactId>nekohtml</artifactId>
                 <version>1.9.6.2</version>
@@ -753,6 +784,11 @@
                 <groupId>io.netty</groupId>
                 <artifactId>netty</artifactId>
                 <version>${cxf.netty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.derby</groupId>
+                <artifactId>derby</artifactId>
+                <version>${cxf.derby.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.httpcomponents</groupId>
@@ -830,7 +866,7 @@
             <dependency>
                 <groupId>org.apache.ant</groupId>
                 <artifactId>ant</artifactId>
-                <version>1.8.4</version>
+                <version>1.10.1</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.ant</groupId>
@@ -926,6 +962,12 @@
                 <optional>true</optional>
             </dependency>
             <dependency>
+                <groupId>org.apache.johnzon</groupId>
+                <artifactId>johnzon-core</artifactId>
+                <version>${cxf.johnzon.version}</version>
+                <optional>true</optional>
+            </dependency>
+            <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-jdk14</artifactId>
                 <version>${cxf.slf4j.version}</version>
@@ -994,7 +1036,7 @@
             <dependency>
                 <groupId>xalan</groupId>
                 <artifactId>xalan</artifactId>
-                <version>2.7.2</version>
+                <version>${cxf.xalan.version}</version>
                 <exclusions>
                     <exclusion>
                         <groupId>xml-apis</groupId>
@@ -1218,6 +1260,31 @@
                 </exclusions>
             </dependency>
             <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot</artifactId>
+                <version>${cxf.spring.boot.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-autoconfigure</artifactId>
+                <version>${cxf.spring.boot.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-configuration-processor</artifactId>
+                <version>${cxf.spring.boot.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter</artifactId>
+                <version>${cxf.spring.boot.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-web</artifactId>
+                <version>${cxf.spring.boot.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.springframework.security</groupId>
                 <artifactId>spring-security-web</artifactId>
                 <version>${cxf.spring.security.version}</version>
@@ -1316,17 +1383,6 @@
                 <version>${cxf.spring.version}</version>
             </dependency>
             <dependency>
-                <groupId>commons-httpclient</groupId>
-                <artifactId>commons-httpclient</artifactId>
-                <version>3.1</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>commons-logging</groupId>
-                        <artifactId>commons-logging</artifactId>
-                    </exclusion>
-                </exclusions>
-            </dependency>
-            <dependency>
                 <groupId>org.springframework.osgi</groupId>
                 <artifactId>spring-osgi-io</artifactId>
                 <version>${cxf.spring.osgi.version}</version>
@@ -1335,6 +1391,28 @@
                  <groupId>org.springframework.osgi</groupId>
                  <artifactId>spring-osgi-core</artifactId>
                  <version>${cxf.spring.osgi.version}</version>
+                 <exclusions>
+                     <exclusion>
+                         <groupId>org.springframework</groupId>
+                         <artifactId>org.springframework.aop</artifactId>
+                     </exclusion>
+                     <exclusion>
+                         <groupId>org.springframework</groupId>
+                         <artifactId>com.springsource.org.aopalliance</artifactId>
+                     </exclusion>
+                     <exclusion>
+                         <groupId>org.springframework</groupId>
+                         <artifactId>org.springframework.core</artifactId>
+                     </exclusion>
+                     <exclusion>
+                         <groupId>org.springframework</groupId>
+                         <artifactId>org.springframework.context</artifactId>
+                     </exclusion>
+                     <exclusion>
+                         <groupId>org.springframework</groupId>
+                         <artifactId>org.springframework.beans</artifactId>
+                     </exclusion>
+                 </exclusions>
             </dependency>
             <dependency>
                 <groupId>commons-codec</groupId>
@@ -1367,12 +1445,52 @@
             <dependency>
                 <groupId>org.easymock</groupId>
                 <artifactId>easymock</artifactId>
-                <version>3.3.1</version>
+                <version>3.4</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson.jaxrs</groupId>
                 <artifactId>jackson-jaxrs-json-provider</artifactId>
+                <version>${cxf.jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>${cxf.jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${cxf.jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-annotations</artifactId>
+                <version>${cxf.jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.module</groupId>
+                <artifactId>jackson-module-jsonSchema</artifactId>
+                <version>${cxf.jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.module</groupId>
+                <artifactId>jackson-module-scala_2.10</artifactId>
+                <version>${cxf.jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.dataformat</groupId>
+                <artifactId>jackson-dataformat-xml</artifactId>
+                <version>${cxf.jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.dataformat</groupId>
+                <artifactId>jackson-dataformat-yaml</artifactId>
+                <version>${cxf.jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.datatype</groupId>
+                <artifactId>jackson-datatype-joda</artifactId>
                 <version>${cxf.jackson.version}</version>
             </dependency>
             <dependency>
@@ -1776,6 +1894,12 @@
                 <groupId>org.apache.tika</groupId>
                 <artifactId>tika-parsers</artifactId>
                 <version>${cxf.tika.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.json</groupId>
+                        <artifactId>json</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>io.dropwizard.metrics</groupId>
@@ -1784,8 +1908,38 @@
             </dependency>
             <dependency>
                 <groupId>org.apache.htrace</groupId>
-                <artifactId>htrace-core</artifactId>
+                <artifactId>htrace-core4</artifactId>
                 <version>${cxf.htrace.version}</version>
+            </dependency>
+            <dependency>
+                 <groupId>io.zipkin.brave</groupId>
+                 <artifactId>brave</artifactId>
+                 <version>${cxf.brave.version}</version>
+            </dependency>
+            <dependency>
+                 <groupId>io.zipkin.brave</groupId>
+                 <artifactId>brave-instrumentation-http</artifactId>
+                 <version>${cxf.brave.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.wss4j</groupId>
+                <artifactId>wss4j-ws-security-dom</artifactId>
+                <version>${cxf.wss4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.wss4j</groupId>
+                <artifactId>wss4j-policy</artifactId>
+                <version>${cxf.wss4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.wss4j</groupId>
+                <artifactId>wss4j-ws-security-stax</artifactId>
+                <version>${cxf.wss4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.wss4j</groupId>
+                <artifactId>wss4j-ws-security-policy-stax</artifactId>
+                <version>${cxf.wss4j.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

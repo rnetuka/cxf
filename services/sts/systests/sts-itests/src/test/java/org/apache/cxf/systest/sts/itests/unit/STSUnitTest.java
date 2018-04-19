@@ -19,6 +19,7 @@
 package org.apache.cxf.systest.sts.itests.unit;
 
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +36,7 @@ import org.apache.wss4j.common.crypto.Crypto;
 import org.apache.wss4j.common.crypto.CryptoFactory;
 import org.apache.wss4j.common.saml.SamlAssertionWrapper;
 import org.apache.wss4j.dom.WSDocInfo;
-import org.apache.wss4j.dom.WSSecurityEngineResult;
+import org.apache.wss4j.dom.engine.WSSecurityEngineResult;
 import org.apache.wss4j.dom.handler.RequestData;
 import org.apache.wss4j.dom.processor.Processor;
 import org.apache.wss4j.dom.processor.SAMLTokenProcessor;
@@ -54,14 +55,32 @@ public class STSUnitTest extends BasicSTSIntegrationTest {
         "http://docs.oasis-open.org/wss/oasis-wss-saml-token-profile-1.1#SAMLV2.0";
     private static final String BEARER_KEYTYPE = 
         "http://docs.oasis-open.org/ws-sx/ws-trust/200512/Bearer";
+
+    void waitForWSDL(String loc) throws Exception {
+        URL url = new URL(loc + "?wsdl");
+        for (int x = 0; x < 10; x++) {
+            try {
+                url.openStream().close();
+                return;
+            } catch (Throwable t) {
+                Thread.sleep(100);
+            }
+        }
+    }
     
     @Test
     public void testBearerSAML2Token() throws URISyntaxException, Exception {
         Bus bus = BusFactory.getDefaultBus();
+        String stsEndpoint = "http://localhost:" 
+            + System.getProperty("BasicSTSIntegrationTest.PORT")
+            + "/cxf/X509";
 
+        //sts could take a second or two to fully startup, make sure we can get the wsdl
+        waitForWSDL(stsEndpoint);
+        
         // Get a token
-        SecurityToken token = 
-            requestSecurityToken(SAML2_TOKEN_TYPE, BEARER_KEYTYPE, bus, STS_ENDPOINT);
+        SecurityToken token =
+            requestSecurityToken(SAML2_TOKEN_TYPE, BEARER_KEYTYPE, bus, stsEndpoint);
         Assert.assertTrue(SAML2_TOKEN_TYPE.equals(token.getTokenType()));
         Assert.assertTrue(token.getToken() != null);
         

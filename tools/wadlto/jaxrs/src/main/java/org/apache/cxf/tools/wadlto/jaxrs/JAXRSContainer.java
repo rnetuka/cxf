@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -133,6 +134,8 @@ public class JAXRSContainer extends AbstractCXFToolContainer {
         }
         
         sg.setSupportMultipleXmlReps(context.optionSet(WadlToolConstants.CFG_MULTIPLE_XML_REPS));
+        sg.setSupportBeanValidation(context.optionSet(WadlToolConstants.CFG_BEAN_VALIDATION));
+        sg.setCreateJavaDocs(context.optionSet(WadlToolConstants.CFG_CREATE_JAVA_DOCS));
         // set the base path
         sg.setWadlPath(wadlURL);
                 
@@ -204,7 +207,7 @@ public class JAXRSContainer extends AbstractCXFToolContainer {
     protected String readWadl(String wadlURI) {
         try {
             URL url = new URL(wadlURI);
-            Reader reader = new InputStreamReader(url.openStream(), "UTF-8");
+            Reader reader = new InputStreamReader(url.openStream(), StandardCharsets.UTF_8);
             return IOUtils.toString(reader);
         } catch (IOException e) {
             throw new ToolException(e);

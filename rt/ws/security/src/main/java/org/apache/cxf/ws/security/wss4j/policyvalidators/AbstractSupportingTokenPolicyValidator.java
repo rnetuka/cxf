@@ -54,11 +54,11 @@ import org.apache.wss4j.common.token.PKIPathSecurity;
 import org.apache.wss4j.common.token.X509Security;
 import org.apache.wss4j.dom.WSConstants;
 import org.apache.wss4j.dom.WSDataRef;
-import org.apache.wss4j.dom.WSSecurityEngine;
-import org.apache.wss4j.dom.WSSecurityEngineResult;
+import org.apache.wss4j.dom.engine.WSSecurityEngineResult;
 import org.apache.wss4j.dom.handler.WSHandlerResult;
 import org.apache.wss4j.dom.message.token.KerberosSecurity;
 import org.apache.wss4j.policy.SPConstants;
+import org.apache.wss4j.policy.model.AbstractSecuredParts;
 import org.apache.wss4j.policy.model.AbstractSecurityAssertion;
 import org.apache.wss4j.policy.model.EncryptedElements;
 import org.apache.wss4j.policy.model.EncryptedParts;
@@ -79,11 +79,12 @@ public abstract class AbstractSupportingTokenPolicyValidator extends AbstractSec
     private EncryptedElements encryptedElements;
     private SignedParts signedParts;
     private EncryptedParts encryptedParts;
+    private boolean enforceEncryptedTokens = true;
     
     protected abstract boolean isSigned();
     protected abstract boolean isEncrypted();
     protected abstract boolean isEndorsing();
-
+    
     /**
      * Process UsernameTokens.
      */
@@ -430,7 +431,7 @@ public abstract class AbstractSupportingTokenPolicyValidator extends AbstractSec
         return null;
     }
     
-    private boolean isTLSInUse(Message message) {
+    protected boolean isTLSInUse(Message message) {
         // See whether TLS is in use or not
         TLSSessionInfo tlsInfo = message.get(TLSSessionInfo.class);
         return tlsInfo != null;
@@ -481,7 +482,7 @@ public abstract class AbstractSupportingTokenPolicyValidator extends AbstractSec
     private boolean areTokensEncrypted(List<WSSecurityEngineResult> tokens,
                                        List<WSSecurityEngineResult> encryptedResults,
                                        Message message) {
-        if (!isTLSInUse(message)) {
+        if (enforceEncryptedTokens) {
             for (WSSecurityEngineResult wser : tokens) {
                 Element tokenElement = (Element)wser.get(WSSecurityEngineResult.TAG_TOKEN_ELEMENT);
                 if (tokenElement == null || !isTokenEncrypted(tokenElement, encryptedResults)) {
@@ -532,7 +533,7 @@ public abstract class AbstractSupportingTokenPolicyValidator extends AbstractSec
             if (sl != null && sl.size() >= 1) {
                 for (WSDataRef dataRef : sl) {
                     QName signedQName = dataRef.getName();
-                    if (WSSecurityEngine.SIGNATURE.equals(signedQName)
+                    if (WSConstants.SIGNATURE.equals(signedQName)
                         && checkSignatureOrEncryptionResult(signedResult, tokenResults)) {
                         return true;
                     }
@@ -611,7 +612,7 @@ public abstract class AbstractSupportingTokenPolicyValidator extends AbstractSec
      * Validate the SignedParts or EncryptedParts policies
      */
     private boolean validateSignedEncryptedParts(
-        SignedParts parts,
+        AbstractSecuredParts parts,
         boolean content,
         List<WSSecurityEngineResult> protResults,
         List<WSSecurityEngineResult> tokenResults,
@@ -716,11 +717,9 @@ public abstract class AbstractSupportingTokenPolicyValidator extends AbstractSec
             final XPathFactory factory = XPathFactory.newInstance();
             final XPath xpath = factory.newXPath();
             
-            List<String> expressions = new ArrayList<>();
             MapNamespaceContext namespaceContext = new MapNamespaceContext();
             
             for (org.apache.wss4j.policy.model.XPath xPath : xpaths) {
-                expressions.add(xPath.getXPath());
                 Map<String, String> namespaceMap = xPath.getPrefixNamespaceMap();
                 if (namespaceMap != null) {
                     namespaceContext.addNamespaces(namespaceMap);
@@ -883,6 +882,12 @@ public abstract class AbstractSupportingTokenPolicyValidator extends AbstractSec
                 }
             }    
         }
+    }
+    public boolean isEnforceEncryptedTokens() {
+        return enforceEncryptedTokens;
+    }
+    public void setEnforceEncryptedTokens(boolean enforceEncryptedTokens) {
+        this.enforceEncryptedTokens = enforceEncryptedTokens;
     }
 
 }

@@ -30,9 +30,9 @@ import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 
+import org.apache.cxf.common.util.UrlUtils;
 import org.apache.cxf.jaxrs.ext.MessageContext;
 import org.apache.cxf.rs.security.oauth2.client.ClientTokenContextManager;
-import org.apache.cxf.rs.security.oidc.common.IdToken;
 
 @Path("rp")
 public class OidcRpAuthenticationService {
@@ -44,9 +44,9 @@ public class OidcRpAuthenticationService {
     @POST
     @Path("signin")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    public Response completeScriptAuthentication(@Context IdToken idToken) {
+    public Response completeScriptAuthentication(@Context IdTokenContext idTokenContext) {
         OidcClientTokenContextImpl ctx = new OidcClientTokenContextImpl();
-        ctx.setIdToken(idToken);
+        ctx.setIdToken(idTokenContext.getIdToken());
         return completeAuthentication(ctx);   
     }
     
@@ -62,7 +62,7 @@ public class OidcRpAuthenticationService {
             String basePath = (String)mc.get("http.base.path");
             redirectUri = UriBuilder.fromUri(basePath).path(defaultLocation).build();
         } else if (location != null) {
-            redirectUri = URI.create(location);
+            redirectUri = URI.create(UrlUtils.urlDecode(location));
         }
         if (redirectUri != null) {
             return Response.seeOther(redirectUri).build();
@@ -75,8 +75,8 @@ public class OidcRpAuthenticationService {
         this.defaultLocation = defaultLocation;
     }
 
-    public void setStateManager(ClientTokenContextManager stateManager) {
-        this.stateManager = stateManager;
+    public void setClientTokenContextManager(ClientTokenContextManager manager) {
+        this.stateManager = manager;
     }
 
 }

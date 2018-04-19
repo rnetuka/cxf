@@ -72,6 +72,7 @@ public class CipherSuitesTest extends AbstractBusClientServerTestBase {
     static final String PORT2 = allocatePort(CipherSuitesServer.class, 2);
     static final String PORT3 = allocatePort(CipherSuitesServer.class, 3);
     static final String PORT4 = allocatePort(CipherSuitesServer.class, 4);
+    static final String PORT5 = allocatePort(CipherSuitesServer.class, 5);
     
     @BeforeClass
     public static void startServers() throws Exception {
@@ -142,6 +143,11 @@ public class CipherSuitesTest extends AbstractBusClientServerTestBase {
     // Both client + server include a specific AES CipherSuite (not via a filter)
     @org.junit.Test
     public void testAESIncludedExplicitly() throws Exception {
+        
+        // Doesn't work with IBM JDK 
+        if ("IBM Corporation".equals(System.getProperty("java.vendor"))) {
+            return;
+        }
         
         if (!UNRESTRICTED_POLICIES_INSTALLED) {
             return;
@@ -231,6 +237,11 @@ public class CipherSuitesTest extends AbstractBusClientServerTestBase {
     // Both client + server include RC4
     @org.junit.Test
     public void testRC4Included() throws Exception {
+        String version = System.getProperty("java.version");
+        if (1.8D == Double.parseDouble(version.substring(0, 3))) {
+            // RC4 not supported in JDK8
+            return;
+        }
         SpringBusFactory bf = new SpringBusFactory();
         URL busFile = CipherSuitesTest.class.getResource("ciphersuites-rc4-client.xml");
 
@@ -255,6 +266,11 @@ public class CipherSuitesTest extends AbstractBusClientServerTestBase {
     // Both client + server include RC4
     @org.junit.Test
     public void testRC4IncludedAsync() throws Exception {
+        String version = System.getProperty("java.version");
+        if (1.8D == Double.parseDouble(version.substring(0, 3))) {
+            // RC4 not supported in JDK8
+            return;
+        }
         SpringBusFactory bf = new SpringBusFactory();
         URL busFile = CipherSuitesTest.class.getResource("ciphersuites-rc4-client.xml");
 
@@ -455,6 +471,11 @@ public class CipherSuitesTest extends AbstractBusClientServerTestBase {
     // Both client + server include AES, client enables a TLS v1.2 CipherSuite
     @org.junit.Test
     public void testAESIncludedTLSv12() throws Exception {
+        // Doesn't work with IBM JDK 
+        if ("IBM Corporation".equals(System.getProperty("java.vendor"))) {
+            return;
+        }
+        
         SpringBusFactory bf = new SpringBusFactory();
         URL busFile = CipherSuitesTest.class.getResource("ciphersuites-client-tlsv12.xml");
 
@@ -479,6 +500,11 @@ public class CipherSuitesTest extends AbstractBusClientServerTestBase {
     // Both client + server include AES, client enables a TLS v1.2 CipherSuite
     @org.junit.Test
     public void testAESIncludedTLSv12ViaCode() throws Exception {
+        // Doesn't work with IBM JDK 
+        if ("IBM Corporation".equals(System.getProperty("java.vendor"))) {
+            return;
+        }
+        
         SpringBusFactory bf = new SpringBusFactory();
         URL busFile = CipherSuitesTest.class.getResource("ciphersuites-client-noconfig.xml");
 
@@ -518,6 +544,11 @@ public class CipherSuitesTest extends AbstractBusClientServerTestBase {
     // Both client + server include AES, client is TLSv1.1
     @org.junit.Test
     public void testAESIncludedTLSv11() throws Exception {
+        // Doesn't work with IBM JDK 
+        if ("IBM Corporation".equals(System.getProperty("java.vendor"))) {
+            return;
+        }
+        
         SpringBusFactory bf = new SpringBusFactory();
         URL busFile = CipherSuitesTest.class.getResource("ciphersuites-client-noconfig.xml");
 
@@ -591,10 +622,39 @@ public class CipherSuitesTest extends AbstractBusClientServerTestBase {
         bus.shutdown(true);
     }
     
+    // Test an expired cert
+    @org.junit.Test
+    public void testExpiredCert() throws Exception {
+        
+        SpringBusFactory bf = new SpringBusFactory();
+        URL busFile = CipherSuitesTest.class.getResource("ciphersuites-client-expired-cert.xml");
+
+        Bus bus = bf.createBus(busFile.toString());
+        SpringBusFactory.setDefaultBus(bus);
+        SpringBusFactory.setThreadDefaultBus(bus);
+        
+        URL url = SOAPService.WSDL_LOCATION;
+        SOAPService service = new SOAPService(url, SOAPService.SERVICE);
+        assertNotNull("Service is null", service);   
+        final Greeter port = service.getHttpsPort();
+        assertNotNull("Port is null", port);
+        
+        updateAddressPort(port, PORT5);
+        
+        try {
+            port.greetMe("Kitty");
+            fail("Failure expected on not being able to negotiate a cipher suite");
+        } catch (Exception ex) {
+            // expected
+        }
+        
+        ((java.io.Closeable)port).close();
+        bus.shutdown(true);
+    }
+    
     private static class NoOpX509TrustManager implements X509TrustManager {
 
-        public NoOpX509TrustManager() {
-
+        NoOpX509TrustManager() {
         }
 
         @Override

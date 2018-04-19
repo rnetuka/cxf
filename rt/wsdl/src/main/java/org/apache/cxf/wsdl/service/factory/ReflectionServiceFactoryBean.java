@@ -84,6 +84,7 @@ import org.apache.cxf.resource.ResourceManager;
 import org.apache.cxf.service.Service;
 import org.apache.cxf.service.ServiceImpl;
 import org.apache.cxf.service.ServiceModelSchemaValidator;
+import org.apache.cxf.service.factory.FactoryBeanListener;
 import org.apache.cxf.service.factory.FactoryBeanListener.Event;
 import org.apache.cxf.service.factory.ServiceConstructionException;
 import org.apache.cxf.service.factory.SimpleMethodDispatcher;
@@ -125,6 +126,7 @@ import org.apache.ws.commons.schema.utils.NamespaceMap;
  * will be filled in from the service class. If no WSDL URL is specified, the
  * Service will be constructed directly from the class structure.
  */
+//CHECKSTYLE:OFF:NCSS    -   This class is just huge and complex
 public class ReflectionServiceFactoryBean extends org.apache.cxf.service.factory.AbstractServiceFactoryBean {
 
     public static final String ENDPOINT_CLASS = "endpoint.class";
@@ -355,7 +357,8 @@ public class ReflectionServiceFactoryBean extends org.apache.cxf.service.factory
     }
 
     public void updateBindingOperation(BindingOperationInfo boi) {
-        //nothing
+        Method m = getMethodDispatcher().getMethod(boi);
+        sendEvent(FactoryBeanListener.Event.BINDING_OPERATION_CREATED, boi.getBinding(), boi, m);
     }
 
     public Endpoint createEndpoint(EndpointInfo ei) throws EndpointException {
@@ -750,6 +753,15 @@ public class ReflectionServiceFactoryBean extends org.apache.cxf.service.factory
         }
         o.setProperty(METHOD_PARAM_ANNOTATIONS, method.getParameterAnnotations());
         o.setProperty(METHOD_ANNOTATIONS, method.getAnnotations());
+        //Set all out of band indexes to MAX_VALUE, anything left at MAX_VALUE after this is unmapped
+        for (MessagePartInfo mpi : o.getInput().getOutOfBandParts()) {
+            mpi.setIndex(Integer.MAX_VALUE);
+        }
+        if (o.hasOutput()) {
+            for (MessagePartInfo mpi : o.getOutput().getOutOfBandParts()) {
+                mpi.setIndex(Integer.MAX_VALUE);
+            }
+        }
         Class<?>[] paramTypes = method.getParameterTypes();
         Type[] genericTypes = method.getGenericParameterTypes();
         for (int i = 0; i < paramTypes.length; i++) {
@@ -762,11 +774,15 @@ public class ReflectionServiceFactoryBean extends org.apache.cxf.service.factory
                 return false;
             }
         }
+        setIndexes(o.getInput());
         sendEvent(Event.OPERATIONINFO_IN_MESSAGE_SET, origOp, method, origOp.getInput());
         // Initialize return type
         if (o.hasOutput()
             && !initializeParameter(o, method, -1, method.getReturnType(), method.getGenericReturnType())) {
             return false;
+        }
+        if (o.hasOutput()) {
+            setIndexes(o.getOutput());
         }
         if (origOp.hasOutput()) {
             sendEvent(Event.OPERATIONINFO_OUT_MESSAGE_SET, origOp, method, origOp.getOutput());
@@ -774,6 +790,20 @@ public class ReflectionServiceFactoryBean extends org.apache.cxf.service.factory
 
         setFaultClassInfo(o, method);
         return true;
+    }
+    private void setIndexes(MessageInfo m) {
+        int max = -1;
+        for (MessagePartInfo mpi : m.getMessageParts()) {
+            if (mpi.getIndex() > max && mpi.getIndex() != Integer.MAX_VALUE) {
+                max = mpi.getIndex();
+            }
+        }
+        for (MessagePartInfo mpi : m.getMessageParts()) {
+            if (mpi.getIndex() == Integer.MAX_VALUE) {
+                max++;
+                mpi.setIndex(max);
+            }
+        }
     }
     private boolean initializeParameter(OperationInfo o, Method method, int i,
                                      Class<?> paramType, Type genericType) {
@@ -797,26 +827,33 @@ public class ReflectionServiceFactoryBean extends org.apache.cxf.service.factory
             }
             if (part == null && isHeader && o.isUnwrapped()) {
                 part = ((UnwrappedOperationInfo)o).getWrappedOperation().getInput().getMessagePart(name);
+                boolean add = true;
                 if (part == null) {
                     QName name2 = this.getInParameterName(o, method, i);
                     part = o.getInput().getMessagePart(name2);
                     if (part != null) {
+                        add = false;
                         name = name2;
                     }
                 }
                 if (part != null) {
                     //header part in wsdl, need to get this mapped in to the unwrapped form
-                    MessagePartInfo inf = o.getInput().addMessagePart(part.getName());
-                    inf.setTypeQName(part.getTypeQName());
-                    inf.setElement(part.isElement());
-                    inf.setElementQName(part.getElementQName());
-                    inf.setConcreteName(part.getConcreteName());
-                    inf.setXmlSchema(part.getXmlSchema());
                     if (paraAnnos != null) {
                         part.setProperty(PARAM_ANNOTATION, paraAnnos);
                     }
-                    part = inf;
-                    inf.setProperty(HEADER, Boolean.TRUE);
+                    if (add) {
+                        MessagePartInfo inf = o.getInput().addMessagePart(part.getName());
+                        inf.setTypeQName(part.getTypeQName());
+                        inf.setElement(part.isElement());
+                        inf.setElementQName(part.getElementQName());
+                        inf.setConcreteName(part.getConcreteName());
+                        inf.setXmlSchema(part.getXmlSchema());
+                        part = inf;
+                        if (paraAnnos != null) {
+                            part.setProperty(PARAM_ANNOTATION, paraAnnos);
+                        }
+                    }
+                    part.setProperty(HEADER, Boolean.TRUE);
                 }
             }
             if (part == null) {
@@ -1297,9 +1334,11 @@ public class ReflectionServiceFactoryBean extends org.apache.cxf.service.factory
 
         wrappedMessage.getFirstMessagePart().setXmlSchema(el);
 
-        XmlSchemaComplexType ct = new XmlSchemaComplexType(schema, true);
+        boolean anonymousType = isAnonymousWrapperTypes();
+        XmlSchemaComplexType ct = new XmlSchemaComplexType(schema,
+                /*CXF-6783: don't create anonymous top-level types*/!anonymousType);
 
-        if (!isAnonymousWrapperTypes()) {
+        if (!anonymousType) {
             ct.setName(wrapperName.getLocalPart());
             el.setSchemaTypeName(wrapperName);
         }
@@ -1485,7 +1524,7 @@ public class ReflectionServiceFactoryBean extends org.apache.cxf.service.factory
         serviceInfo.addSchema(schemaInfo);
         return schemaInfo;
     }
-
+    // CHECKSTYLE:OFF
     protected void createMessageParts(InterfaceInfo intf, OperationInfo op, Method method) {
         final Class<?>[] paramClasses = method.getParameterTypes();
         // Setup the input message
@@ -1508,11 +1547,12 @@ public class ReflectionServiceFactoryBean extends org.apache.cxf.service.factory
                     q = new QName(q.getNamespaceURI(), q.getLocalPart() + j);
                 }
                 MessagePartInfo part = inMsg.addMessagePart(partName);
-
-
-
+                
+                if (isHolder(paramClasses[j], genParTypes[j]) && !isInOutParam(method, j)) {
+                    LOG.log(Level.WARNING, "INVALID_WEBPARAM_MODE", getServiceClass().getName() + "."
+                                                                    + method.getName());
+                }
                 initializeParameter(part, paramClasses[j], genParTypes[j]);
-                //TODO:remove method param annotations
                 part.setProperty(METHOD_PARAM_ANNOTATIONS, parAnnotations);
                 part.setProperty(PARAM_ANNOTATION, parAnnotations[j]);
                 if (getJaxbAnnoMap(part).size() > 0) {
@@ -1997,6 +2037,16 @@ public class ReflectionServiceFactoryBean extends org.apache.cxf.service.factory
     protected boolean isInParam(Method method, int j) {
         for (AbstractServiceConfiguration c : serviceConfigurations) {
             Boolean b = c.isInParam(method, j);
+            if (b != null) {
+                return b.booleanValue();
+            }
+        }
+        return true;
+    }
+    
+    protected boolean isInOutParam(Method method, int j) {
+        for (AbstractServiceConfiguration c : serviceConfigurations) {
+            Boolean b = c.isInOutParam(method, j);
             if (b != null) {
                 return b.booleanValue();
             }

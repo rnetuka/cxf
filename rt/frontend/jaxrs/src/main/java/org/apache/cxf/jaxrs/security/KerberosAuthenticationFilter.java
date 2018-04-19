@@ -69,6 +69,7 @@ public class KerberosAuthenticationFilter implements ContainerRequestFilter {
     private String servicePrincipalName;
     private String realm;
     
+    @Override
     public void filter(ContainerRequestContext context) {
         
         List<String> authHeaders = messageContext.getHttpHeaders()
@@ -203,7 +204,7 @@ public class KerberosAuthenticationFilter implements ContainerRequestFilter {
         this.callbackHandler = callbackHandler;
     }
 
-    private final class ValidateServiceTicketAction implements PrivilegedExceptionAction<byte[]> {
+    private static final class ValidateServiceTicketAction implements PrivilegedExceptionAction<byte[]> {
         private final GSSContext context;
         private final byte[] token;
 

@@ -37,6 +37,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -73,6 +76,7 @@ import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 
 import org.apache.cxf.common.classloader.ClassLoaderUtils;
+import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.common.util.ASMHelper;
 import org.apache.cxf.common.util.ASMHelper.ClassWriter;
 import org.apache.cxf.common.util.ASMHelper.FieldVisitor;
@@ -90,6 +94,7 @@ import org.apache.cxf.common.xmlschema.SchemaCollection;
 import org.apache.cxf.helpers.JavaUtils;
 
 public final class JAXBUtils {
+    public static final Logger LOG = LogUtils.getL7dLogger(JAXBUtils.class);
     
     public enum IdentifierType {
         CLASS,
@@ -622,15 +627,17 @@ public final class JAXBUtils {
     public static Object setNamespaceMapper(final Map<String, String> nspref,
                                            Marshaller marshaller) throws PropertyException {
         Object mapper = createNamespaceWrapper(marshaller.getClass(), nspref);
-        if (marshaller.getClass().getName().contains(".internal.")) {
-            marshaller.setProperty("com.sun.xml.internal.bind.namespacePrefixMapper",
-                                   mapper);
-        } else if (marshaller.getClass().getName().contains("com.sun")) {
-            marshaller.setProperty("com.sun.xml.bind.namespacePrefixMapper",
-                                   mapper);
-        } else if (marshaller.getClass().getName().contains("eclipse")) {
-            marshaller.setProperty("eclipselink.namespace-prefix-mapper",
-                                   mapper);
+        if (mapper != null) {
+            if (marshaller.getClass().getName().contains(".internal.")) {
+                marshaller.setProperty("com.sun.xml.internal.bind.namespacePrefixMapper",
+                                       mapper);
+            } else if (marshaller.getClass().getName().contains("com.sun")) {
+                marshaller.setProperty("com.sun.xml.bind.namespacePrefixMapper",
+                                       mapper);
+            } else if (marshaller.getClass().getName().contains("eclipse")) {
+                marshaller.setProperty("eclipselink.namespace-prefix-mapper",
+                                       mapper);
+            }
         }
         return mapper;
     }
@@ -671,7 +678,11 @@ public final class JAXBUtils {
                     
                 }
             }
-            
+
+            if (ctx == null) {
+                throw new JAXBException("No ctx found");
+            }
+                
             Object bridge = ctx.getClass().getMethod("createBridge", refClass).invoke(ctx, ref);
             return ReflectionInvokationHandler.createProxyWrapper(bridge,
                                                                   BridgeWrapper.class);
@@ -731,7 +742,7 @@ public final class JAXBUtils {
     }
     
     public static void logGeneratedClassNames(Logger logger, JCodeModel codeModel) {
-        if (!logger.isLoggable(Level.INFO)) {
+        if (!logger.isLoggable(Level.FINE)) {
             return;
         }
         
@@ -750,7 +761,7 @@ public final class JAXBUtils {
             }
         }
         
-        logger.log(Level.INFO, "Created classes: " + sb.toString());
+        logger.log(Level.FINE, "Created classes: " + sb.toString());
     }
     
     public static List<String> getGeneratedClassNames(JCodeModel codeModel) {
@@ -765,7 +776,7 @@ public final class JAXBUtils {
         return classes;
     }
     public static Object createFileCodeWriter(File f) throws JAXBException {
-        return createFileCodeWriter(f, "UTF-8");
+        return createFileCodeWriter(f, StandardCharsets.UTF_8.name());
     }
     public static Object createFileCodeWriter(File f, String encoding) throws JAXBException {
         try {
@@ -866,7 +877,7 @@ public final class JAXBUtils {
                 Package pkg = jcls.getPackage();
                    
                 packages.put(pkgName, jcls.getResourceAsStream("jaxb.index"));
-                packageLoaders.put(pkgName, jcls.getClassLoader());
+                packageLoaders.put(pkgName, getClassLoader(jcls));
                 String objectFactoryClassName = pkgName + "." + "ObjectFactory";
                 Class<?> ofactory = null;
                 CachedClass cachedFactory = null;
@@ -880,8 +891,7 @@ public final class JAXBUtils {
                 }
                 if (ofactory == null) {
                     try {
-                        ofactory = Class.forName(objectFactoryClassName, false, jcls
-                                                 .getClassLoader());
+                        ofactory = Class.forName(objectFactoryClassName, false, getClassLoader(jcls));
                         objectFactories.add(ofactory);
                         addToObjectFactoryCache(pkg, ofactory, objectFactoryCache);
                     } catch (ClassNotFoundException e) {
@@ -896,7 +906,7 @@ public final class JAXBUtils {
             if (entry.getValue() != null) {
                 BufferedReader reader = null;
                 try {
-                    reader = new BufferedReader(new InputStreamReader(entry.getValue(), "UTF-8"));
+                    reader = new BufferedReader(new InputStreamReader(entry.getValue(), StandardCharsets.UTF_8));
                     String pkg = entry.getKey();
                     ClassLoader loader = packageLoaders.get(pkg);
                     if (!StringUtils.isEmpty(pkg)) {
@@ -936,6 +946,18 @@ public final class JAXBUtils {
         classes.addAll(objectFactories);
     }
 
+    private static ClassLoader getClassLoader(final Class<?> clazz) {
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            return AccessController.doPrivileged(new PrivilegedAction<ClassLoader>() {
+                @Override
+                public ClassLoader run() {
+                    return clazz.getClassLoader();
+                }
+            });
+        }
+        return clazz.getClassLoader();
+    }
        
     private static void addToObjectFactoryCache(Package objectFactoryPkg, 
                                          Class<?> ofactory,
@@ -1083,6 +1105,7 @@ public final class JAXBUtils {
         String className = "org.apache.cxf.jaxb.NamespaceMapper";
         className += postFix;
         Class<?> cls = helper.findClass(className, JAXBUtils.class);
+        Throwable t = null;
         if (cls == null) {
             try {
                 ClassWriter cw = helper.createClassWriter();
@@ -1091,15 +1114,17 @@ public final class JAXBUtils {
                 }
             } catch (RuntimeException ex) {
                 // continue
+                t = ex;
             }
         }
         if (cls == null
-            && (mcls.getName().contains(".internal.") || mcls.getName().contains("com.sun"))) {
+            && (!mcls.getName().contains(".internal.") && mcls.getName().contains("com.sun"))) {
             try {
                 cls = ClassLoaderUtils.loadClass("org.apache.cxf.common.jaxb.NamespaceMapper", 
                                                  JAXBUtils.class);
-            } catch (ClassNotFoundException ex2) {
+            } catch (Throwable ex2) {
                 // ignore
+                t = ex2;
             }
         }
         if (cls != null) {
@@ -1107,8 +1132,10 @@ public final class JAXBUtils {
                 return cls.getConstructor(Map.class).newInstance(map);
             } catch (Exception e) {
                 // ignore
+                t = e;
             }
         }
+        LOG.log(Level.INFO, "Could not create a NamespaceMapper compatible with Marshaller class " + mcls.getName(), t);
         return null;
     }
     /*

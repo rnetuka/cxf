@@ -19,17 +19,26 @@
 
 package org.apache.cxf.systest.jaxws;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import javax.xml.ws.Endpoint;
 
+import com.codahale.metrics.MetricRegistry;
+
+import org.apache.cxf.Bus;
 import org.apache.cxf.anonymous_complex_type.AnonymousComplexTypeImpl;
 import org.apache.cxf.binding.soap.saaj.SAAJInInterceptor;
+import org.apache.cxf.bus.CXFBusFactory;
 import org.apache.cxf.jaxb_element_test.JaxbElementTestImpl;
 import org.apache.cxf.jaxws.EndpointImpl;
 import org.apache.cxf.jaxws.JAXWSMethodInvoker;
 import org.apache.cxf.jaxws.JaxWsServerFactoryBean;
+import org.apache.cxf.metrics.MetricsFeature;
+import org.apache.cxf.metrics.codahale.CodahaleMetricsProvider;
 import org.apache.cxf.ordered_param_holder.OrderedParamHolderImpl;
 import org.apache.cxf.service.invoker.Factory;
 import org.apache.cxf.service.invoker.PerRequestFactory;
@@ -56,8 +65,10 @@ public class ServerMisc extends AbstractBusTestServerBase {
         "http://localhost:" + PORT + "/DocLitWrappedCodeFirstServiceSettings/";
     public static final String CXF_5064_URL = 
         "http://localhost:" + PORT + "/CXF5064/";
-    
-    
+    public static final String DOCLIT_CODEFIRST_URL_XMLBINDING = 
+        "http://localhost:" + PORT + "/XMLBindingCodeFirstService/";
+
+
     List<org.apache.cxf.endpoint.Server> servers = new LinkedList<org.apache.cxf.endpoint.Server>();
     List<Endpoint> endpoints = new LinkedList<Endpoint>();
     public void tearDown() throws Exception {
@@ -80,12 +91,34 @@ public class ServerMisc extends AbstractBusTestServerBase {
         JAXWSMethodInvoker invoker = new JAXWSMethodInvoker(factory);
         JaxWsServerFactoryBean factoryBean;
         
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("bus.jmx.usePlatformMBeanServer", Boolean.TRUE);
+        properties.put("bus.jmx.enabled", Boolean.TRUE);
+        Bus b = new CXFBusFactory().createBus(null, properties);
+        setBus(b);
+        MetricRegistry registry = new MetricRegistry();
+        CodahaleMetricsProvider.setupJMXReporter(b, registry);
+        b.setExtension(registry, MetricRegistry.class);
+        
+        
         factoryBean = new JaxWsServerFactoryBean();
+        factoryBean.setBus(b);
         factoryBean.setAddress(DOCLIT_CODEFIRST_URL);
         factoryBean.setServiceClass(DocLitWrappedCodeFirstServiceImpl.class);
+        factoryBean.setFeatures(Arrays.asList(new MetricsFeature()));
         factoryBean.setInvoker(invoker);
         servers.add(factoryBean.create());
         
+        factoryBean = new JaxWsServerFactoryBean();
+        factoryBean.setBus(b);
+        factoryBean.setAddress(DOCLIT_CODEFIRST_URL_XMLBINDING);
+        factoryBean.setServiceClass(DocLitWrappedCodeFirstServiceImpl.class);
+        factoryBean.setFeatures(Arrays.asList(new MetricsFeature()));
+        factoryBean.setInvoker(invoker);
+        factoryBean.setBindingId("http://cxf.apache.org/bindings/xformat");
+        factoryBean.setWsdlURL("cxf6866.wsdl");
+        servers.add(factoryBean.create());
+
         factoryBean = new JaxWsServerFactoryBean();
         factoryBean.setAddress(DOCLIT_CODEFIRST_SETTINGS_URL);
         factoryBean.setServiceClass(DocLitWrappedCodeFirstServiceImpl.class);

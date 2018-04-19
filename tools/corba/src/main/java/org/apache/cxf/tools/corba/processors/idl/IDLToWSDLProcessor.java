@@ -26,12 +26,14 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.Writer;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.StringTokenizer;
 
@@ -314,30 +316,26 @@ public class IDLToWSDLProcessor extends IDLProcessor {
             assert importSchemaWriters.size() == schemas.size();
         }
         
-        for (java.util.Iterator<File> it = defns.keySet().iterator(); it.hasNext();) {
-            File file = it.next();
-            Definition defn = defns.get(file);
+        for (Entry<File, Definition> entry : defns.entrySet()) {
             Writer writer = null;
             if (importDefnWriters != null) {
-                writer = getOutputWriter(importDefnWriters.get(defn.getTargetNamespace()));
+                writer = getOutputWriter(importDefnWriters.get(entry.getValue().getTargetNamespace()));
             }
             if (writer == null) {
-                writer = getOutputWriter(file);
+                writer = getOutputWriter(entry.getKey());
             }
-            visitor.writeDefinition(defn, writer);
+            visitor.writeDefinition(entry.getValue(), writer);
             writer.close();
         }
-        for (java.util.Iterator<File> it = schemas.keySet().iterator(); it.hasNext();) {
-            File file = it.next();
-            XmlSchema schema = schemas.get(file);
+        for (Entry<File, XmlSchema> entry : schemas.entrySet()) {
             Writer writer = null;
             if (importSchemaWriters != null) {
-                writer = getOutputWriter(importSchemaWriters.get(schema.getTargetNamespace()));
+                writer = getOutputWriter(importSchemaWriters.get(entry.getValue().getTargetNamespace()));
             }
             if (writer == null) {
-                writer = getOutputWriter(file);
+                writer = getOutputWriter(entry.getKey());
             }
-            visitor.writeSchema(schema, writer);
+            visitor.writeSchema(entry.getValue(), writer);
             writer.close();
         }
     }
@@ -414,7 +412,7 @@ public class IDLToWSDLProcessor extends IDLProcessor {
             String encoding = env.get(ToolCorbaConstants.CFG_WSDL_ENCODING).toString();            
             return new FileWriterUtil().getWriter(file, encoding); 
         } else {
-            return new FileWriterUtil().getWriter(file, "UTF-8");
+            return new FileWriterUtil().getWriter(file, StandardCharsets.UTF_8.name());
         }       
     }    
 
@@ -426,7 +424,7 @@ public class IDLToWSDLProcessor extends IDLProcessor {
             fileName = token.nextToken();
         }
         if (fileName.endsWith(".idl")) {
-            fileName = new String(fileName.substring(0, fileName.length() - 4));
+            fileName = fileName.substring(0, fileName.length() - 4);
         }
         return fileName;
     }

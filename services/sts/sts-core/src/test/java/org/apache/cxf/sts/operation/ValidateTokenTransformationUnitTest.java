@@ -33,7 +33,6 @@ import javax.xml.namespace.QName;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.apache.cxf.helpers.DOMUtils;
-import org.apache.cxf.jaxws.context.WebServiceContextImpl;
 import org.apache.cxf.jaxws.context.WrappedMessageContext;
 import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.rt.security.claims.Claim;
@@ -61,8 +60,8 @@ import org.apache.cxf.sts.token.provider.SAMLTokenProvider;
 import org.apache.cxf.sts.token.provider.TokenProvider;
 import org.apache.cxf.sts.token.provider.TokenProviderParameters;
 import org.apache.cxf.sts.token.provider.TokenProviderResponse;
+import org.apache.cxf.sts.token.realm.RealmProperties;
 import org.apache.cxf.sts.token.realm.Relationship;
-import org.apache.cxf.sts.token.realm.SAMLRealm;
 import org.apache.cxf.sts.token.validator.IssuerSAMLRealmCodec;
 import org.apache.cxf.sts.token.validator.SAMLTokenValidator;
 import org.apache.cxf.sts.token.validator.TokenValidator;
@@ -145,15 +144,15 @@ public class ValidateTokenTransformationUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
+        Principal principal = new CustomTokenPrincipal("alice");
         msgCtx.put(
             SecurityContext.class.getName(), 
-            createSecurityContext(new CustomTokenPrincipal("alice"))
+            createSecurityContext(principal)
         );
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
         
         // Validate a token
         RequestSecurityTokenResponseType response = 
-            validateOperation.validate(request, webServiceContext);
+            validateOperation.validate(request, principal, msgCtx);
         assertTrue(validateResponse(response));
         
         // Test the generated token.
@@ -231,23 +230,23 @@ public class ValidateTokenTransformationUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
+        Principal principal = new CustomTokenPrincipal("alice");
         msgCtx.put(
             SecurityContext.class.getName(), 
-            createSecurityContext(new CustomTokenPrincipal("alice"))
+            createSecurityContext(principal)
         );
         msgCtx.put("url", "https");
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
         
         // Validate a token - this will fail as the tokenProvider doesn't understand how to handle
         // realm "B"
         try {
-            validateOperation.validate(request, webServiceContext);
+            validateOperation.validate(request, principal, msgCtx);
         } catch (STSException ex) {
             // expected
         }
         
         samlTokenProvider.setRealmMap(createSamlRealms());
-        RequestSecurityTokenResponseType response = validateOperation.validate(request, webServiceContext);
+        RequestSecurityTokenResponseType response = validateOperation.validate(request, principal, msgCtx);
         assertTrue(validateResponse(response));
         
         // Test the generated token.
@@ -325,7 +324,7 @@ public class ValidateTokenTransformationUnitTest extends org.junit.Assert {
     public void testValidateSaml2TokenOnBehalfOfSaml2DifferentRealmFederateClaims() throws Exception {
         TokenValidateOperation validateOperation = new TokenValidateOperation();
         
-        Map<String, SAMLRealm> realms = createSamlRealms();
+        Map<String, RealmProperties> realms = createSamlRealms();
         
         // Add Token Provider
         List<TokenProvider> providerList = new ArrayList<TokenProvider>();
@@ -419,11 +418,10 @@ public class ValidateTokenTransformationUnitTest extends org.junit.Assert {
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
         msgCtx.put("url", "https");
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
         
-        // run the test
+        // Validate a token
         RequestSecurityTokenResponseType response = 
-            validateOperation.validate(request, webServiceContext);
+            validateOperation.validate(request, null, msgCtx);
         assertTrue(validateResponse(response));
         
         // Test the generated token.
@@ -513,15 +511,15 @@ public class ValidateTokenTransformationUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
+        Principal principal = new CustomTokenPrincipal("ted");
         msgCtx.put(
             SecurityContext.class.getName(), 
-            createSecurityContext(new CustomTokenPrincipal("ted"))
+            createSecurityContext(principal)
         );
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
         
         // Validate a token
         RequestSecurityTokenResponseType response = 
-            validateOperation.validate(request, webServiceContext);
+            validateOperation.validate(request, principal, msgCtx);
         assertTrue(validateResponse(response));
         
         // Test the generated token.
@@ -549,7 +547,7 @@ public class ValidateTokenTransformationUnitTest extends org.junit.Assert {
             boolean useGlobalIdentityMapper) throws WSSecurityException {
         TokenValidateOperation validateOperation = new TokenValidateOperation();
         
-        Map<String, SAMLRealm> realms = createSamlRealms();
+        Map<String, RealmProperties> realms = createSamlRealms();
         
         // Add Token Provider
         List<TokenProvider> providerList = new ArrayList<TokenProvider>();
@@ -648,11 +646,10 @@ public class ValidateTokenTransformationUnitTest extends org.junit.Assert {
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
         msgCtx.put("url", "https");
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
         
-        // run the test
+        // Validate a token
         RequestSecurityTokenResponseType response = 
-            validateOperation.validate(request, webServiceContext);
+            validateOperation.validate(request, null, msgCtx);
         assertTrue(validateResponse(response));
         
         // Test the generated token.
@@ -715,13 +712,13 @@ public class ValidateTokenTransformationUnitTest extends org.junit.Assert {
         return stsProperties;
     }
     
-    private Map<String, SAMLRealm> createSamlRealms() {
+    private Map<String, RealmProperties> createSamlRealms() {
         // Create Realms
-        Map<String, SAMLRealm> samlRealms = new HashMap<String, SAMLRealm>();
-        SAMLRealm samlRealm = new SAMLRealm();
+        Map<String, RealmProperties> samlRealms = new HashMap<String, RealmProperties>();
+        RealmProperties samlRealm = new RealmProperties();
         samlRealm.setIssuer("A-Issuer");
         samlRealms.put("A", samlRealm);
-        samlRealm = new SAMLRealm();
+        samlRealm = new RealmProperties();
         samlRealm.setIssuer("B-Issuer");
         samlRealms.put("B", samlRealm);
         return samlRealms;
@@ -753,7 +750,7 @@ public class ValidateTokenTransformationUnitTest extends org.junit.Assert {
             "org.apache.wss4j.crypto.provider", "org.apache.wss4j.common.crypto.Merlin"
         );
         properties.put("org.apache.wss4j.crypto.merlin.keystore.password", "stsspass");
-        properties.put("org.apache.wss4j.crypto.merlin.keystore.file", "stsstore.jks");
+        properties.put("org.apache.wss4j.crypto.merlin.keystore.file", "keys/stsstore.jks");
         
         return properties;
     }
@@ -836,7 +833,7 @@ public class ValidateTokenTransformationUnitTest extends org.junit.Assert {
      */
     private Element createSAMLAssertion(
             String tokenType, Crypto crypto, String signatureUsername, CallbackHandler callbackHandler,
-            Map<String, SAMLRealm> realms
+            Map<String, RealmProperties> realms
     ) throws WSSecurityException {
         
         SAMLTokenProvider samlTokenProvider = new SAMLTokenProvider();
@@ -871,7 +868,7 @@ public class ValidateTokenTransformationUnitTest extends org.junit.Assert {
         assertTrue(providerResponse != null);
         assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
 
-        return providerResponse.getToken();
+        return (Element)providerResponse.getToken();
     }
     
     private TokenProviderParameters createProviderParameters(
@@ -892,8 +889,7 @@ public class ValidateTokenTransformationUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
-        parameters.setWebServiceContext(webServiceContext);
+        parameters.setMessageContext(msgCtx);
 
         parameters.setAppliesToAddress("http://dummy-service.com/dummy");
 

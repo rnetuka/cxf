@@ -413,10 +413,17 @@ public class CXFNonSpringJaxrsServlet extends CXFNonSpringServlet {
                                          true));
         }
         return map;
-    }    
+    }
+
+    protected boolean isAppResourceLifecycleASingleton(Application app, ServletConfig servletConfig) {
+        String scope = servletConfig.getInitParameter(SERVICE_SCOPE_PARAM);
+        if (scope == null) {
+            scope = (String)app.getProperties().get(SERVICE_SCOPE_PARAM);
+        }
+        return SERVICE_SCOPE_SINGLETON.equals(scope);    
+    }
     
-    
-    protected Object createSingletonInstance(Class<?> cls, Map<String, List<String>> props, ServletConfig sc) 
+    protected Object createSingletonInstance(Class<?> cls, Map<String, List<String>> props, ServletConfig sc)
         throws ServletException {
         Constructor<?> c = ResourceUtils.findResourceConstructor(cls, false);
         if (c == null) {
@@ -499,10 +506,14 @@ public class CXFNonSpringJaxrsServlet extends CXFNonSpringServlet {
         
         for (String cName : classNames) {
             ApplicationInfo providerApp = createApplicationInfo(cName, servletConfig);
-            
-            JAXRSServerFactoryBean bean = ResourceUtils.createApplication(providerApp.getProvider(), 
+
+            Application app = providerApp.getProvider();
+            JAXRSServerFactoryBean bean = ResourceUtils.createApplication(
+                                                app,
                                                 ignoreApplicationPath,
-                                                getStaticSubResolutionValue(servletConfig));
+                                                getStaticSubResolutionValue(servletConfig),
+                                                isAppResourceLifecycleASingleton(app, servletConfig),
+                                                getBus());
             String splitChar = getParameterSplitChar(servletConfig);
             setAllInterceptors(bean, servletConfig, splitChar);
             setInvoker(bean, servletConfig);
@@ -510,7 +521,7 @@ public class CXFNonSpringJaxrsServlet extends CXFNonSpringServlet {
             setDocLocation(bean, servletConfig);
             setSchemasLocations(bean, servletConfig);
             bean.setBus(getBus());
-            bean.setApplication(providerApp);
+            bean.setApplicationInfo(providerApp);
             bean.create();
         }
     }
@@ -522,10 +533,14 @@ public class CXFNonSpringJaxrsServlet extends CXFNonSpringServlet {
     
     protected void createServerFromApplication(ServletConfig servletConfig) 
         throws ServletException {
-        
-        JAXRSServerFactoryBean bean = ResourceUtils.createApplication(getApplication(), 
-                                                                      isIgnoreApplicationPath(servletConfig),
-                                                                      getStaticSubResolutionValue(servletConfig));
+
+        Application app = getApplication();
+        JAXRSServerFactoryBean bean = ResourceUtils.createApplication(
+                                          app,
+                                          isIgnoreApplicationPath(servletConfig),
+                                          getStaticSubResolutionValue(servletConfig),
+                                          isAppResourceLifecycleASingleton(app, servletConfig),
+                                          getBus());
         bean.setBus(getBus());
         bean.setApplication(getApplication());
         bean.create();
@@ -593,7 +608,7 @@ public class CXFNonSpringJaxrsServlet extends CXFNonSpringServlet {
 
     private static class ApplicationImpl extends Application {
         private Set<Object> applicationSingletons;
-        public ApplicationImpl(Set<Object> applicationSingletons) {
+        ApplicationImpl(Set<Object> applicationSingletons) {
             this.applicationSingletons = applicationSingletons;
         }
         public Set<Object> getSingletons() {

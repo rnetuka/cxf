@@ -72,13 +72,19 @@ public class TLSServerParametersConfig
             this.setClientAuthentication(params.getClientAuthentication());
         }
         if (params.isSetKeyManagers()) {
-            this.setKeyManagers(
-                TLSParameterJaxBUtils.getKeyManagers(params.getKeyManagers()));
+            if (!params.isSetCertAlias()) {
+                this.setKeyManagers(
+                                    TLSParameterJaxBUtils.getKeyManagers(params.getKeyManagers()));
+            } else {
+                this.setKeyManagers(
+                                    TLSParameterJaxBUtils.getKeyManagers(params.getKeyManagers(), 
+                                                                         params.getCertAlias()));
+            }
         }
         if (params.isSetTrustManagers()) {
             this.setTrustManagers(
                 TLSParameterJaxBUtils.getTrustManagers(
-                        params.getTrustManagers()));
+                        params.getTrustManagers(), params.isEnableRevocation()));
         }
         if (params.isSetCertConstraints()) {
             this.setCertConstraints(params.getCertConstraints());

@@ -31,7 +31,7 @@ import javax.ws.rs.core.MediaType;
 import org.apache.cxf.interceptor.LoggingInInterceptor;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.jaxrs.provider.json.JsonMapObjectProvider;
-import org.apache.cxf.rs.security.jose.JoseType;
+import org.apache.cxf.rs.security.jose.common.JoseType;
 import org.apache.cxf.rs.security.jose.jwa.SignatureAlgorithm;
 import org.apache.cxf.rs.security.jose.jws.JwsHeaders;
 import org.apache.cxf.rs.security.jose.jws.JwsJwtCompactProducer;
@@ -100,10 +100,11 @@ public final class BigQueryServer {
     }
 
     private static PrivateKey loadPrivateKey(String p12File, String password) throws Exception {
-        InputStream is = new FileInputStream(p12File);
-        KeyStore store = KeyStore.getInstance("PKCS12");
-        store.load(is, password.toCharArray());
-        return (PrivateKey)store.getKey("privateKey", password.toCharArray());
+        try (InputStream is = new FileInputStream(p12File)) {
+            KeyStore store = KeyStore.getInstance("PKCS12");
+            store.load(is, password.toCharArray());
+            return (PrivateKey)store.getKey("privateKey", password.toCharArray());
+        }
     }
 
 }

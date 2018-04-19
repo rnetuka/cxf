@@ -49,12 +49,12 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
     
     private Continuation cont;
     private Message inMessage;
-    private boolean initialSuspend;
-    private boolean cancelled;
-    private volatile boolean done;
-    private boolean resumedByApplication;
     private TimeoutHandler timeoutHandler;
-    private Long pendingTimeout;
+    private volatile boolean initialSuspend;
+    private volatile boolean cancelled;
+    private volatile boolean done;
+    private volatile boolean resumedByApplication;
+    private volatile Long pendingTimeout;
     
     private List<CompletionCallback> completionCallbacks = new LinkedList<CompletionCallback>();
     private List<ConnectionCallback> connectionCallbacks = new LinkedList<ConnectionCallback>();
@@ -82,13 +82,13 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
         return isCancelled() || !isSuspended();
     }
     
-    private synchronized boolean doResume(Object response) {
+    private boolean doResume(Object response) {
         if (isCancelledOrNotSuspended()) {
             return false;
         }
         return doResumeFinal(response);
     }
-    private synchronized boolean doResumeFinal(Object response) {
+    private boolean doResumeFinal(Object response) {
         inMessage.getExchange().put(AsyncResponse.class, this);
         cont.setObject(response);
         resumedByApplication = true;
@@ -115,24 +115,25 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
         return doCancel(HttpUtils.getHttpDateFormat().format(retryAfter));
     }
     
-    private synchronized boolean doCancel(String retryAfterHeader) {
+    private boolean doCancel(String retryAfterHeader) {
         if (cancelled) {
             return true;
         }
         if (!isSuspended()) {
             return false;
         }
+
+        cancelled = true;
         ResponseBuilder rb = Response.status(503);
         if (retryAfterHeader != null) {
             rb.header(HttpHeaders.RETRY_AFTER, retryAfterHeader);
         }
-        cancelled = true;
         doResumeFinal(rb.build());
         return cancelled;
     }
 
     @Override
-    public synchronized boolean isSuspended() {
+    public boolean isSuspended() {
         if (cancelled || resumedByApplication) {
             return false;
         }
@@ -150,7 +151,7 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
     }
 
     @Override
-    public synchronized boolean setTimeout(long time, TimeUnit unit) throws IllegalStateException {
+    public boolean setTimeout(long time, TimeUnit unit) throws IllegalStateException {
         if (isCancelledOrNotSuspended()) {
             return false;
         }
@@ -260,24 +261,28 @@ public class AsyncResponseImpl implements AsyncResponse, ContinuationCallback {
     }
     
     public synchronized boolean suspendContinuationIfNeeded() {
-        if (!cont.isPending() && !resumedByApplication) {
-            initialSuspend = false;
+        if (!resumedByApplication && !cont.isPending() && !cont.isResumed()) {
             cont.suspend(AsyncResponse.NO_TIMEOUT);
+            initialSuspend = false;
             return true;
         } else {
             return false;
         }
     }
     
-    public synchronized Object getResponseObject() {
+    public Object getResponseObject() {
         Object obj = cont.getObject();
         if (!(obj instanceof Response) && !(obj instanceof Throwable)) {
-            obj = Response.ok().entity(obj).build();    
+            if (obj == null) {
+                obj = Response.noContent().build();
+            } else {
+                obj = Response.ok().entity(obj).build();
+            }
         }
         return obj;
     }
     
-    public synchronized boolean isResumedByApplication() {
+    public boolean isResumedByApplication() {
         return resumedByApplication;
     }
     

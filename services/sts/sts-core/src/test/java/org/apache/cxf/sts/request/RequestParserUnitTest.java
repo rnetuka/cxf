@@ -33,7 +33,6 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.InputSource;
 
-import org.apache.cxf.jaxws.context.WebServiceContextImpl;
 import org.apache.cxf.jaxws.context.WrappedMessageContext;
 import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.sts.common.PasswordCallbackHandler;
@@ -43,7 +42,7 @@ import org.apache.cxf.ws.security.sts.provider.model.RequestSecurityTokenType;
 import org.apache.wss4j.common.crypto.Crypto;
 import org.apache.wss4j.common.crypto.CryptoFactory;
 import org.apache.wss4j.common.ext.WSSecurityException;
-import org.apache.wss4j.dom.WSSecurityEngine;
+import org.apache.wss4j.dom.engine.WSSecurityEngine;
 import org.apache.wss4j.dom.handler.RequestData;
 import org.apache.wss4j.dom.handler.WSHandlerConstants;
 import org.apache.wss4j.dom.handler.WSHandlerResult;
@@ -133,7 +132,6 @@ public class RequestParserUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgContext = new WrappedMessageContext(msg);
-        WebServiceContextImpl wsContext = new WebServiceContextImpl(msgContext);
         
         // Process the security header and store the results in the message context
         WSSecurityEngine securityEngine = new WSSecurityEngine();
@@ -146,7 +144,7 @@ public class RequestParserUnitTest extends org.junit.Assert {
         resultsList.add(results);
         msgContext.put(WSHandlerConstants.RECV_RESULTS, resultsList);
         
-        RequestRequirements requestRequirements = parser.parseRequest(request, wsContext, null, null);
+        RequestRequirements requestRequirements = parser.parseRequest(request, msgContext, null, null);
         
         SCTCanceller sctCanceller = new SCTCanceller();
         assertTrue(sctCanceller.canHandleToken(requestRequirements.getTokenRequirements().getCancelTarget()));
@@ -164,7 +162,6 @@ public class RequestParserUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgContext = new WrappedMessageContext(msg);
-        WebServiceContextImpl wsContext = new WebServiceContextImpl(msgContext);
         
         // Process the security header and store the results in the message context
         WSSecurityEngine securityEngine = new WSSecurityEngine();
@@ -177,7 +174,7 @@ public class RequestParserUnitTest extends org.junit.Assert {
         resultsList.add(results);
         msgContext.put(WSHandlerConstants.RECV_RESULTS, resultsList);
         
-        RequestRequirements requestRequirements = parser.parseRequest(request, wsContext, null, null);
+        RequestRequirements requestRequirements = parser.parseRequest(request, msgContext, null, null);
         
         SCTValidator sctValidator = new SCTValidator();
         assertTrue(sctValidator.canHandleToken(requestRequirements.getTokenRequirements().getValidateTarget()));
@@ -195,7 +192,6 @@ public class RequestParserUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgContext = new WrappedMessageContext(msg);
-        WebServiceContextImpl wsContext = new WebServiceContextImpl(msgContext);
         
         // Process the security header and store the results in the message context
         WSSecurityEngine securityEngine = new WSSecurityEngine();
@@ -209,7 +205,7 @@ public class RequestParserUnitTest extends org.junit.Assert {
         resultsList.add(results);
         msgContext.put(WSHandlerConstants.RECV_RESULTS, resultsList);
         
-        RequestRequirements requestRequirements = parser.parseRequest(request, wsContext, null, null);
+        RequestRequirements requestRequirements = parser.parseRequest(request, msgContext, null, null);
         
         assertNotNull(requestRequirements.getKeyRequirements().getReceivedKey().getX509Cert());
     }
@@ -238,7 +234,7 @@ public class RequestParserUnitTest extends org.junit.Assert {
             "org.apache.wss4j.crypto.provider", "org.apache.wss4j.common.crypto.Merlin"
         );
         properties.put("org.apache.wss4j.crypto.merlin.keystore.password", "stsspass");
-        properties.put("org.apache.wss4j.crypto.merlin.keystore.file", "stsstore.jks");
+        properties.put("org.apache.wss4j.crypto.merlin.keystore.file", "keys/stsstore.jks");
         
         return CryptoFactory.getInstance(properties);
     }

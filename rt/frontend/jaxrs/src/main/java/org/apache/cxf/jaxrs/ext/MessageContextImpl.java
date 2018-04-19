@@ -55,14 +55,15 @@ import org.apache.cxf.jaxrs.impl.MetadataMap;
 import org.apache.cxf.jaxrs.impl.ProvidersImpl;
 import org.apache.cxf.jaxrs.interceptor.AttachmentInputInterceptor;
 import org.apache.cxf.jaxrs.interceptor.AttachmentOutputInterceptor;
+import org.apache.cxf.jaxrs.utils.ExceptionUtils;
 import org.apache.cxf.jaxrs.utils.JAXRSUtils;
+import org.apache.cxf.message.Exchange;
 import org.apache.cxf.message.ExchangeImpl;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.message.MessageUtils;
 
 public class MessageContextImpl implements MessageContext {
-
     private Message m;
     public MessageContextImpl(Message m) {
         this.m = m;
@@ -82,15 +83,19 @@ public class MessageContextImpl implements MessageContext {
         if (keyValue.equals("WRITE-" + Message.ATTACHMENTS)) {
             return m.getExchange().getOutMessage().get(Message.ATTACHMENTS);
         }
-        Object value = m.get(key);
+        
+        Message currentMessage = getCurrentMessage();
+        Object value = currentMessage.get(key);
         if (value == null) {
             if (Message.class.getName().equals(key)) {
-                return m;
+                return currentMessage;
             }
-            if (m.getExchange() != null) {
-                Message inMessage = m.getExchange().getInMessage();
-                if (inMessage != null && inMessage != m) {
-                    value = inMessage.get(key);
+            Exchange exchange = currentMessage.getExchange();
+            if (exchange != null) {
+                Message otherMessage = exchange.getInMessage() == currentMessage 
+                    ? exchange.getOutMessage() : exchange.getInMessage();
+                if (otherMessage != null) {
+                    value = otherMessage.get(key);
                 }
                 if (value == null) {
                     value = m.getExchange().get(key);
@@ -100,6 +105,14 @@ public class MessageContextImpl implements MessageContext {
         return value;
     }
     
+    private Message getCurrentMessage() {
+        Message currentMessage = JAXRSUtils.getCurrentMessage();
+        if (currentMessage == null) {
+            currentMessage = m;
+        }
+        return currentMessage;
+    }
+
     public <T> T getContent(Class<T> format) {
         if (MessageUtils.isRequestor(m) && m.getExchange().getInMessage() != null) {
             Message inMessage = m.getExchange().getInMessage();
@@ -176,14 +189,9 @@ public class MessageContextImpl implements MessageContext {
         if (MultipartBody.OUTBOUND_MESSAGE_ATTACHMENTS.equals(key.toString())) {
             convertToAttachments(value);
         }
-        m.put(key.toString(), value);
-        if (!MessageUtils.isRequestor(m)) {
-            m.getExchange().put(key.toString(), value);
-            Message outMessage = m.getExchange().getOutMessage();
-            if (outMessage != null && outMessage != m) {
-                outMessage.put(key.toString(), value);
-            }
-        }
+        Message currentMessage = getCurrentMessage();
+        currentMessage.put(key.toString(), value);
+        currentMessage.getExchange().put(key.toString(), value);
             
     }
 
@@ -280,7 +288,7 @@ public class MessageContextImpl implements MessageContext {
                                      new ProvidersImpl(inMessage));
             newAttachments.add(first);
         } catch (IOException ex) {
-            throw new WebApplicationException(500);
+            throw ExceptionUtils.toInternalServerErrorException(ex, null);
         }
         
     

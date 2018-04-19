@@ -26,6 +26,7 @@ import javax.xml.ws.Service;
 
 import org.apache.cxf.Bus;
 import org.apache.cxf.bus.spring.SpringBusFactory;
+import org.apache.cxf.rt.security.SecurityConstants;
 import org.apache.cxf.systest.sts.common.SecurityTestUtil;
 import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
 
@@ -33,12 +34,14 @@ import org.example.contract.doubleit.DoubleItPortType;
 import org.junit.BeforeClass;
 
 /**
- * In this test case, a CXF client requests a Security Token from an STS, passing a username that
+ * In these test cases, a CXF client requests a Security Token from an STS, passing a username that
  * it has obtained from an unknown client as an "OnBehalfOf" element. This username is obtained
- * by parsing the "security.username" property. The client then invokes on the service 
- * provider using the returned (custom BinarySecurityToken) token from the STS. The service
- * provider dispatches the received BinarySecurityToken to the STS for validation, and receives
- * a transformed SAML Token in response.
+ * by parsing the SecurityConstants.USERNAME property. The client then invokes on the service
+ * provider using the returned (custom BinarySecurityToken) token from the STS.
+ *
+ * In the first test-case, the service provider dispatches the received BinarySecurityToken to the STS
+ * for validation, and receives a transformed SAML Token in response. In the second test-case, the
+ * service just validates the Token locally.
  */
 public class CustomOnBehalfOfTest extends AbstractBusClientServerTestBase {
     
@@ -72,7 +75,7 @@ public class CustomOnBehalfOfTest extends AbstractBusClientServerTestBase {
     }
 
     @org.junit.Test
-    public void testUsernameOnBehalfOf() throws Exception {
+    public void testUsernameOnBehalfOfSTS() throws Exception {
         SpringBusFactory bf = new SpringBusFactory();
         URL busFile = CustomOnBehalfOfTest.class.getResource("cxf-client.xml");
 
@@ -89,7 +92,7 @@ public class CustomOnBehalfOfTest extends AbstractBusClientServerTestBase {
 
         // Transport port
         ((BindingProvider)transportPort).getRequestContext().put(
-            "security.username", "alice"
+            SecurityConstants.USERNAME, "alice"
         );
         doubleIt(transportPort, 25);
         
@@ -97,8 +100,34 @@ public class CustomOnBehalfOfTest extends AbstractBusClientServerTestBase {
         bus.shutdown(true);
     }
 
+    @org.junit.Test
+    public void testUsernameOnBehalfOfLocal() throws Exception {
+        SpringBusFactory bf = new SpringBusFactory();
+        URL busFile = CustomOnBehalfOfTest.class.getResource("cxf-client.xml");
+
+        Bus bus = bf.createBus(busFile.toString());
+        SpringBusFactory.setDefaultBus(bus);
+        SpringBusFactory.setThreadDefaultBus(bus);
+
+        URL wsdl = CustomOnBehalfOfTest.class.getResource("DoubleIt.wsdl");
+        Service service = Service.create(wsdl, SERVICE_QNAME);
+        QName portQName = new QName(NAMESPACE, "DoubleItTransportCustomBSTLocalPort");
+        DoubleItPortType transportPort =
+            service.getPort(portQName, DoubleItPortType.class);
+        updateAddressPort(transportPort, PORT);
+
+        // Transport port
+        ((BindingProvider)transportPort).getRequestContext().put(
+            SecurityConstants.USERNAME, "alice"
+        );
+        doubleIt(transportPort, 25);
+
+        ((java.io.Closeable)transportPort).close();
+        bus.shutdown(true);
+    }
+
     private static void doubleIt(DoubleItPortType port, int numToDouble) {
         int resp = port.doubleIt(numToDouble);
-        assertEquals(numToDouble * 2 , resp);
+        assertEquals(numToDouble * 2, resp);
     }
 }

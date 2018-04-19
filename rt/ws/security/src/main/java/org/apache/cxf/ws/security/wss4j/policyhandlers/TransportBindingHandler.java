@@ -38,6 +38,7 @@ import org.apache.cxf.ws.policy.AssertionInfo;
 import org.apache.cxf.ws.policy.AssertionInfoMap;
 import org.apache.cxf.ws.security.SecurityConstants;
 import org.apache.cxf.ws.security.tokenstore.SecurityToken;
+import org.apache.cxf.ws.security.wss4j.WSS4JUtils;
 import org.apache.wss4j.common.WSEncryptionPart;
 import org.apache.wss4j.common.bsp.BSPEnforcer;
 import org.apache.wss4j.common.crypto.Crypto;
@@ -47,7 +48,7 @@ import org.apache.wss4j.common.ext.WSSecurityException;
 import org.apache.wss4j.common.saml.SamlAssertionWrapper;
 import org.apache.wss4j.common.token.SecurityTokenReference;
 import org.apache.wss4j.dom.WSConstants;
-import org.apache.wss4j.dom.WSSConfig;
+import org.apache.wss4j.dom.engine.WSSConfig;
 import org.apache.wss4j.dom.message.WSSecDKSign;
 import org.apache.wss4j.dom.message.WSSecEncryptedKey;
 import org.apache.wss4j.dom.message.WSSecHeader;
@@ -329,7 +330,7 @@ public class TransportBindingHandler extends AbstractBindingBuilder {
 
             Date created = new Date();
             Date expires = new Date();
-            expires.setTime(created.getTime() + 300000);
+            expires.setTime(created.getTime() + WSS4JUtils.getSecurityTokenLifetime(message));
             SecurityToken tempTok = 
                 new SecurityToken(id, usernameToken.getUsernameTokenElement(), created, expires);
             tempTok.setSecret(secret);
@@ -579,6 +580,8 @@ public class TransportBindingHandler extends AbstractBindingBuilder {
             sig.setSignatureAlgorithm(binding.getAlgorithmSuite().getSymmetricSignature());
         }
         sig.setSigCanonicalization(binding.getAlgorithmSuite().getC14n().getValue());
+        AlgorithmSuiteType algType = binding.getAlgorithmSuite().getAlgorithmSuiteType();
+        sig.setDigestAlgo(algType.getDigest());
 
         Document doc = saaj.getSOAPPart();
         sig.prepare(doc, crypto, secHeader);

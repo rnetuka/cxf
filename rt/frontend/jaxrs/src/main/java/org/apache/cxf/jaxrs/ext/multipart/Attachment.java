@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 
 import javax.activation.DataHandler;
 import javax.activation.DataSource;
@@ -47,7 +48,7 @@ import org.apache.cxf.jaxrs.utils.JAXRSUtils;
  * way to create attachments for use with {@link org.apache.cxf.jaxrs.client.WebClient}.
  */
 public class Attachment implements Transferable {
-
+    
     private DataHandler handler;
     private MultivaluedMap<String, String> headers = 
         new MetadataMap<String, String>(false, true);
@@ -88,10 +89,16 @@ public class Attachment implements Transferable {
              new DataHandler(new InputStreamDataSource(is, headers.getFirst("Content-Type"))), 
              headers);
     }
+
+    public Attachment(String mediaType, Object object) {
+        this(UUID.randomUUID().toString(), mediaType, object);
+    }
     
     public Attachment(String id, String mediaType, Object object) {
         this.object = object;
-        headers.putSingle("Content-ID", id);
+        if (id != null) {
+            headers.putSingle("Content-ID", id);
+        }
         headers.putSingle("Content-Type", mediaType);
     }
     
@@ -121,12 +128,16 @@ public class Attachment implements Transferable {
     }
 
     public MediaType getContentType() {
-        String value = handler != null ? handler.getContentType() : headers.getFirst("Content-Type");
+        String value = handler != null && handler.getContentType() != null ? handler.getContentType() 
+            : headers.getFirst("Content-Type");
         return value == null ? MediaType.TEXT_PLAIN_TYPE : JAXRSUtils.toMediaType(value);
     }
 
     public DataHandler getDataHandler() {
         return handler;
+    }
+    public void setDataHandler(DataHandler dataHandler) {
+        this.handler = dataHandler;
     }
 
     public Object getObject() {
@@ -142,7 +153,7 @@ public class Attachment implements Transferable {
                     return mbr.readFrom(cls, cls, new Annotation[]{}, getContentType(), 
                                         headers, getDataHandler().getInputStream());
                 } catch (Exception ex) {
-                    ExceptionUtils.toInternalServerErrorException(ex, null);
+                    throw ExceptionUtils.toInternalServerErrorException(ex, null);
                 }
             }
         }

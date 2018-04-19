@@ -22,6 +22,7 @@ package org.apache.cxf.ws.rm;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
 
 import javax.xml.datatype.Duration;
 
@@ -29,6 +30,7 @@ import org.apache.cxf.Bus;
 import org.apache.cxf.endpoint.Client;
 import org.apache.cxf.endpoint.ConduitSelector;
 import org.apache.cxf.endpoint.Endpoint;
+import org.apache.cxf.interceptor.InterceptorProvider;
 import org.apache.cxf.jaxb.DatatypeFactory;
 import org.apache.cxf.message.Exchange;
 import org.apache.cxf.message.ExchangeImpl;
@@ -45,6 +47,8 @@ import org.apache.cxf.ws.addressing.AttributedURIType;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 import org.apache.cxf.ws.addressing.Names;
 import org.apache.cxf.ws.addressing.RelatesToType;
+import org.apache.cxf.ws.addressing.WSAddressingFeature;
+import org.apache.cxf.ws.addressing.WSAddressingFeature.WSAddressingFeatureApplier;
 import org.apache.cxf.ws.rm.manager.SourcePolicyType;
 import org.apache.cxf.ws.rm.v200702.Identifier;
 import org.apache.cxf.ws.rm.v200702.OfferType;
@@ -141,8 +145,9 @@ public class ProxyTest extends Assert {
     
     @Test
     public void testLastMessage() throws NoSuchMethodException, RMException {
-        Method m = Proxy.class.getDeclaredMethod("invoke", 
-            new Class[] {OperationInfo.class, ProtocolVariation.class, Object[].class, Map.class});
+        Method m = Proxy.class.getDeclaredMethod("invoke",
+            new Class[] {OperationInfo.class, ProtocolVariation.class, Object[].class,
+                         Map.class, Level.class});
         Proxy proxy = EasyMock.createMockBuilder(Proxy.class)
             .addMockedMethod(m).createMock(control);
         proxy.setReliableEndpoint(rme);
@@ -290,6 +295,12 @@ public class ProxyTest extends Assert {
     public void testRMClientConstruction() {
         Proxy proxy = new Proxy(rme);
         Bus bus = control.createMock(Bus.class);
+        EasyMock.expect(bus.getExtension(WSAddressingFeatureApplier.class))
+            .andReturn(new WSAddressingFeatureApplier() {
+                @Override
+                public void initializeProvider(WSAddressingFeature feature, InterceptorProvider provider,
+                                               Bus bus) {
+                } }).anyTimes();
         Endpoint endpoint = control.createMock(Endpoint.class);
         Conduit conduit = control.createMock(Conduit.class);
         org.apache.cxf.ws.addressing.EndpointReferenceType address = 
@@ -390,6 +401,6 @@ public class ProxyTest extends Assert {
         throws RMException {
         EasyMock.expect(proxy.invoke(EasyMock.same(oi), EasyMock.isA(ProtocolVariation.class),
             EasyMock.isA(Object[].class),
-            EasyMock.isA(Map.class))).andReturn(expectedReturn).anyTimes();
+            EasyMock.isA(Map.class), EasyMock.same(Level.FINER))).andReturn(expectedReturn).anyTimes();
     }
 }

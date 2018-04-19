@@ -30,7 +30,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.logging.Level;
+
+import javax.net.ssl.HttpsURLConnection;
 
 import org.apache.cxf.Bus;
 import org.apache.cxf.common.util.ReflectionUtil;
@@ -103,7 +108,7 @@ public class URLConnectionHTTPConduit extends HTTPConduit {
         throws IOException {
         URL url = address.getURL();
         URI uri = address.getURI();
-        Proxy proxy = proxyFactory.createProxy(csPolicy , uri);
+        Proxy proxy = proxyFactory.createProxy(csPolicy, uri);
         message.put("http.scheme", uri.getScheme());
         // check tlsClientParameters from message header
         TLSClientParameters clientParameters = message.get(TLSClientParameters.class);
@@ -147,10 +152,29 @@ public class URLConnectionHTTPConduit extends HTTPConduit {
             if (b) {
                 try {
                     java.lang.reflect.Field f = ReflectionUtil.getDeclaredField(HttpURLConnection.class, "method");
+                    if (connection instanceof HttpsURLConnection) {
+                        try {
+                            java.lang.reflect.Field f2 = ReflectionUtil.getDeclaredField(connection.getClass(),
+                                                                                         "delegate");
+                            Object c = ReflectionUtil.setAccessible(f2).get(connection);
+                            if (c instanceof HttpURLConnection) {
+                                ReflectionUtil.setAccessible(f).set(c, httpRequestMethod);
+                            }
+
+                            f2 = ReflectionUtil.getDeclaredField(c.getClass(), "httpsURLConnection");
+                            HttpsURLConnection c2 = (HttpsURLConnection)ReflectionUtil.setAccessible(f2)
+                                    .get(c);
+
+                            ReflectionUtil.setAccessible(f).set(c2, httpRequestMethod);
+                        } catch (Throwable t) {
+                            //ignore
+                            logStackTrace(t);
+                        }
+                    }
                     ReflectionUtil.setAccessible(f).set(connection, httpRequestMethod);
                     message.put(HTTPURL_CONNECTION_METHOD_REFLECTION, true);
                 } catch (Throwable t) {
-                    t.printStackTrace();
+                    logStackTrace(t);
                     throw ex;
                 }
             } else {
@@ -193,9 +217,9 @@ public class URLConnectionHTTPConduit extends HTTPConduit {
     
     class URLConnectionWrappedOutputStream extends WrappedOutputStream {
         HttpURLConnection connection;
-        public URLConnectionWrappedOutputStream(Message message, HttpURLConnection connection,
-                                                boolean needToCacheRequest, boolean isChunking,
-                                                int chunkThreshold, String conduitName) throws URISyntaxException {
+        URLConnectionWrappedOutputStream(Message message, HttpURLConnection connection,
+                                         boolean needToCacheRequest, boolean isChunking,
+                                         int chunkThreshold, String conduitName) throws URISyntaxException {
             super(message, needToCacheRequest, isChunking,
                   chunkThreshold, conduitName,
                   computeURI(message, connection));
@@ -219,7 +243,7 @@ public class URLConnectionHTTPConduit extends HTTPConduit {
                     cout = connection.getOutputStream();
                     ReflectionUtil.setAccessible(f).set(connection, method);                        
                 } catch (Throwable t) {
-                    t.printStackTrace();
+                    logStackTrace(t);
                 }
                 
             } else {
@@ -233,7 +257,21 @@ public class URLConnectionHTTPConduit extends HTTPConduit {
             OutputStream cout = null;
             try {
                 try {
-                    cout = connection.getOutputStream();
+//                    cout = connection.getOutputStream();
+                    if (System.getSecurityManager() != null) {
+                        try {
+                            cout = AccessController.doPrivileged(new PrivilegedExceptionAction<OutputStream>() {
+                                @Override
+                                public OutputStream run() throws IOException {
+                                    return connection.getOutputStream();
+                                }
+                            });
+                        } catch (PrivilegedActionException e) {
+                            throw (IOException) e.getException();
+                        }
+                    } else {
+                        cout = connection.getOutputStream();
+                    }
                 } catch (ProtocolException pe) {
                     Boolean b =  (Boolean)outMessage.get(HTTPURL_CONNECTION_METHOD_REFLECTION);
                     cout = connectAndGetOutputStream(b); 

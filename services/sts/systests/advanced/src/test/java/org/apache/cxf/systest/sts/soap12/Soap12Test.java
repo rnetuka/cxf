@@ -168,7 +168,7 @@ public class Soap12Test extends AbstractBusClientServerTestBase {
 
         try {
             String badAddress = 
-                "https://localhost:" + PORT + "/doubleit/services/doubleitbadtransportsaml1";
+                "https://localhost:" + PORT + "/doubleit/services/baddoubleittransportsaml1";
             requestSecurityToken(SAML1_TOKEN_TYPE, BEARER_KEYTYPE, bus, badAddress);
             fail("Failure expected on a bad endpoint address");
         } catch (SoapFault ex) {
@@ -233,6 +233,6 @@ public class Soap12Test extends AbstractBusClientServerTestBase {
     
     private static void doubleIt(DoubleItPortType port, int numToDouble) {
         int resp = port.doubleIt(numToDouble);
-        assertEquals(numToDouble * 2 , resp);
+        assertEquals(numToDouble * 2, resp);
     }
 }

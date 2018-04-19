@@ -35,7 +35,7 @@ import org.apache.cxf.endpoint.EndpointException;
 import org.apache.cxf.endpoint.EndpointImpl;
 import org.apache.cxf.helpers.DOMUtils;
 import org.apache.cxf.message.Message;
-import org.apache.cxf.message.MessageUtils;
+import org.apache.cxf.rt.security.utils.SecurityUtils;
 import org.apache.cxf.service.Service;
 import org.apache.cxf.service.ServiceImpl;
 import org.apache.cxf.service.model.BindingInfo;
@@ -103,8 +103,8 @@ public final class STSUtils {
     public static STSClient getClientWithIssuer(Message message, String type, Element issuer) {
         
         // Retrieve or create the STSClient
-        STSClient client = (STSClient)message
-            .getContextualProperty(SecurityConstants.STS_CLIENT);
+        STSClient client = 
+            (STSClient)SecurityUtils.getSecurityPropertyValue(SecurityConstants.STS_CLIENT, message);
         if (client == null) {
             client = createSTSClient(message, type);
             Bus bus = message.getExchange().getBus();
@@ -118,9 +118,15 @@ public final class STSUtils {
             }
         }
         
+        boolean preferWSMex = 
+            SecurityUtils.getSecurityPropertyBoolean(SecurityConstants.PREFER_WSMEX_OVER_STS_CLIENT_CONFIG,
+                                                     message, 
+                                                     false);
         
         // Find out if we have an EPR to get the STS Address (possibly via WS-MEX)
-        if (issuer != null) {
+        // Only parse the EPR if we really have to
+        if (issuer != null
+            && (preferWSMex || client.getLocation() == null && client.getWsdlLocation() == null)) {
             EndpointReferenceType epr = null;
             try {
                 epr = VersionTransformer.parseEndpointReference(issuer);
@@ -128,15 +134,11 @@ public final class STSUtils {
                 throw new IllegalArgumentException(e);
             }
             
-            String mexLocation = findMEXLocation(epr);
-            // Configure via WS-MEX
-            if (mexLocation != null
-                && MessageUtils.getContextualBoolean(message, 
-                                                     SecurityConstants.PREFER_WSMEX_OVER_STS_CLIENT_CONFIG,
-                                                     false)) {
+            if (preferWSMex && findMEXLocation(epr) != null) {
                 // WS-MEX call. So now either get the WS-MEX specific STSClient or else create one
-                STSClient wsMexClient = (STSClient)message
-                    .getContextualProperty(SecurityConstants.STS_CLIENT + ".wsmex");
+                STSClient wsMexClient = 
+                    (STSClient)SecurityUtils.getSecurityPropertyValue(SecurityConstants.STS_CLIENT + ".wsmex", 
+                                                                      message);
                 if (wsMexClient == null) {
                     wsMexClient = createSTSClient(message, type);
                 }
@@ -145,8 +147,8 @@ public final class STSUtils {
             } else if (configureViaEPR(client, epr)) {
                 // Only use WS-MEX here if the pre-configured STSClient has no location/wsdllocation
                 boolean useEPRWSAAddrAsMEXLocation = 
-                    !Boolean.valueOf((String)message.getContextualProperty(
-                        SecurityConstants.DISABLE_STS_CLIENT_WSMEX_CALL_USING_EPR_ADDRESS));
+                    !Boolean.valueOf((String)SecurityUtils.getSecurityPropertyValue(
+                        SecurityConstants.DISABLE_STS_CLIENT_WSMEX_CALL_USING_EPR_ADDRESS, message));
                 
                 client.configureViaEPR(epr, useEPRWSAAddrAsMEXLocation);
                 return client;
@@ -170,7 +172,9 @@ public final class STSUtils {
         Endpoint ep = message.getExchange().getEndpoint();
         client.setEndpointName(ep.getEndpointInfo().getName().toString() + type);
         client.setBeanName(ep.getEndpointInfo().getName().toString() + type);
-        if (MessageUtils.getContextualBoolean(message, SecurityConstants.STS_CLIENT_SOAP12_BINDING, false)) {
+        if (SecurityUtils.getSecurityPropertyBoolean(SecurityConstants.STS_CLIENT_SOAP12_BINDING, 
+                                                     message, 
+                                                     false)) {
             client.setSoap12();
         }
         

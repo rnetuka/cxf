@@ -24,6 +24,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.HttpRetryException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
@@ -155,7 +157,12 @@ public abstract class HTTPConduit
      */
     public static final String KEY_HTTP_CONNECTION = "http.connection";
     public static final String KEY_HTTP_CONNECTION_ADDRESS = "http.connection.address";
-
+    
+    public static final String SET_HTTP_RESPONSE_MESSAGE = "org.apache.cxf.transport.http.set.response.message";
+    public static final String HTTP_RESPONSE_MESSAGE = "http.responseMessage";
+    
+    public static final String PROCESS_FAULT_ON_HTTP_400 = "org.apache.cxf.transport.process_fault_on_http_400";
+    public static final String NO_IO_EXCEPTIONS = "org.apache.cxf.transport.no_io_exceptions";
     /**
      * The Logger for this class.
      */
@@ -175,7 +182,7 @@ public abstract class HTTPConduit
     private static final String AUTO_REDIRECT_MAX_SAME_URI_COUNT = "http.redirect.max.same.uri.count";
     
     private static final String HTTP_POST_METHOD = "POST";
-    private static final String HTTP_PUT_METHOD = "PUT";
+    private static final String HTTP_GET_METHOD = "GET";
     private static final Set<String> KNOWN_HTTP_VERBS_WITH_NO_CONTENT = 
         new HashSet<String>(Arrays.asList(new String[]{"GET", "HEAD", "OPTIONS", "TRACE"}));
     /**
@@ -252,13 +259,13 @@ public abstract class HTTPConduit
      * Implements the authentication handling when talking to a server. If it is not set
      * it will be created from the authorizationPolicy.authType
      */
-    protected HttpAuthSupplier authSupplier;
+    protected volatile HttpAuthSupplier authSupplier;
     
     /**
      * Implements the proxy authentication handling. If it is not set
      * it will be created from the proxyAuthorizationPolicy.authType
      */
-    protected HttpAuthSupplier proxyAuthSupplier;
+    protected volatile HttpAuthSupplier proxyAuthSupplier;
 
     protected Cookies cookies;
     
@@ -284,7 +291,7 @@ public abstract class HTTPConduit
      * Constructor
      * 
      * @param b the associated Bus.
-     * @param endpoint the endpoint info of the initiator.
+     * @param ei the endpoint info of the initiator.
      * @param t the endpoint reference of the target.
      * @throws IOException
      */
@@ -519,7 +526,7 @@ public abstract class HTTPConduit
             needToCacheRequest = true;
             isChunking = false;
             LOG.log(Level.FINE,
-                    "Auth Supplier, but no Premeptive User Pass or Digest auth (nonce may be stale)"
+                    "Auth Supplier, but no Preemptive User Pass or Digest auth (nonce may be stale)"
                     + " We must cache request.");
         }
         if (csPolicy.isAutoRedirect()) {
@@ -566,8 +573,7 @@ public abstract class HTTPConduit
     protected boolean isChunkingSupported(Message message, String httpMethod) {
         if (HTTP_POST_METHOD.equals(httpMethod)) { 
             return true;
-        }
-        if (HTTP_PUT_METHOD.equals(httpMethod)) {
+        } else if (!HTTP_GET_METHOD.equals(httpMethod)) {
             MessageContentsList objs = MessageContentsList.getContentsList(message);
             if (objs != null && objs.size() > 0) {
                 Object obj = objs.get(0);
@@ -677,10 +683,15 @@ public abstract class HTTPConduit
         setAndGetDefaultAddress();
         if (result == null) {
             if (pathInfo == null && queryString == null) {
-                message.put(Message.ENDPOINT_ADDRESS, defaultAddress.getString());
+                if (defaultAddress != null) {
+                    message.put(Message.ENDPOINT_ADDRESS, defaultAddress.getString());
+                }
                 return defaultAddress;
             }
-            message.put(Message.ENDPOINT_ADDRESS, defaultAddress.getString());
+            if (defaultAddress != null) {
+                result = defaultAddress.getString();
+                message.put(Message.ENDPOINT_ADDRESS, result);
+            }
         }
         
         // REVISIT: is this really correct?
@@ -689,8 +700,12 @@ public abstract class HTTPConduit
         }
         if (queryString != null) {
             result = result + "?" + queryString;
-        }        
-        return result.equals(defaultAddress.getString()) ? defaultAddress : new Address(result);
+        }
+        if (defaultAddress == null) {
+            return setAndGetDefaultAddress(result);
+        } else {
+            return result.equals(defaultAddress.getString()) ? defaultAddress : new Address(result);
+        }
     }
 
     /**
@@ -727,12 +742,7 @@ public abstract class HTTPConduit
                 if (defaultAddress == null) {
                     if (fromEndpointReferenceType && getTarget().getAddress().getValue() != null) {
                         defaultAddress = new Address(this.getTarget().getAddress().getValue());
-                    } else {
-                        if (endpointInfo.getAddress() == null) {
-                            throw new URISyntaxException("<null>", 
-                                                         "Invalid address. Endpoint address cannot be null.",
-                                                         0);
-                        }
+                    } else if (endpointInfo.getAddress() != null) {
                         defaultAddress = new Address(endpointInfo.getAddress());
                     }
                 }
@@ -741,6 +751,21 @@ public abstract class HTTPConduit
         return defaultAddress;
     }
 
+    private Address setAndGetDefaultAddress(String curAddr) throws URISyntaxException {
+        if (defaultAddress == null) {
+            synchronized (this) {
+                if (defaultAddress == null) {
+                    if (curAddr != null) {
+                        defaultAddress = new Address(curAddr);
+                    } else {
+                        throw new URISyntaxException("<null>",
+                                                     "Invalid address. Endpoint address cannot be null.", 0);
+                    }
+                }
+            }
+        }
+        return defaultAddress;
+    }
     /**
      * This call places HTTP Header strings into the headers that are relevant
      * to the Authorization policies that are set on this conduit by
@@ -761,7 +786,7 @@ public abstract class HTTPConduit
      * type?
      * 
      * @param message
-     * @param headers
+     * @param currentURI
      */
     protected void setHeadersByAuthorizationPolicy(
             Message message,
@@ -1028,9 +1053,15 @@ public abstract class HTTPConduit
                 }
                 incomingObserver.onMessage(inMessage);
             } catch (IOException e) {
-                e.printStackTrace();
+                logStackTrace(e);
             }
         }
+    }
+    
+    protected void logStackTrace(Throwable ex) { 
+        StringWriter sw = new StringWriter();
+        ex.printStackTrace(new PrintWriter(sw));
+        LOG.warning(sw.toString());
     }
     
     public void assertMessage(Message message) {
@@ -1233,7 +1264,7 @@ public abstract class HTTPConduit
 
             // If this is a GET method we must not touch the output
             // stream as this automagically turns the request into a POST.
-            if (getMethod().equals("GET")) {
+            if (getMethod().equals("GET") || cachedStream == null) {
                 handleNoOutput();
                 return;
             }
@@ -1416,6 +1447,7 @@ public abstract class HTTPConduit
             case 307:
                 return redirectRetransmit();
             case HttpURLConnection.HTTP_UNAUTHORIZED:
+            case HttpURLConnection.HTTP_PROXY_AUTH:
                 return authorizationRetransmit();
             default:
                 break;
@@ -1466,12 +1498,8 @@ public abstract class HTTPConduit
         
         /**
          * This method performs a retransmit for authorization information.
-         * 
-         * @param connection The currently active connection.
-         * @param message The outbound message.
-         * @param cachedStream The cached request.
-         * @return A new connection if retransmitted. If not retransmitted
-         *         then this method returns the same connection.
+         *
+         * @return true if there was a retransmit
          * @throws IOException
          */
         protected boolean authorizationRetransmit() throws IOException {
@@ -1562,6 +1590,9 @@ public abstract class HTTPConduit
             }
             if (exchange != null) {
                 exchange.put(Message.RESPONSE_CODE, rc);
+                if (rc == 404 || rc == 503) {
+                    exchange.put("org.apache.cxf.transport.service_not_available", true);
+                } 
             }
                        
             // "org.apache.cxf.transport.no_io_exceptions" property should be set in case the exceptions
@@ -1571,13 +1602,9 @@ public abstract class HTTPConduit
             // soap fault because of a HTTP 400 should be returned back to the client (SOAP 1.2 spec)
 
             if (rc >= 400 && rc != 500
-                && !MessageUtils.isTrue(outMessage.getContextualProperty("org.apache.cxf.transport.no_io_exceptions"))
+                && !MessageUtils.isTrue(outMessage.getContextualProperty(NO_IO_EXCEPTIONS))
                 && (rc > 400 || !MessageUtils.isTrue(outMessage
-                    .getContextualProperty("org.apache.cxf.transport.process_fault_on_http_400")))) {
-
-                if (rc == 404 || rc == 503) {
-                    exchange.put("org.apache.cxf.transport.service_not_available", true);
-                }
+                    .getContextualProperty(PROCESS_FAULT_ON_HTTP_400)))) {
 
                 throw new HTTPException(rc, getResponseMessage(), url.toURL());
             }
@@ -1595,6 +1622,9 @@ public abstract class HTTPConduit
             inMessage.setExchange(exchange);
             updateResponseHeaders(inMessage);
             inMessage.put(Message.RESPONSE_CODE, responseCode);
+            if (MessageUtils.getContextualBoolean(outMessage, SET_HTTP_RESPONSE_MESSAGE, false)) {
+                inMessage.put(HTTP_RESPONSE_MESSAGE, getResponseMessage());
+            }
             propagateConduit(exchange, inMessage);
 
             if (!doProcessResponse(outMessage, responseCode)
@@ -1608,15 +1638,17 @@ public abstract class HTTPConduit
                     if (isOneway(exchange) && responseCode > 300) {
                         throw new HTTPException(responseCode, getResponseMessage(), url.toURL());
                     }
-                    ClientCallback cc = exchange.get(ClientCallback.class);
-                    if (null != cc) {
-                        //REVISIT move the decoupled destination property name into api
-                        Endpoint ep = exchange.getEndpoint();
-                        if (null != ep && null != ep.getEndpointInfo() && null == ep.getEndpointInfo().
+                    //REVISIT move the decoupled destination property name into api
+                    Endpoint ep = exchange.getEndpoint();
+                    if (null != ep && null != ep.getEndpointInfo() && null == ep.getEndpointInfo().
                             getProperty("org.apache.cxf.ws.addressing.MAPAggregator.decoupledDestination")) {
+                        // remove callback so that it won't be invoked twice
+                        ClientCallback cc = exchange.remove(ClientCallback.class);
+                        if (null != cc) {
                             cc.handleResponse(null, null);
                         }
                     }
+                    exchange.put("IN_CHAIN_COMPLETE", Boolean.TRUE);
                     exchange.setInMessage(inMessage);
                     return;
                 } 
@@ -1718,8 +1750,7 @@ public abstract class HTTPConduit
          * 
          * If trust cannot be established the Trust Decider implemenation
          * throws an IOException.
-         * 
-         * @param message      The message being sent.
+         *
          * @throws IOException This exception is thrown if trust cannot be
          *                     established by the configured MessageTrustDecider.
          * @see MessageTrustDecider
@@ -1734,10 +1765,9 @@ public abstract class HTTPConduit
                     // already connected.
                     HttpsURLConnectionInfo info = getHttpsURLConnectionInfo();
                     if (trustDecider != null) {
-                        trustDecider.establishTrust(
-                                conduitName, 
-                            info,
-                            outMessage);
+                        trustDecider.establishTrust(conduitName,
+                                                    info,
+                                                    outMessage);
                         if (LOG.isLoggable(Level.FINE)) {
                             LOG.log(Level.FINE, "Trust Decider "
                                 + trustDecider.getLogicalName()
@@ -1774,7 +1804,7 @@ public abstract class HTTPConduit
                 if (LOG.isLoggable(Level.FINE)) {
                     LOG.log(Level.FINE, "No Trust Decider for Conduit '"
                         + conduitName
-                        + "'. An afirmative Trust Decision is assumed.");
+                        + "'. An affirmative Trust Decision is assumed.");
                 }
             }
         }

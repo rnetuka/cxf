@@ -43,6 +43,7 @@ public final class WadlToolConstants {
     public static final String CFG_SCHEMA_TYPE_MAP = "schemaTypeMap";
     public static final String CFG_MEDIA_TYPE_MAP = "mediaTypeMap";
     public static final String CFG_MULTIPLE_XML_REPS = "supportMultipleXmlReps";
+    public static final String CFG_BEAN_VALIDATION = "beanValidation";
     
     public static final String CFG_CATALOG = ToolConstants.CFG_CATALOG;
     public static final String CFG_BINDING = ToolConstants.CFG_BINDING;
@@ -54,6 +55,7 @@ public final class WadlToolConstants {
     public static final String CFG_WADL_NAMESPACE = "wadlNamespace";
     public static final String CFG_GENERATE_ENUMS = "generateEnums";
     public static final String CFG_INHERIT_PARAMS = "inheritResourceParams";
+    public static final String CFG_CREATE_JAVA_DOCS = "javaDocs";
     public static final String CFG_GENERATE_RESPONSE_IF_HEADERS_SET = "generateResponseIfHeadersSet";
     public static final String CFG_GENERATE_RESPONSE_FOR_METHODS = "generateResponseForMethods";
     public static final String CFG_VALIDATE_WADL = "validate";

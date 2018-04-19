@@ -29,6 +29,11 @@ public class DigestCodeVerifier implements CodeVerifierTransformer {
         return Base64UrlUtility.encode(digest);
     }
 
+    @Override
+    public String getChallengeMethod() {
+        return "S256";
+    }
+
     
 
 }

@@ -28,6 +28,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.xml.namespace.QName;
+import javax.xml.ws.WebFault;
 
 import org.apache.cxf.Bus;
 import org.apache.cxf.binding.soap.SoapBindingConstants;
@@ -52,6 +53,7 @@ import org.apache.cxf.service.model.EndpointInfo;
 import org.apache.cxf.service.model.Extensible;
 import org.apache.cxf.service.model.FaultInfo;
 import org.apache.cxf.service.model.MessageInfo;
+import org.apache.cxf.service.model.MessagePartInfo;
 import org.apache.cxf.transport.Conduit;
 import org.apache.cxf.transport.ConduitInitiator;
 import org.apache.cxf.transport.ConduitInitiatorManager;
@@ -266,7 +268,15 @@ final class InternalContextUtils {
                     exchange.put(ConduitSelector.class,
                                  new PreexistingConduitSelector(backChannel,
                                                                 exchange.getEndpoint()));
-
+                    if (ContextUtils.retrieveAsyncPostResponseDispatch(inMessage) && !robust) {
+                        //need to suck in all the data from the input stream as
+                        //the transport might discard any data on the stream when this 
+                        //thread unwinds or when the empty response is sent back
+                        DelegatingInputStream in = inMessage.getContent(DelegatingInputStream.class);
+                        if (in != null) {
+                            in.cacheInput();
+                        }
+                    }
                     if (chain != null && !chain.doIntercept(partialResponse) 
                         && partialResponse.getContent(Exception.class) != null) {
                         if (partialResponse.getContent(Exception.class) instanceof Fault) {
@@ -292,14 +302,7 @@ final class InternalContextUtils {
                          
                     
                     if (ContextUtils.retrieveAsyncPostResponseDispatch(inMessage) && !robust) {
-                        //need to suck in all the data from the input stream as
-                        //the transport might discard any data on the stream when this 
-                        //thread unwinds or when the empty response is sent back
-                        DelegatingInputStream in = inMessage.getContent(DelegatingInputStream.class);
-                        if (in != null) {
-                            in.cacheInput();
-                        }
-                        
+                                                
                         // async service invocation required *after* a response
                         // has been sent (i.e. to a oneway, or a partial response
                         // to a decoupled twoway)
@@ -447,10 +450,7 @@ final class InternalContextUtils {
                     if (fi.size() == 0) {
                         continue;
                     }
-                    Class<?> fiTypeClass = fi.getFirstMessagePart().getTypeClass();
-                    if (t != null 
-                            && fiTypeClass != null
-                            && t.getClass().isAssignableFrom(fiTypeClass)) {
+                    if (t != null && matchFault(t, fi)) {
                         if (fi.getExtensionAttributes() == null) {
                             continue;
                         }
@@ -474,6 +474,22 @@ final class InternalContextUtils {
             LOG.fine("action determined from service model: " + action);
         }
         return action;
+    }
+
+    private static boolean matchFault(Throwable t, FaultInfo fi) {
+        //REVISIT not sure if this class-based comparison works in general as the fault class defined
+        // in the service interface has no direct relationship to the message body's type.
+        MessagePartInfo fmpi = fi.getFirstMessagePart();
+        Class<?> fiTypeClass = fmpi.getTypeClass();
+        if (fiTypeClass != null && t.getClass().isAssignableFrom(fiTypeClass)) {
+            return true;
+        }
+        // CXF-6575
+        QName fiName = fmpi.getConcreteName();
+        WebFault wf = t.getClass().getAnnotation(WebFault.class);
+        return wf != null  && fiName != null
+            && wf.targetNamespace() != null && wf.targetNamespace().equals(fiName.getNamespaceURI())
+            && wf.name() != null && wf.name().equals(fiName.getLocalPart());
     }
 
     public static SoapOperationInfo getSoapOperationInfo(BindingOperationInfo bindingOpInfo) {

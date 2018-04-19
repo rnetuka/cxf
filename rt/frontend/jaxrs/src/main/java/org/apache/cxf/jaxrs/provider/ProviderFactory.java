@@ -32,7 +32,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -92,6 +91,8 @@ public abstract class ProviderFactory {
     private static final String JAXB_PROVIDER_NAME = "org.apache.cxf.jaxrs.provider.JAXBElementProvider";
     private static final String JSON_PROVIDER_NAME = "org.apache.cxf.jaxrs.provider.json.JSONProvider";
     private static final String BUS_PROVIDERS_ALL = "org.apache.cxf.jaxrs.bus.providers";
+    private static final String PROVIDER_CACHE_ALLOWED = "org.apache.cxf.jaxrs.provider.cache.allowed";
+    private static final String PROVIDER_CACHE_CHECK_ALL = "org.apache.cxf.jaxrs.provider.cache.checkAllCandidates";
     
     protected Map<NameKey, ProviderInfo<ReaderInterceptor>> readerInterceptors = 
         new NameKeyMap<ProviderInfo<ReaderInterceptor>>(true);
@@ -107,24 +108,36 @@ public abstract class ProviderFactory {
     private List<ProviderInfo<ContextProvider<?>>> contextProviders = 
         new ArrayList<ProviderInfo<ContextProvider<?>>>(1);
     
-    private Set<ParamConverterProvider> newParamConverters;
-    
+    private List<ProviderInfo<ParamConverterProvider>> paramConverters =
+        new ArrayList<ProviderInfo<ParamConverterProvider>>(1);
+    private boolean paramConverterContextsAvailable;
     // List of injected providers
     private Collection<ProviderInfo<?>> injectedProviders = 
-        new LinkedList<ProviderInfo<?>>();
+        new HashSet<ProviderInfo<?>>();
     
     private Bus bus;
     
     private Comparator<?> providerComparator;
     
+    private ProviderCache providerCache;
+    
     protected ProviderFactory(Bus bus) {
         this.bus = bus;
+        providerCache = initCache(bus);
     }
     
     public Bus getBus() {
         return bus;
     }
-    
+    protected static ProviderCache initCache(Bus theBus) {
+        Object allowProp = theBus.getProperty(PROVIDER_CACHE_ALLOWED);
+        boolean allowed = allowProp == null || PropertyUtils.isTrue(allowProp);
+        if (!allowed) {
+            return null;
+        }
+        boolean checkAll = PropertyUtils.isTrue(theBus.getProperty(PROVIDER_CACHE_CHECK_ALL));
+        return new ProviderCache(checkAll);
+    }
     protected static void initFactory(ProviderFactory factory) {
         factory.setProviders(false,
                              false,
@@ -134,19 +147,26 @@ public abstract class ProviderFactory {
                      new FormEncodingProvider<Object>(),
                      new StringTextProvider(),
                      new PrimitiveTextProvider<Object>(),
-                     createProvider(JAXB_PROVIDER_NAME),
+                     new JAXBElementProvider<Object>(),
+                     new JAXBElementTypedProvider(),
                      new MultipartProvider());
         Object prop = factory.getBus().getProperty("skip.default.json.provider.registration");
         if (!PropertyUtils.isTrue(prop)) {
-            factory.setProviders(false, false, createProvider(JSON_PROVIDER_NAME));
+            factory.setProviders(false, false, createProvider(JSON_PROVIDER_NAME, factory.getBus()));
         }
             
     }
     
-    protected static Object createProvider(String className) {
+    protected static Object createProvider(String className, Bus bus) {
         
         try {
-            return ClassLoaderUtils.loadClass(className, ProviderFactory.class).newInstance();
+            Class<?> cls = ClassLoaderUtils.loadClass(className, ProviderFactory.class);
+            for (Constructor<?> c : cls.getConstructors()) {
+                if (c.getParameterTypes().length == 1 && c.getParameterTypes()[0] == Bus.class) {
+                    return c.newInstance(bus);
+                }
+            }
+            return cls.newInstance();
         } catch (Throwable ex) {
             String message = "Problem with creating the default provider " + className;
             if (ex.getMessage() != null) {
@@ -250,17 +270,19 @@ public abstract class ProviderFactory {
     
     public <T> ParamConverter<T> createParameterHandler(Class<T> paramType, 
                                                         Type genericType,
-                                                        Annotation[] anns) {
+                                                        Annotation[] anns,
+                                                        Message m) {
         
-        if (newParamConverters != null) {
-            anns = anns != null ? anns : new Annotation[]{};
-            for (ParamConverterProvider newParamConverter : newParamConverters) {
-                ParamConverter<T> converter = newParamConverter.getConverter(paramType, genericType, anns);
-                if (converter != null) {
-                    return converter;
-                }
+        anns = anns != null ? anns : new Annotation[]{};
+        for (ProviderInfo<ParamConverterProvider> pi : paramConverters) {
+            injectContextValues(pi, m);
+            ParamConverter<T> converter = pi.getProvider().getConverter(paramType, genericType, anns);
+            if (converter != null) {
+                return converter;
+            } else {
+                pi.clearThreadLocalProxies();
             }
-        } 
+        }
         return null;
     }
     
@@ -349,7 +371,7 @@ public abstract class ProviderFactory {
                 List<ProviderInfo<ReaderInterceptor>> readers =
                     getBoundFilters(readerInterceptors, names);
                 for (ProviderInfo<ReaderInterceptor> p : readers) {
-                    InjectionUtils.injectContexts(p.getProvider(), p, m);
+                    injectContextValues(p, m);
                     interceptors.add(p.getProvider());
                 }
                 interceptors.add(mbrReader);
@@ -388,7 +410,7 @@ public abstract class ProviderFactory {
                 List<ProviderInfo<WriterInterceptor>> writers =
                     getBoundFilters(writerInterceptors, names);
                 for (ProviderInfo<WriterInterceptor> p : writers) {
-                    InjectionUtils.injectContexts(p.getProvider(), p, m);
+                    injectContextValues(p, m);
                     interceptors.add(p.getProvider());
                 }
                 interceptors.add(mbwWriter);
@@ -410,13 +432,45 @@ public abstract class ProviderFactory {
                                                             Annotation[] annotations,
                                                             MediaType mediaType,
                                                             Message m) {
+        // Step1: check the cache 
+        
+        if (providerCache != null) {
+            for (ProviderInfo<MessageBodyReader<?>> ep : providerCache.getReaders(type, mediaType)) {
+                if (isReadable(ep, type, genericType, annotations, mediaType, m)) {
+                    return (MessageBodyReader<T>)ep.getProvider();
+                }
+            }           
+        }
+        
+        boolean checkAll = providerCache != null && providerCache.isCheckAllCandidates();
+        List<ProviderInfo<MessageBodyReader<?>>> allCandidates = 
+            checkAll ? new LinkedList<ProviderInfo<MessageBodyReader<?>>>() : null;
+            
+        MessageBodyReader<T> selectedReader = null;    
         for (ProviderInfo<MessageBodyReader<?>> ep : messageReaders) {
-            if (matchesReaderCriterias(ep, type, genericType, annotations, mediaType, m)
+            if (matchesReaderMediaTypes(ep, mediaType)
                 && handleMapper(ep, type, m, MessageBodyReader.class, false)) {
-                return (MessageBodyReader<T>)ep.getProvider();
+                // This writer matches Media Type and Class
+                if (checkAll) {
+                    allCandidates.add(ep);
+                } else if (providerCache != null && providerCache.getReaders(type, mediaType).isEmpty()) {
+                    providerCache.putReaders(type, mediaType, Collections.singletonList(ep));
+                }
+                if (selectedReader == null
+                    && isReadable(ep, type, genericType, annotations, mediaType, m)) {
+                    // This writer is a selected candidate
+                    selectedReader = (MessageBodyReader<T>)ep.getProvider();
+                    if (!checkAll) {
+                        return selectedReader;
+                    }
+                }
+                
             }
         }     
-        return null;
+        if (checkAll) {
+            providerCache.putReaders(type, mediaType, allCandidates);
+        } 
+        return selectedReader;
     }
     
     @SuppressWarnings("unchecked")
@@ -425,27 +479,59 @@ public abstract class ProviderFactory {
                                                             Annotation[] annotations,
                                                             MediaType mediaType,
                                                             Message m) {
-        for (ProviderInfo<MessageBodyWriter<?>> ep : messageWriters) {
-            if (matchesWriterCriterias(ep, type, genericType, annotations, mediaType, m)
-                && handleMapper(ep, type, m, MessageBodyWriter.class, false)) {
-                return (MessageBodyWriter<T>)ep.getProvider();
-            }
+        
+        // Step1: check the cache. 
+        if (providerCache != null) {
+            for (ProviderInfo<MessageBodyWriter<?>> ep : providerCache.getWriters(type, mediaType)) {
+                if (isWriteable(ep, type, genericType, annotations, mediaType, m)) {
+                    return (MessageBodyWriter<T>)ep.getProvider();
+                }
+            }           
         }
-        return null;
+        
+        // Step2: check all the registered writers
+        
+        // The cache, if enabled, may have been configured to keep the top candidate only
+        boolean checkAll = providerCache != null && providerCache.isCheckAllCandidates();
+        List<ProviderInfo<MessageBodyWriter<?>>> allCandidates = 
+            checkAll ? new LinkedList<ProviderInfo<MessageBodyWriter<?>>>() : null;
+            
+        MessageBodyWriter<T> selectedWriter = null;    
+        for (ProviderInfo<MessageBodyWriter<?>> ep : messageWriters) {
+            if (matchesWriterMediaTypes(ep, mediaType)
+                && handleMapper(ep, type, m, MessageBodyWriter.class, false)) {
+                // This writer matches Media Type and Class
+                if (checkAll) {
+                    allCandidates.add(ep);
+                } else if (providerCache != null && providerCache.getWriters(type, mediaType).isEmpty()) {
+                    providerCache.putWriters(type, mediaType, Collections.singletonList(ep));
+                }
+                if (selectedWriter == null
+                    && isWriteable(ep, type, genericType, annotations, mediaType, m)) {
+                    // This writer is a selected candidate
+                    selectedWriter = (MessageBodyWriter<T>)ep.getProvider();
+                    if (!checkAll) {
+                        return selectedWriter;
+                    }
+                }
+                
+            }
+        }     
+        if (checkAll) {
+            providerCache.putWriters(type, mediaType, allCandidates);
+        } 
+        return selectedWriter;
+        
     }
     
     protected void setBusProviders() {
         List<Object> extensions = new LinkedList<Object>(); 
-        final String alreadySetProp = "bus.providers.set." + this.hashCode();
-        if (bus.getProperty(alreadySetProp) == null) {
-            addBusExtension(extensions,
-                            MessageBodyReader.class,
-                            MessageBodyWriter.class,
-                            ExceptionMapper.class);
-            if (!extensions.isEmpty()) {
-                setProviders(true, true, extensions.toArray());
-                bus.setProperty(alreadySetProp, "");
-            }
+        addBusExtension(extensions,
+                        MessageBodyReader.class,
+                        MessageBodyWriter.class,
+                        ExceptionMapper.class);
+        if (!extensions.isEmpty()) {
+            setProviders(true, true, extensions.toArray());
         }
     }
     
@@ -501,12 +587,7 @@ public abstract class ProviderFactory {
             }
             
             if (ParamConverterProvider.class.isAssignableFrom(providerCls)) {
-                //TODO: review the possibility of ParamConverterProvider needing to have Contexts injected
-                Object converter = provider.getProvider();
-                if (newParamConverters == null) {
-                    newParamConverters = new LinkedHashSet<ParamConverterProvider>();
-                }
-                newParamConverters.add((ParamConverterProvider)converter);
+                paramConverters.add((ProviderInfo<ParamConverterProvider>)provider);
             }
         }
         sortReaders();
@@ -516,9 +597,24 @@ public abstract class ProviderFactory {
         mapInterceptorFilters(readerInterceptors, readInts, ReaderInterceptor.class, true);
         mapInterceptorFilters(writerInterceptors, writeInts, WriterInterceptor.class, true);
         
-        injectContextProxies(messageReaders, messageWriters, contextResolvers, 
+        injectContextProxies(messageReaders, messageWriters, contextResolvers, paramConverters,
             readerInterceptors.values(), writerInterceptors.values());
+        checkParamConverterContexts();
     }
+    
+    private void checkParamConverterContexts() {
+        for (ProviderInfo<ParamConverterProvider> pi : paramConverters) {
+            if (pi.contextsAvailable()) {
+                paramConverterContextsAvailable = true;
+            }
+        }
+        
+    }
+    public boolean isParamConverterContextsAvailable() {
+        return paramConverterContextsAvailable;
+    }
+    
+    
     
     protected void injectContextValues(ProviderInfo<?> pi, Message m) {
         if (m != null) {
@@ -622,33 +718,32 @@ public abstract class ProviderFactory {
     
     
     
-    private <T> boolean matchesReaderCriterias(ProviderInfo<MessageBodyReader<?>> pi,
-                                               Class<T> type,
-                                               Type genericType,
-                                               Annotation[] annotations,
-                                               MediaType mediaType,
-                                               Message m) {
+    private <T> boolean matchesReaderMediaTypes(ProviderInfo<MessageBodyReader<?>> pi,
+                                                MediaType mediaType) {
         MessageBodyReader<?> ep = pi.getProvider();
         List<MediaType> supportedMediaTypes = JAXRSUtils.getProviderConsumeTypes(ep);
         
         List<MediaType> availableMimeTypes = 
             JAXRSUtils.intersectMimeTypes(Collections.singletonList(mediaType), supportedMediaTypes, false);
 
-        if (availableMimeTypes.size() == 0) {
-            return false;
-        }
+        return availableMimeTypes.size() != 0;
+    }
+    
+    private boolean isReadable(ProviderInfo<MessageBodyReader<?>> pi,
+                               Class<?> type,
+                               Type genericType,
+                               Annotation[] annotations,
+                               MediaType mediaType,
+                               Message m) {
+        MessageBodyReader<?> ep = pi.getProvider();
         if (m.get(ACTIVE_JAXRS_PROVIDER_KEY) != ep) {
             injectContextValues(pi, m);
         }
         return ep.isReadable(type, genericType, annotations, mediaType);
     }
         
-    private <T> boolean matchesWriterCriterias(ProviderInfo<MessageBodyWriter<?>> pi,
-                                               Class<T> type,
-                                               Type genericType,
-                                               Annotation[] annotations,
-                                               MediaType mediaType,
-                                               Message m) {
+    private <T> boolean matchesWriterMediaTypes(ProviderInfo<MessageBodyWriter<?>> pi,
+                                                MediaType mediaType) {
         MessageBodyWriter<?> ep = pi.getProvider();
         List<MediaType> supportedMediaTypes = JAXRSUtils.getProviderProduceTypes(ep);
         
@@ -656,9 +751,16 @@ public abstract class ProviderFactory {
             JAXRSUtils.intersectMimeTypes(Collections.singletonList(mediaType),
                                           supportedMediaTypes, false);
 
-        if (availableMimeTypes.size() == 0) {
-            return false;
-        }
+        return availableMimeTypes.size() != 0;
+    }
+    
+    private boolean isWriteable(ProviderInfo<MessageBodyWriter<?>> pi,
+                               Class<?> type,
+                               Type genericType,
+                               Annotation[] annotations,
+                               MediaType mediaType,
+                               Message m) {
+        MessageBodyWriter<?> ep = pi.getProvider();
         if (m.get(ACTIVE_JAXRS_PROVIDER_KEY) != ep) {
             injectContextValues(pi, m);
         }
@@ -790,6 +892,7 @@ public abstract class ProviderFactory {
         contextProviders.clear();
         readerInterceptors.clear();
         writerInterceptors.clear();
+        paramConverters.clear();
     }
     
     public void setBus(Bus bus) {
@@ -996,7 +1099,7 @@ public abstract class ProviderFactory {
     
     static class ContextResolverProxy<T> implements ContextResolver<T> {
         private List<ContextResolver<T>> candidates; 
-        public ContextResolverProxy(List<ContextResolver<T>> candidates) {
+        ContextResolverProxy(List<ContextResolver<T>> candidates) {
             this.candidates = candidates;
         }
         public T getContext(Class<?> cls) {
@@ -1121,7 +1224,8 @@ public abstract class ProviderFactory {
             names = ((FilterProviderInfo<?>)p).getNameBinding();
         }
         if (names == null) {
-            names = AnnotationUtils.getNameBindings(p.getProvider().getClass().getAnnotations());
+            Class<?> pClass = ClassHelper.getRealClass(p.getBus(), p.getProvider());
+            names = AnnotationUtils.getNameBindings(pClass.getAnnotations());
         }
         if (names.isEmpty()) {
             names = Collections.singleton(DEFAULT_FILTER_NAME_BINDING);
@@ -1208,11 +1312,10 @@ public abstract class ProviderFactory {
         return theProviders;
     }
     
-    public MessageBodyWriter<?> getRegisteredJaxbWriter() {
+    public MessageBodyWriter<?> getDefaultJaxbWriter() {
         for (ProviderInfo<MessageBodyWriter<?>> pi : this.messageWriters) {    
             Class<?> cls = pi.getProvider().getClass();
-            if (cls.getName().equals(JAXB_PROVIDER_NAME)
-                || cls.getSuperclass().getName().equals(JAXB_PROVIDER_NAME)) {
+            if (cls.getName().equals(JAXB_PROVIDER_NAME)) {
                 return pi.getProvider();
             }
         }

@@ -21,6 +21,7 @@ package org.apache.cxf.jaxrs.servlet.sci;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -40,6 +41,7 @@ import javax.ws.rs.ext.Provider;
 
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.jaxrs.servlet.CXFNonSpringJaxrsServlet;
+import org.apache.cxf.jaxrs.utils.ResourceUtils;
 
 @HandlesTypes({ Application.class, Provider.class, Path.class })
 public class JaxrsServletContainerInitializer implements ServletContainerInitializer {  
@@ -71,7 +73,7 @@ public class JaxrsServletContainerInitializer implements ServletContainerInitial
             }
             // Servlet name is the application class name
             servletName = appClass.getName();
-            ApplicationPath appPath = appClass.getAnnotation(ApplicationPath.class);
+            ApplicationPath appPath = ResourceUtils.locateApplicationPath(appClass);
             // If ApplicationPath is available - use its value as a mapping otherwise get it from 
             // a servlet registration with an application implementation class name 
             if (appPath != null) {
@@ -99,8 +101,10 @@ public class JaxrsServletContainerInitializer implements ServletContainerInitial
                     // Servlet mapping is obtained from a servlet registration 
                     // with a JAX-RS Application class name
                     servletMapping = getServletMapping(ctx, servletName);
-                } 
-                
+                }
+                final Map<String, Object> appProperties = 
+                    app != null ? app.getProperties() : Collections.<String, Object>emptyMap();
+
                 app = new Application() {
                     @Override
                     public Set<Class<?>> getClasses() {
@@ -108,6 +112,10 @@ public class JaxrsServletContainerInitializer implements ServletContainerInitial
                         set.addAll(providersAndResources.get(Path.class));
                         set.addAll(providersAndResources.get(Provider.class));
                         return set;
+                    }
+                    @Override
+                    public Map<String, Object> getProperties() {
+                        return appProperties;
                     }
                 };
             }

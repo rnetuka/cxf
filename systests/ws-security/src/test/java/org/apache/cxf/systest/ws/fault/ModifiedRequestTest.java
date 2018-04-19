@@ -42,7 +42,7 @@ import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
 import org.apache.wss4j.common.ext.WSSecurityException;
 import org.apache.wss4j.common.util.XMLUtils;
 import org.apache.wss4j.dom.WSConstants;
-import org.apache.wss4j.dom.WSSConfig;
+import org.apache.wss4j.dom.engine.WSSConfig;
 import org.apache.wss4j.dom.util.XmlSchemaDateFormat;
 import org.example.contract.doubleit.DoubleItFault;
 import org.example.contract.doubleit.DoubleItPortType;
@@ -316,9 +316,9 @@ public class ModifiedRequestTest extends AbstractBusClientServerTestBase {
                 DateFormat zulu = new XmlSchemaDateFormat();
                 
                 XMLGregorianCalendar createdCalendar = 
-                    WSSConfig.datatypeFactory.newXMLGregorianCalendar(createdValue.getTextContent());
+                    WSSConfig.DATATYPE_FACTORY.newXMLGregorianCalendar(createdValue.getTextContent());
                 // Add 5 seconds
-                Duration duration = WSSConfig.datatypeFactory.newDuration(5000L);
+                Duration duration = WSSConfig.DATATYPE_FACTORY.newDuration(5000L);
                 createdCalendar.add(duration);
                 Date createdDate = createdCalendar.toGregorianCalendar().getTime();
                 createdValue.setTextContent(zulu.format(createdDate));

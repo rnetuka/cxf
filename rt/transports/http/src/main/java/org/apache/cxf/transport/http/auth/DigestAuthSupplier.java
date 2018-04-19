@@ -74,7 +74,7 @@ public class DigestAuthSupplier implements HttpAuthSupplier {
                 /* Preemptive authentication is only possible if we have a cached
                  * challenge
                  */
-                return di.generateAuth(currentURI.getPath(), 
+                return di.generateAuth(getAuthURI(currentURI), 
                                        authPolicy.getUserName(),
                                        authPolicy.getPassword());            
             } else {
@@ -103,13 +103,21 @@ public class DigestAuthSupplier implements HttpAuthSupplier {
                 }
                 authInfo.put(currentURI, di);
                 
-                return di.generateAuth(currentURI.getPath(), 
+                return di.generateAuth(getAuthURI(currentURI), 
                                        authPolicy.getUserName(),
                                        authPolicy.getPassword());
             }
             
         }
         return null;
+    }
+
+    private static String getAuthURI(URI currentURI) {
+        String authURI = currentURI.getPath();
+        if (currentURI.getQuery() != null) {
+            authURI += '?' + currentURI.getQuery();
+        }
+        return authURI;
     }
 
     public String createCnonce() throws UnsupportedEncodingException {

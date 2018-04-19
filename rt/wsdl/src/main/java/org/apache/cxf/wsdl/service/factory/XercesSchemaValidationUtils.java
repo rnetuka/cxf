@@ -67,7 +67,7 @@ class XercesSchemaValidationUtils {
         }
     }
     
-    class DOMLSInput implements LSInput {
+    static class DOMLSInput implements LSInput {
         private String systemId;
         private String data;
         

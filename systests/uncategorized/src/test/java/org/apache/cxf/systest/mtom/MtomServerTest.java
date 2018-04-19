@@ -23,6 +23,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -121,10 +122,10 @@ public class MtomServerTest extends AbstractBusClientServerTestBase {
         assertEquals(1, attachments.size());
 
         Attachment inAtt = attachments.iterator().next();
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        IOUtils.copy(inAtt.getDataHandler().getInputStream(), out);
-        out.close();
-        assertEquals(27364, out.size());
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            IOUtils.copy(inAtt.getDataHandler().getInputStream(), out);
+            assertEquals(27364, out.size());
+        }
     }
 
     @Test
@@ -167,12 +168,13 @@ public class MtomServerTest extends AbstractBusClientServerTestBase {
         if (is == null) {
             throw new RuntimeException("Could not find resource " + "request");
         }
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        IOUtils.copy(is, bout);
-        String s = bout.toString("UTF-8");
-        s = s.replaceAll(":9036/", ":" + PORT2 + "/");
+        try (ByteArrayOutputStream bout = new ByteArrayOutputStream()) {
+            IOUtils.copy(is, bout);
+            String s = bout.toString(StandardCharsets.UTF_8.name());
+            s = s.replaceAll(":9036/", ":" + PORT2 + "/");
 
-        os.write(s.getBytes("UTF-8"));
+            os.write(s.getBytes(StandardCharsets.UTF_8));
+        }
         os.flush();
         is.close();
         os.close();
@@ -190,12 +192,12 @@ public class MtomServerTest extends AbstractBusClientServerTestBase {
         assertEquals(1, attachments.size());
 
         Attachment inAtt = attachments.iterator().next();
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        IOUtils.copy(inAtt.getDataHandler().getInputStream(), out);
-        out.close();
-        assertTrue("Wrong size: " + out.size()
-                   + "\n" + out.toString(),
-                   out.size() > 970 && out.size() < 1020);
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            IOUtils.copy(inAtt.getDataHandler().getInputStream(), out);
+            assertTrue("Wrong size: " + out.size()
+                    + "\n" + out.toString(),
+                    out.size() > 970 && out.size() < 1020);
+        }
         unregisterServStatic("http://localhost:" + PORT2 + "/policy.xsd");
 
     }

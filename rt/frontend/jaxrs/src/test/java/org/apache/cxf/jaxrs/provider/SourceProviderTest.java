@@ -100,8 +100,9 @@ public class SourceProviderTest extends Assert {
         Source source = p.readFrom(Source.class,
                    null, null, null, null, is);
         ByteArrayOutputStream bos = new ByteArrayOutputStream(); 
-        TransformerFactory.newInstance().newTransformer()
-            .transform(source, new StreamResult(bos));
+        TransformerFactory transformerFactory = TransformerFactory.newInstance();
+        transformerFactory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        transformerFactory.newTransformer().transform(source, new StreamResult(bos));
         assertTrue(bos.toString().contains("test2"));
     }
     
@@ -161,7 +162,7 @@ public class SourceProviderTest extends Assert {
         
         private Message m = new MessageImpl();
         
-        public TestSourceProvider() {
+        TestSourceProvider() {
         }
         
         public Message getMessage() {

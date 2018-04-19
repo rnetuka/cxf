@@ -29,7 +29,6 @@ import javax.xml.namespace.QName;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
-import org.apache.cxf.jaxws.context.WebServiceContextImpl;
 import org.apache.cxf.jaxws.context.WrappedMessageContext;
 import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.security.SecurityContext;
@@ -105,7 +104,7 @@ public class ValidateSCTUnitTest extends org.junit.Assert {
         
         // Get a SecurityContextToken via the SCTProvider
         TokenProviderResponse providerResponse = createSCT();
-        Element sct = providerResponse.getToken();
+        Element sct = (Element)providerResponse.getToken();
         Document doc = sct.getOwnerDocument();
         sct = (Element)doc.appendChild(sct);
         ValidateTargetType validateTarget = new ValidateTargetType();
@@ -120,21 +119,21 @@ public class ValidateSCTUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
+        Principal principal = new CustomTokenPrincipal("alice");
         msgCtx.put(
             SecurityContext.class.getName(), 
-            createSecurityContext(new CustomTokenPrincipal("alice"))
+            createSecurityContext(principal)
         );
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
         
         // Validate a token
         RequestSecurityTokenResponseType response = 
-            validateOperation.validate(request, webServiceContext);
+            validateOperation.validate(request, principal, msgCtx);
         assertTrue(validateResponse(response));
         
         // Now remove the token from the cache before validating again
         tokenStore.remove(tokenStore.getToken(providerResponse.getTokenId()).getId());
         assertNull(tokenStore.getToken(providerResponse.getTokenId()));
-        response = validateOperation.validate(request, webServiceContext);
+        response = validateOperation.validate(request, principal, msgCtx);
         assertFalse(validateResponse(response));
     }
     
@@ -178,7 +177,7 @@ public class ValidateSCTUnitTest extends org.junit.Assert {
             "org.apache.wss4j.crypto.provider", "org.apache.wss4j.common.crypto.Merlin"
         );
         properties.put("org.apache.wss4j.crypto.merlin.keystore.password", "stsspass");
-        properties.put("org.apache.wss4j.crypto.merlin.keystore.file", "stsstore.jks");
+        properties.put("org.apache.wss4j.crypto.merlin.keystore.file", "keys/stsstore.jks");
         
         return properties;
     }
@@ -213,8 +212,7 @@ public class ValidateSCTUnitTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
-        parameters.setWebServiceContext(webServiceContext);
+        parameters.setMessageContext(msgCtx);
         
         parameters.setAppliesToAddress("http://dummy-service.com/dummy");
         

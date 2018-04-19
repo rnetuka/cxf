@@ -26,6 +26,7 @@ import org.apache.cxf.rs.security.oauth2.common.Client;
 import org.apache.cxf.rs.security.oauth2.common.OAuthPermission;
 import org.apache.cxf.rs.security.oauth2.common.ServerAccessToken;
 import org.apache.cxf.rs.security.oauth2.common.UserSubject;
+import org.apache.cxf.rs.security.oauth2.tokens.refresh.RefreshToken;
 
 /**
  * OAuth provider responsible for persisting the information about 
@@ -91,21 +92,43 @@ public interface OAuthDataProvider {
      * @param accessToken the token
      * @throws OAuthServiceException
      */
+    @Deprecated
     void removeAccessToken(ServerAccessToken accessToken) throws OAuthServiceException;
+    
+    /**
+     * Return all access tokens associated with a given client
+     * @param client the client
+     * @param subject the user subject, can be null
+     * @return list of access tokens
+     * @throws OAuthServiceException
+     */
+    List<ServerAccessToken> getAccessTokens(Client client, UserSubject subject) throws OAuthServiceException;
+    
+    /**
+     * Return all refresh tokens associated with a given client
+     * @param client the client
+     * @param subject the user subject, can be null
+     * @return list of refresh tokens
+     * @throws OAuthServiceException
+     */
+    List<RefreshToken> getRefreshTokens(Client client, UserSubject subject) throws OAuthServiceException;
     
     /**
      * Revokes a refresh or access token
      * @param token token identifier
-     * @param tokenTypeHint 
+     * @param tokenTypeHint can be access_token or refresh_token or null
      * @throws OAuthServiceException
      */
-    void revokeToken(Client client, String token, String tokenTypeHint) throws OAuthServiceException;
+    void revokeToken(Client client, String tokenId, String tokenTypeHint) throws OAuthServiceException;
 
     /**
-     * Converts the requested scope to the list of permissions  
-     * @param requestedScope
+     * Converts the requested scopes to the list of permissions.
+     * The scopes are extracted from OAuth2 'scope' property which
+     * if set may contain one or more space separated scope values
+     *   
+     * @param requestedScopes the scopes
      * @return list of permissions
      */
     List<OAuthPermission> convertScopeToPermissions(Client client,
-                                                    List<String> requestedScope);
+                                                    List<String> requestedScopes);
 }

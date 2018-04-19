@@ -19,7 +19,6 @@
 package org.apache.cxf.endpoint.dynamic;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
@@ -32,6 +31,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLDecoder;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -283,7 +283,26 @@ public class DynamicClientFactory {
                                List<String> bindingFiles) {
         return createClient(wsdlUrl.toString(), service, classLoader, port, bindingFiles);
     }
-    
+
+    static class DynamicClientImpl extends ClientImpl implements AutoCloseable {
+        final ClassLoader cl;
+        final ClassLoader orig;
+        DynamicClientImpl(Bus bus, Service svc, QName port,
+                          EndpointImplFactory endpointImplFactory,
+                          ClassLoader l) {
+            super(bus, svc, port, endpointImplFactory);
+            cl = l;
+            orig = Thread.currentThread().getContextClassLoader();
+        }
+        @Override
+        public void close() throws Exception {
+            destroy();
+            if (Thread.currentThread().getContextClassLoader() == cl) {
+                Thread.currentThread().setContextClassLoader(orig);
+            }
+        }
+    }
+
     public Client createClient(String wsdlUrl, QName service,
                                ClassLoader classLoader, QName port,
                                List<String> bindingFiles) {
@@ -297,9 +316,6 @@ public class DynamicClientFactory {
             ? (new WSDLServiceFactory(bus, wsdlUrl)) : (new WSDLServiceFactory(bus, wsdlUrl, service));
         sf.setAllowElementRefs(allowRefs);
         Service svc = sf.create();
-
-        ClientImpl client = new ClientImpl(bus, svc, port,
-                                           getEndpointImplFactory());
 
         //all SI's should have the same schemas
         SchemaCollection schemas = svc.getServiceInfos().get(0).getXmlSchemaCollection();
@@ -368,7 +384,7 @@ public class DynamicClientFactory {
         
         List<File> srcFiles = FileUtils.getFilesRecurse(src, ".+\\.java$"); 
         if (srcFiles.size() > 0 && !compileJavaSrc(classPath.toString(), srcFiles, classes.toString())) {
-            LOG.log(Level.SEVERE , new Message("COULD_NOT_COMPILE_SRC", LOG, wsdlUrl).toString());
+            LOG.log(Level.SEVERE, new Message("COULD_NOT_COMPILE_SRC", LOG, wsdlUrl).toString());
         }
         FileUtils.removeDir(src);
         URL[] urls = null;
@@ -378,7 +394,7 @@ public class DynamicClientFactory {
             throw new IllegalStateException("Internal error; a directory returns a malformed URL: "
                                             + mue.getMessage(), mue);
         }
-        ClassLoader cl = ClassLoaderUtils.getURLClassLoader(urls, classLoader);
+        final ClassLoader cl = ClassLoaderUtils.getURLClassLoader(urls, classLoader);
 
         JAXBContext context;
         Map<String, Object> contextProperties = jaxbContextProperties;
@@ -401,6 +417,9 @@ public class DynamicClientFactory {
         JAXBDataBinding databinding = new JAXBDataBinding();
         databinding.setContext(context);
         svc.setDataBinding(databinding);
+
+        ClientImpl client = new DynamicClientImpl(bus, svc, port,
+                                                  getEndpointImplFactory(), cl);
 
         ServiceInfo svcfo = client.getEndpoint().getEndpointInfo().getService();
 
@@ -534,7 +553,7 @@ public class DynamicClientFactory {
                         continue;
                     }
                     if (key.startsWith("file:")) {
-                        in = new FileInputStream(new File(new URI(key)));
+                        in = Files.newInputStream(new File(new URI(key)).toPath());
                     } else {
                         in = new URL(key).openStream();
                     }
@@ -713,7 +732,7 @@ public class DynamicClientFactory {
         }
     }
 
-    class InnerErrorListener {
+    static class InnerErrorListener {
 
         private String url;
         private StringBuilder errors = new StringBuilder();
@@ -767,7 +786,7 @@ public class DynamicClientFactory {
     static class RelativeEntityResolver implements EntityResolver {
         private String baseURI;
 
-        public RelativeEntityResolver(String baseURI) {
+        RelativeEntityResolver(String baseURI) {
             super();
             this.baseURI = baseURI;
         }
@@ -777,7 +796,7 @@ public class DynamicClientFactory {
             if (systemId != null) {
                 File file = new File(baseURI, systemId);
                 if (file.exists()) {
-                    return new InputSource(new FileInputStream(file));
+                    return new InputSource(Files.newInputStream(file.toPath()));
                 } else {
                     return new InputSource(systemId);
                 }
@@ -998,7 +1017,7 @@ public class DynamicClientFactory {
         }
         return clone;
     }
-    public class LocationFilterReader extends StreamReaderDelegate {
+    public static class LocationFilterReader extends StreamReaderDelegate {
         boolean isImport;
         boolean isInclude;
         int locIdx = -1;

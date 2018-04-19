@@ -22,7 +22,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.StringReader;
 import java.lang.annotation.Annotation;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -145,6 +145,25 @@ public class AtomPojoProviderTest extends Assert {
                                             new Annotation[]{}, mt, null, bis);
         assertEquals("a", book.getName());
     }
+    @Test
+    public void testReadEntryNoBuilders2() throws Exception {
+        final String entry = 
+            "<!DOCTYPE entry SYSTEM \"entry://entry\"><entry xmlns=\"http://www.w3.org/2005/Atom\">"
+            + "<title type=\"text\">a</title>"
+            + "<content type=\"application/xml\">"
+            + "<book xmlns=\"\">"
+            + "<name>a</name>"
+            + "</book>"
+            + "</content>"
+            + "</entry>";
+        AtomPojoProvider provider = new AtomPojoProvider();
+        ByteArrayInputStream bis = new ByteArrayInputStream(entry.getBytes());
+        MediaType mt = MediaType.valueOf("application/atom+xml;type=entry");
+        @SuppressWarnings({"unchecked", "rawtypes" })
+        Book book = (Book)provider.readFrom((Class)Book.class, Book.class, 
+                                            new Annotation[]{}, mt, null, bis);
+        assertEquals("a", book.getName());
+    }
     
     
     @Test
@@ -180,6 +199,24 @@ public class AtomPojoProviderTest extends Assert {
     }
      
     @Test
+    public void testReadFeedWithoutBuilders2() throws Exception {
+        AtomPojoProvider provider = new AtomPojoProvider();
+        final String feed = 
+            "<!DOCTYPE feed SYSTEM \"feed://feed\"><feed xmlns=\"http://www.w3.org/2005/Atom\">"
+            + "<entry><content type=\"application/xml\"><book xmlns=\"\"><name>a</name></book></content></entry>"
+            + "<entry><content type=\"application/xml\"><book xmlns=\"\"><name>b</name></book></content></entry>"
+            + "</feed>";
+        MediaType mt = MediaType.valueOf("application/atom+xml;type=feed");
+        ByteArrayInputStream bis = new ByteArrayInputStream(feed.getBytes());
+        @SuppressWarnings({"unchecked", "rawtypes" })
+        Books books2 = (Books)provider.readFrom((Class)Books.class, Books.class, 
+                                            new Annotation[]{}, mt, null, bis);
+        List<Book> list = books2.getBooks();
+        assertEquals(2, list.size());
+        assertTrue("a".equals(list.get(0).getName()) || "a".equals(list.get(1).getName()));
+        assertTrue("b".equals(list.get(0).getName()) || "b".equals(list.get(1).getName()));
+    }
+    @Test
     public void testReadEntryNoContent() throws Exception {
         /** A sample entry without content. */
         final String entryNoContent =
@@ -197,7 +234,7 @@ public class AtomPojoProviderTest extends Assert {
                                   new Annotation[0],
                                   MediaType.valueOf("application/atom+xml;type=entry"),
                                   new MetadataMap<String, String>(),
-                                  new ByteArrayInputStream(entryNoContent.getBytes(Charset.forName("UTF-8"))));
+                                  new ByteArrayInputStream(entryNoContent.getBytes(StandardCharsets.UTF_8)));
         assertNull(type);
     }
     
@@ -231,7 +268,7 @@ public class AtomPojoProviderTest extends Assert {
                                   new Annotation[0],
                                   MediaType.valueOf(mediaType),
                                   new MetadataMap<String, String>(),
-                                  new ByteArrayInputStream(entryWithContent.getBytes(Charset.forName("UTF-8"))));
+                                  new ByteArrayInputStream(entryWithContent.getBytes(StandardCharsets.UTF_8)));
         assertNotNull(type);
     }
     

@@ -92,18 +92,13 @@ public class TransportBindingTest extends AbstractBusClientServerTestBase {
                    // set this to false to fork
                    launchServer(StaxServer.class, true)
         );
-        assertTrue(
-                   "Server failed to launch",
-                   // run the server in the same process
-                   // set this to false to fork
-                   launchServer(STSServer.class, true)
-        );
-        assertTrue(
-                   "Server failed to launch",
-                   // run the server in the same process
-                   // set this to false to fork
-                   launchServer(StaxSTSServer.class, true)
-        );
+        STSServer stsServer = new STSServer();
+        stsServer.setContext("cxf-transport.xml");
+        assertTrue(launchServer(stsServer));
+        
+        StaxSTSServer staxStsServer = new StaxSTSServer();
+        staxStsServer.setContext("stax-cxf-transport.xml");
+        assertTrue(launchServer(staxStsServer));
     }
     
     @Parameters(name = "{0}")
@@ -295,6 +290,11 @@ public class TransportBindingTest extends AbstractBusClientServerTestBase {
     
     @org.junit.Test
     public void testSAML2Dispatch() throws Exception {
+        
+        // Needed to prevent test failure using IBM JDK 
+        if ("IBM Corporation".equals(System.getProperty("java.vendor"))) {
+            System.setProperty("https.protocols", "TLSv1");
+        }
 
         SpringBusFactory bf = new SpringBusFactory();
         URL busFile = TransportBindingTest.class.getResource("cxf-client.xml");
@@ -321,8 +321,8 @@ public class TransportBindingTest extends AbstractBusClientServerTestBase {
         
         // Make a successful request
         Client client = ((DispatchImpl<DOMSource>) dispatch).getClient();
-        client.getRequestContext().put("security.username", "alice");
-        client.getRequestContext().put("ws-security.sts.client", stsClient);
+        client.getRequestContext().put(SecurityConstants.USERNAME, "alice");
+        client.getRequestContext().put(SecurityConstants.STS_CLIENT, stsClient);
         
         if (test.isStreaming()) {
             client.getRequestContext().put(SecurityConstants.ENABLE_STREAMING_SECURITY, "true");
@@ -337,6 +337,11 @@ public class TransportBindingTest extends AbstractBusClientServerTestBase {
     
     @org.junit.Test
     public void testSAML2DispatchLocation() throws Exception {
+        
+        // Needed to prevent test failure using IBM JDK 
+        if ("IBM Corporation".equals(System.getProperty("java.vendor"))) {
+            System.setProperty("https.protocols", "TLSv1");
+        }
 
         SpringBusFactory bf = new SpringBusFactory();
         URL busFile = TransportBindingTest.class.getResource("cxf-client.xml");
@@ -364,8 +369,8 @@ public class TransportBindingTest extends AbstractBusClientServerTestBase {
         
         // Make a successful request
         Client client = ((DispatchImpl<DOMSource>) dispatch).getClient();
-        client.getRequestContext().put("security.username", "alice");
-        client.getRequestContext().put("ws-security.sts.client", stsClient);
+        client.getRequestContext().put(SecurityConstants.USERNAME, "alice");
+        client.getRequestContext().put(SecurityConstants.STS_CLIENT, stsClient);
         
         if (test.isStreaming()) {
             client.getRequestContext().put(SecurityConstants.ENABLE_STREAMING_SECURITY, "true");
@@ -430,10 +435,10 @@ public class TransportBindingTest extends AbstractBusClientServerTestBase {
         STSClient stsClient = new STSClient(bus);
         stsClient.setServiceName("{http://docs.oasis-open.org/ws-sx/ws-trust/200512/}SecurityTokenService");
         stsClient.setEndpointName("{http://docs.oasis-open.org/ws-sx/ws-trust/200512/}Transport_Port");
-        
-        Map<String, Object> properties = new HashMap<String, Object>();
-        properties.put("security.username", "alice");
-        properties.put("security.callback-handler",
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put(SecurityConstants.USERNAME, "alice");
+        properties.put(SecurityConstants.CALLBACK_HANDLER,
                        "org.apache.cxf.systest.sts.common.CommonCallbackHandler");
         properties.put("ws-security.sts.token.username", "myclientkey");
         properties.put("ws-security.sts.token.properties", "clientKeystore.properties");
@@ -446,6 +451,6 @@ public class TransportBindingTest extends AbstractBusClientServerTestBase {
     
     private static void doubleIt(DoubleItPortType port, int numToDouble) {
         int resp = port.doubleIt(numToDouble);
-        assertEquals(numToDouble * 2 , resp);
+        assertEquals(numToDouble * 2, resp);
     }
 }

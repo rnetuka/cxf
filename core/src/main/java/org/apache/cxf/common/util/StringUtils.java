@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -34,7 +35,7 @@ import java.util.regex.Pattern;
 public final class StringUtils {
     public static final Map<String, Pattern> PATTERN_MAP = new HashMap<String, Pattern>();
     static {
-        String patterns[] = {"/", " ", ":", "," , ";", "=", "\\.", "\\+"}; 
+        String patterns[] = {"/", " ", ":", ",", ";", "=", "\\.", "\\+"}; 
         for (String p : patterns) {
             PATTERN_MAP.put(p, Pattern.compile(p));
         }
@@ -90,8 +91,8 @@ public final class StringUtils {
     }
     
     public static List<String> getParts(String str, String separator) {
-        List<String> ret = new ArrayList<String>();
-        List<String> parts = Arrays.asList(split(str, separator));
+        String[] parts = split(str, separator);
+        List<String> ret = new ArrayList<String>(parts.length);
         for (String part : parts) {
             if (!isEmpty(part)) {
                 ret.add(part);
@@ -197,7 +198,7 @@ public final class StringUtils {
     }    
     
     public static byte[] toBytesUTF8(String str) {
-        return toBytes(str, "UTF-8");
+        return toBytes(str, StandardCharsets.UTF_8.name());
     }
     public static byte[] toBytesASCII(String str) {
         return toBytes(str, "US-ASCII");

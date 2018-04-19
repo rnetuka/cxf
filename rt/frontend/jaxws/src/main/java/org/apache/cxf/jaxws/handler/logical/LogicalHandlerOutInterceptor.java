@@ -100,10 +100,10 @@ public class LogicalHandlerOutInterceptor
         }
     }
     
-    private class LogicalHandlerOutEndingInterceptor 
+    private static class LogicalHandlerOutEndingInterceptor 
         extends AbstractJAXWSHandlerInterceptor<Message> {
     
-        public LogicalHandlerOutEndingInterceptor(Binding binding) {
+        LogicalHandlerOutEndingInterceptor(Binding binding) {
             super(binding, Phase.POST_MARSHAL);
         }
     

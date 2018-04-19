@@ -24,7 +24,7 @@ import java.net.URL;
 import java.net.URLConnection;
 
 import org.apache.cxf.helpers.IOUtils;
-import org.apache.cxf.io.CachedOutputStream;
+import org.apache.cxf.jaxrs.client.JAXRSClientFactory;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.jaxrs.model.AbstractResourceInfo;
 import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
@@ -67,6 +67,24 @@ public class JAXRSClientServerResourceCreatedSpringBookTest extends AbstractBusC
     }
     
     @Test
+    public void testGetBookSimpleProxy() throws Exception {
+        
+        String address = "http://localhost:" + PORT + "/webapp/rest";
+        BookStoreSimple bookStore = JAXRSClientFactory.create(address, BookStoreSimple.class);
+        Book book = bookStore.getBook(444L);
+        assertEquals(444L, book.getId());
+    }
+    
+    @Test
+    public void testGetBookSimpleBeanParamProxy() throws Exception {
+        
+        String address = "http://localhost:" + PORT + "/webapp/rest";
+        BookStoreSimple bookStore = JAXRSClientFactory.create(address, BookStoreSimple.class);
+        Book book = bookStore.getBookBeanParam(new BookStoreSimple.BookBean(444));
+        assertEquals(444L, book.getId());
+    }
+    
+    @Test
     public void testGetBook123() throws Exception {
         
         String endpointAddress =
@@ -105,12 +123,7 @@ public class JAXRSClientServerResourceCreatedSpringBookTest extends AbstractBusC
     }
     
     private String getStringFromInputStream(InputStream in) throws Exception {        
-        CachedOutputStream bos = new CachedOutputStream();
-        IOUtils.copy(in, bos);
-        String str = new String(bos.getBytes()); 
-        in.close();
-        bos.close();
-        return str;
+        return IOUtils.toString(in);
     }
 
 }

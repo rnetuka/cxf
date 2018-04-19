@@ -69,6 +69,9 @@ public class IntermediaryCachingPortTypeImpl extends AbstractBusClientServerTest
             if ("standalone".equals(System.getProperty("sts.deployment"))) {
                 Map<String, Object> context = ((BindingProvider)transportPort).getRequestContext();
                 STSClient stsClient = (STSClient)context.get(SecurityConstants.STS_CLIENT);
+                if (stsClient == null) {
+                    stsClient = (STSClient)context.get("ws-" + SecurityConstants.STS_CLIENT);
+                }
                 if (stsClient != null) {
                     String location = stsClient.getWsdlLocation();
                     if (location.contains("8080")) {
@@ -88,9 +91,9 @@ public class IntermediaryCachingPortTypeImpl extends AbstractBusClientServerTest
         Assert.assertNotNull("Principal must not be null", pr);
         Assert.assertNotNull("Principal.getName() must not return null", pr.getName());
         // Assert.assertTrue("Principal must be alice", pr.getName().contains("alice"));
-        
-        // Disable the STSClient after the first invocation
-        if (i > 0) {
+
+        // Disable the STSClient after the second invocation
+        if (i > 1) {
             BindingProvider p = (BindingProvider)transportPort;
             STSClient stsClient = new STSClient(null);
             stsClient.setOnBehalfOf(new ReceivedTokenCallbackHandler());

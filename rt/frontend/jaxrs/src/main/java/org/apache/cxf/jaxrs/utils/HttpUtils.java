@@ -22,6 +22,7 @@ package org.apache.cxf.jaxrs.utils;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -34,7 +35,10 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.servlet.ServletConfig;
+import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
@@ -46,10 +50,13 @@ import javax.ws.rs.ext.RuntimeDelegate.HeaderDelegate;
 
 import org.apache.cxf.common.i18n.BundleUtils;
 import org.apache.cxf.common.logging.LogUtils;
+import org.apache.cxf.common.util.PropertyUtils;
 import org.apache.cxf.common.util.StringUtils;
 import org.apache.cxf.common.util.UrlUtils;
 import org.apache.cxf.helpers.CastUtils;
 import org.apache.cxf.jaxrs.impl.HttpHeadersImpl;
+import org.apache.cxf.jaxrs.impl.HttpServletRequestFilter;
+import org.apache.cxf.jaxrs.impl.HttpServletResponseFilter;
 import org.apache.cxf.jaxrs.impl.MetadataMap;
 import org.apache.cxf.jaxrs.impl.PathSegmentImpl;
 import org.apache.cxf.jaxrs.impl.RuntimeDelegateImpl;
@@ -71,6 +78,7 @@ public final class HttpUtils {
     
     private static final String HTTP_SCHEME = "http";
     private static final String LOCAL_HOST_IP_ADDRESS = "127.0.0.1";
+    private static final String REPLACE_LOOPBACK_PROPERTY = "replace.loopback.address.with.localhost";
     private static final String LOCAL_HOST_IP_ADDRESS_SCHEME = "://" + LOCAL_HOST_IP_ADDRESS;
     private static final String ANY_IP_ADDRESS = "0.0.0.0";
     private static final String ANY_IP_ADDRESS_SCHEME = "://" + ANY_IP_ADDRESS;
@@ -78,7 +86,8 @@ public final class HttpUtils {
         
     private static final Pattern ENCODE_PATTERN = Pattern.compile("%[0-9a-fA-F][0-9a-fA-F]");
     private static final String CHARSET_PARAMETER = "charset";
-    
+    private static final String DOUBLE_QUOTE = "\"";
+
     // there are more of such characters, ex, '*' but '*' is not affected by UrlEncode
     private static final String PATH_RESERVED_CHARACTERS = "=@/:!$&\'(),;~";
     private static final String QUERY_RESERVED_CHARACTERS = "?/,";
@@ -130,7 +139,7 @@ public final class HttpUtils {
     
     public static String urlEncode(String value) {
         
-        return urlEncode(value, "UTF-8");
+        return urlEncode(value, StandardCharsets.UTF_8.name());
     }
     
     public static String urlEncode(String value, String enc) {
@@ -275,15 +284,24 @@ public final class HttpUtils {
         if (value == null) {
             return null;
         }
-        
-        String[] values = StringUtils.split(value, "-");
-        if (values.length == 0 || values.length > 2) {
+        String language = null;
+        String locale = null;
+        int index = value.indexOf('-');
+        if (index == 0 || index == value.length() - 1) {
             throw new IllegalArgumentException("Illegal locale value : " + value);
         }
-        if (values.length == 1) {
-            return new Locale(values[0]);
+        
+        if (index > 0) {
+            language = value.substring(0, index);
+            locale = value.substring(index + 1);
         } else {
-            return new Locale(values[0], values[1]);
+            language = value;
+        }
+        
+        if (locale == null) {
+            return new Locale(language);
+        } else {
+            return new Locale(language, locale);
         }
         
     }
@@ -293,7 +311,7 @@ public final class HttpUtils {
             return -1;
         }
         try {
-            int len = Integer.valueOf(value);
+            int len = Integer.parseInt(value);
             return len >= 0 ? len : -1;
         } catch (Exception ex) {
             return -1;
@@ -342,7 +360,7 @@ public final class HttpUtils {
             (HttpServletRequest)message.get(AbstractHTTPDestination.HTTP_REQUEST);
         boolean absolute = u.isAbsolute();
         StringBuilder uriBuf = new StringBuilder(); 
-        if (request != null && (!absolute || isLocalHostOrAnyIpAddress(u, uriBuf))) {
+        if (request != null && (!absolute || isLocalHostOrAnyIpAddress(u, uriBuf, message))) {
             String serverAndPort = request.getServerName();
             boolean localAddressUsed = false;
             if (absolute) {
@@ -375,14 +393,19 @@ public final class HttpUtils {
         return u;
     }
     
-    private static boolean isLocalHostOrAnyIpAddress(URI u, StringBuilder uriStringBuffer) {
+    private static boolean isLocalHostOrAnyIpAddress(URI u, StringBuilder uriStringBuffer, Message m) {
         String uriString = u.toString();
-        boolean result = uriString.contains(LOCAL_HOST_IP_ADDRESS_SCHEME) 
+        boolean result = uriString.contains(LOCAL_HOST_IP_ADDRESS_SCHEME) && replaceLoopBackAddress(m) 
             || uriString.contains(ANY_IP_ADDRESS_SCHEME);
         uriStringBuffer.append(uriString);
         return result;
     }
     
+    private static boolean replaceLoopBackAddress(Message m) {
+        Object prop = m.getContextualProperty(REPLACE_LOOPBACK_PROPERTY);
+        return prop == null || PropertyUtils.isTrue(prop);
+    }
+
     public static void resetRequestURI(Message m, String requestURI) {
         m.remove(REQUEST_PATH_TO_MATCH_SLASH);
         m.remove(REQUEST_PATH_TO_MATCH);
@@ -528,7 +551,7 @@ public final class HttpUtils {
  
     public static String getSetEncoding(MediaType mt, MultivaluedMap<String, Object> headers,
                                         String defaultEncoding) {
-        String enc = mt.getParameters().get(CHARSET_PARAMETER);
+        String enc = getMediaTypeCharsetParameter(mt);
         if (enc == null) {
             return defaultEncoding;
         }
@@ -542,16 +565,25 @@ public final class HttpUtils {
             headers.putSingle(HttpHeaders.CONTENT_TYPE, 
                 JAXRSUtils.mediaTypeToString(mt, CHARSET_PARAMETER) 
                 + ';' + CHARSET_PARAMETER + "=" 
-                + (defaultEncoding == null ? "UTF-8" : defaultEncoding));
+                + (defaultEncoding == null ? StandardCharsets.UTF_8 : defaultEncoding));
         }
         return defaultEncoding;
     }
     
     public static String getEncoding(MediaType mt, String defaultEncoding) {
-        String charset = mt == null ? defaultEncoding : mt.getParameters().get("charset");
+        String charset = mt == null ? defaultEncoding : getMediaTypeCharsetParameter(mt);
         return charset == null ? defaultEncoding : charset;
     }
-    
+
+    public static String getMediaTypeCharsetParameter(MediaType mt) {
+        String charset = mt.getParameters().get(CHARSET_PARAMETER);
+        if (charset != null && charset.startsWith(DOUBLE_QUOTE) 
+            && charset.endsWith(DOUBLE_QUOTE) && charset.length() > 1) {
+            charset = charset.substring(1,  charset.length() - 1);
+        }
+        return charset;
+    }
+
     public static URI resolve(UriBuilder baseBuilder, URI uri) {
         if (!uri.isAbsolute()) {
             return baseBuilder.build().resolve(uri);
@@ -609,5 +641,39 @@ public final class HttpUtils {
     
     public static String toHttpLanguage(Locale locale) {
         return Headers.toHttpLanguage(locale);
+    }
+    
+    public static boolean isPayloadEmpty(MultivaluedMap<String, String> headers) {
+        if (headers != null) {
+            String value = headers.getFirst(HttpHeaders.CONTENT_LENGTH);
+            if (value != null) {
+                try {
+                    Long len = Long.valueOf(value);
+                    return len <= 0;
+                } catch (NumberFormatException ex) {
+                    // ignore
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    public static <T> T createServletResourceValue(Message m, Class<T> clazz) {
+
+        Object value = null;
+        if (clazz == HttpServletRequest.class) {
+            HttpServletRequest request = (HttpServletRequest)m.get(AbstractHTTPDestination.HTTP_REQUEST);
+            value = request != null ? new HttpServletRequestFilter(request, m) : null;
+        } else if (clazz == HttpServletResponse.class) {
+            HttpServletResponse response = (HttpServletResponse)m.get(AbstractHTTPDestination.HTTP_RESPONSE);
+            value = response != null ? new HttpServletResponseFilter(response, m) : null;
+        } else if (clazz == ServletContext.class) {
+            value = m.get(AbstractHTTPDestination.HTTP_CONTEXT);
+        } else if (clazz == ServletConfig.class) {
+            value = m.get(AbstractHTTPDestination.HTTP_CONFIG);
+        }
+
+        return clazz.cast(value);
     }
 }

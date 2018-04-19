@@ -35,6 +35,7 @@ import org.apache.cxf.Bus;
 import org.apache.cxf.common.jaxb.JAXBContextCache;
 import org.apache.cxf.common.jaxb.JAXBContextCache.CachedContextAndSchemas;
 import org.apache.cxf.common.logging.LogUtils;
+import org.apache.cxf.common.util.StringUtils;
 import org.apache.cxf.endpoint.Endpoint;
 import org.apache.cxf.message.Exchange;
 import org.apache.cxf.message.Message;
@@ -46,13 +47,9 @@ import org.apache.cxf.transport.ConduitInitiatorManager;
 import org.apache.cxf.transport.Destination;
 import org.apache.cxf.transport.MessageObserver;
 
-import static org.apache.cxf.message.Message.ASYNC_POST_RESPONSE_DISPATCH;
-import static org.apache.cxf.message.Message.REQUESTOR_ROLE;
-
 import static org.apache.cxf.ws.addressing.JAXWSAConstants.ADDRESSING_PROPERTIES_INBOUND;
 import static org.apache.cxf.ws.addressing.JAXWSAConstants.ADDRESSING_PROPERTIES_OUTBOUND;
 import static org.apache.cxf.ws.addressing.JAXWSAConstants.CLIENT_ADDRESSING_PROPERTIES;
-
 
 /**
  * Holder for utility methods relating to contexts.
@@ -132,7 +129,7 @@ public final class ContextUtils {
     * @return true if the current messaging role is that of requestor
     */
     public static boolean isRequestor(Message message) {
-        Boolean requestor = (Boolean)message.get(REQUESTOR_ROLE);
+        Boolean requestor = (Boolean)message.get(Message.REQUESTOR_ROLE);
         return requestor != null && requestor.booleanValue();
     }
 
@@ -287,6 +284,13 @@ public final class ContextUtils {
         relatesTo.setValue(uri);
         return relatesTo;
     }
+    
+    private static boolean startsWith(String value, String ref) {
+        if (StringUtils.isEmpty(value)) {
+            return false;
+        }
+        return value.startsWith(ref);
+    }
 
     /**
      * Helper method to determine if an EPR address is generic (either null,
@@ -298,8 +302,8 @@ public final class ContextUtils {
     public static boolean isGenericAddress(EndpointReferenceType ref) {
         return ref == null 
                || ref.getAddress() == null
-               || Names.WSA_ANONYMOUS_ADDRESS.equals(ref.getAddress().getValue())
-               || Names.WSA_NONE_ADDRESS.equals(ref.getAddress().getValue());
+               || startsWith(ref.getAddress().getValue(), Names.WSA_ANONYMOUS_ADDRESS)
+               || startsWith(ref.getAddress().getValue(), Names.WSA_NONE_ADDRESS);
     }
     
     /**
@@ -312,7 +316,7 @@ public final class ContextUtils {
     public static boolean isAnonymousAddress(EndpointReferenceType ref) {
         return ref == null 
                || ref.getAddress() == null
-               || Names.WSA_ANONYMOUS_ADDRESS.equals(ref.getAddress().getValue());
+               || startsWith(ref.getAddress().getValue(), Names.WSA_ANONYMOUS_ADDRESS);
     }
     
     /**
@@ -507,7 +511,7 @@ public final class ContextUtils {
      * invocation is required.
      */
     public static boolean retrieveAsyncPostResponseDispatch(Message message) {
-        Boolean ret = (Boolean)message.get(ASYNC_POST_RESPONSE_DISPATCH);
+        Boolean ret = (Boolean)message.get(Message.ASYNC_POST_RESPONSE_DISPATCH);
         return ret != null && ret.booleanValue();
     }
     

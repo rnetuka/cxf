@@ -46,6 +46,13 @@ import org.codehaus.plexus.archiver.manager.ArchiverManager;
 public class ParseJavaDocMojo extends AbstractMojo {
 
     /**
+     * The source encoding.
+     * 
+     * @parameter defaultValue = "${project.build.sourceEncoding}"
+     */
+    private String encoding;
+    
+    /**
      * @parameter expression="${project}"
      * @required
      */
@@ -127,6 +134,10 @@ public class ParseJavaDocMojo extends AbstractMojo {
             f.setAccessible(true);
             f.set(mojo, "org.apache.cxf.maven_plugin.javatowadl.DumpJavaDoc");
 
+            f = AbstractJavadocMojo.class.getDeclaredField("encoding");
+            f.setAccessible(true);
+            f.set(mojo, encoding);
+            
             f = AbstractJavadocMojo.class.getDeclaredField("stylesheet");
             f.setAccessible(true);
             f.set(mojo, "stylesheet");
@@ -205,7 +216,7 @@ public class ParseJavaDocMojo extends AbstractMojo {
                 f.set(mojo, dumpFileOutputDirectory);
             }
         
-            Method m = AbstractJavadocMojo.class.getMethod("executeReport", Locale.class);
+            Method m = AbstractJavadocMojo.class.getDeclaredMethod("executeReport", Locale.class);
             m.setAccessible(true);
             m.invoke(mojo, locale);
         } catch (Exception e) {

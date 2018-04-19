@@ -23,8 +23,10 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -60,6 +62,7 @@ import org.apache.cxf.endpoint.Server;
 import org.apache.cxf.helpers.CastUtils;
 import org.apache.cxf.jaxrs.Customer;
 import org.apache.cxf.jaxrs.Customer.CustomerContext;
+import org.apache.cxf.jaxrs.Customer.MyType;
 import org.apache.cxf.jaxrs.Customer.Query;
 import org.apache.cxf.jaxrs.Customer2;
 import org.apache.cxf.jaxrs.CustomerApplication;
@@ -74,6 +77,7 @@ import org.apache.cxf.jaxrs.SimpleFactory;
 import org.apache.cxf.jaxrs.Timezone;
 import org.apache.cxf.jaxrs.ext.ContextProvider;
 import org.apache.cxf.jaxrs.impl.HttpHeadersImpl;
+import org.apache.cxf.jaxrs.impl.HttpServletRequestFilter;
 import org.apache.cxf.jaxrs.impl.HttpServletResponseFilter;
 import org.apache.cxf.jaxrs.impl.MetadataMap;
 import org.apache.cxf.jaxrs.impl.PathSegmentImpl;
@@ -121,8 +125,8 @@ public class JAXRSUtilsTest extends Assert {
     @Test
     public void testFormParametersUTF8Encoding() throws Exception {
         JAXRSUtils.intersectMimeTypes("application/json", "application/json+v2");
-        doTestFormParamsWithEncoding("UTF-8", true);
-        doTestFormParamsWithEncoding("UTF-8", false);
+        doTestFormParamsWithEncoding(StandardCharsets.UTF_8.name(), true);
+        doTestFormParamsWithEncoding(StandardCharsets.UTF_8.name(), false);
     }
     
     @Test
@@ -846,6 +850,7 @@ public class JAXRSUtilsTest extends Assert {
                                                            messageImpl);
         assertEquals(1, params.size());
         Integer[] intValues = (Integer[])params.get(0);
+        assertEquals(2, intValues.length);
         assertEquals(1, (int)intValues[0]);
         assertEquals(2, (int)intValues[1]);
     }
@@ -863,24 +868,46 @@ public class JAXRSUtilsTest extends Assert {
                                                            messageImpl);
         assertEquals(1, params.size());
         int[] intValues = (int[])params.get(0);
+        assertEquals(2, intValues.length);
         assertEquals(1, intValues[0]);
         assertEquals(2, intValues[1]);
+    }
+    
+    @Test
+    public void testQueryParametersIntegerArrayValueIsColection() throws Exception {
+        Class<?>[] argType = {Integer[].class};
+        Method m = Customer.class.getMethod("testQueryIntegerArray", argType);
+        Message messageImpl = createMessage();
+        messageImpl.put("parse.query.value.as.collection", true);
+        messageImpl.put(Message.QUERY_STRING, "query=1&query=2,3");
+        List<Object> params = JAXRSUtils.processParameters(new OperationResourceInfo(m, 
+                                                               new ClassResourceInfo(Customer.class)),
+                                                           null, 
+                                                           messageImpl);
+        assertEquals(1, params.size());
+        Integer[] intValues = (Integer[])params.get(0);
+        assertEquals(3, intValues.length);
+        assertEquals(1, (int)intValues[0]);
+        assertEquals(2, (int)intValues[1]);
+        assertEquals(3, (int)intValues[2]);
     }
     
     @SuppressWarnings("unchecked")
     @Test
     public void testQueryParamAsListWithDefaultValue() throws Exception {
         Class<?>[] argType = {List.class, List.class, List.class, Integer[].class, 
-            List.class, List.class};
+            List.class, List.class, List.class};
         Method m = Customer.class.getMethod("testQueryAsList", argType);
         Message messageImpl = createMessage();
+        ProviderFactory.getInstance(messageImpl)
+            .registerUserProvider(new MyTypeParamConverterProvider());
         messageImpl.put(Message.QUERY_STRING, 
                 "query2=query2Value&query2=query2Value2&query3=1&query3=2&query4");
         List<Object> params = JAXRSUtils.processParameters(new OperationResourceInfo(m, 
                                                                new ClassResourceInfo(Customer.class)),
                                                            null, 
                                                            messageImpl);
-        assertEquals(6, params.size());
+        assertEquals(7, params.size());
         List<String> queryList = (List<String>)params.get(0);
         assertNotNull(queryList);
         assertEquals(1, queryList.size());
@@ -912,6 +939,12 @@ public class JAXRSUtilsTest extends Assert {
         List<String> queryList5 = (List<String>)params.get(5);
         assertNotNull(queryList5);
         assertEquals(0, queryList5.size());
+        
+        List<MyType<Integer>> queryList6 = (List<MyType<Integer>>)params.get(6);
+        assertNotNull(queryList6);
+        assertEquals(2, queryList6.size());
+        assertEquals(Integer.valueOf(1), queryList6.get(0).get());
+        assertEquals(Integer.valueOf(2), queryList6.get(1).get());
     }
     
     @Test
@@ -1709,7 +1742,7 @@ public class JAXRSUtilsTest extends Assert {
         EasyMock.replay(context);
         EasyMock.replay(config);
         
-        Message m = new MessageImpl();
+        Message m = createMessage();
         m.put(AbstractHTTPDestination.HTTP_REQUEST, request);
         m.put(AbstractHTTPDestination.HTTP_RESPONSE, response);
         m.put(AbstractHTTPDestination.HTTP_CONTEXT, context);
@@ -1718,7 +1751,7 @@ public class JAXRSUtilsTest extends Assert {
         List<Object> params = 
             JAXRSUtils.processParameters(ori, new MetadataMap<String, String>(), m);
         assertEquals("4 parameters expected", 4, params.size());
-        assertSame(request.getClass(), params.get(0).getClass());
+        assertSame(request.getClass(), ((HttpServletRequestFilter)params.get(0)).getRequest().getClass());
         assertSame(response.getClass(), params.get(1).getClass());
         assertSame(context.getClass(), params.get(2).getClass());
         assertSame(config.getClass(), params.get(3).getClass());
@@ -1789,8 +1822,10 @@ public class JAXRSUtilsTest extends Assert {
                    ((ThreadLocalProxy<ServletContext>)c.getServletContext()).get());
         assertSame(servletContextMock, 
                    ((ThreadLocalProxy<ServletContext>)c.getSuperServletContext()).get());
-        assertSame(httpRequest, 
-                   ((ThreadLocalProxy<HttpServletRequest>)c.getServletRequest()).get());
+        HttpServletRequest currentReq = 
+            ((ThreadLocalProxy<HttpServletRequest>)c.getServletRequest()).get();
+        assertSame(httpRequest,
+                   ((HttpServletRequestFilter)currentReq).getRequest());
         HttpServletResponseFilter filter = (
             HttpServletResponseFilter)((ThreadLocalProxy<HttpServletResponse>)c.getServletResponse()).get();
         assertSame(httpResponse, filter.getResponse());
@@ -1815,8 +1850,10 @@ public class JAXRSUtilsTest extends Assert {
         InjectionUtils.injectContextFields(c, cri, m);
         assertSame(servletContextMock, 
                    ((ThreadLocalProxy<ServletContext>)c.getServletContextResource()).get());
-        assertSame(httpRequest, 
-                   ((ThreadLocalProxy<HttpServletRequest>)c.getServletRequestResource()).get());
+        HttpServletRequest currentReq = 
+            ((ThreadLocalProxy<HttpServletRequest>)c.getServletRequestResource()).get();
+        assertSame(httpRequest,
+                   ((HttpServletRequestFilter)currentReq).getRequest());
         HttpServletResponseFilter filter = (
             HttpServletResponseFilter)((ThreadLocalProxy<HttpServletResponse>)c.getServletResponseResource())
                 .get();
@@ -1960,7 +1997,8 @@ public class JAXRSUtilsTest extends Assert {
         m.put(AbstractHTTPDestination.HTTP_CONTEXT, context);
         
         InjectionUtils.injectContextFields(c, ori.getClassResourceInfo(), m);
-        assertSame(request.getClass(), c.getServletRequestResource().getClass());
+        assertSame(request.getClass(), 
+                   ((HttpServletRequestFilter)c.getServletRequestResource()).getRequest().getClass());
         HttpServletResponseFilter filter = (HttpServletResponseFilter)c.getServletResponseResource();
         assertSame(response.getClass(), filter.getResponse().getClass());
         assertSame(context.getClass(), c.getServletContextResource().getClass());
@@ -1970,7 +2008,8 @@ public class JAXRSUtilsTest extends Assert {
         assertNotNull(c.getServletRequestResource());
         assertNotNull(c.getServletResponseResource());
         assertNotNull(c.getServletContextResource());
-        assertSame(request.getClass(), c.getServletRequest().getClass());
+        assertSame(request.getClass(), 
+                   ((HttpServletRequestFilter)c.getServletRequestResource()).getRequest().getClass());
         filter = (HttpServletResponseFilter)c.getServletResponse();
         assertSame(response.getClass(), filter.getResponse().getClass());
         assertSame(context.getClass(), c.getServletContext().getClass());
@@ -2047,7 +2086,35 @@ public class JAXRSUtilsTest extends Assert {
         e.put(Endpoint.class, endpoint);
         return m;
     }
-    
+    static class MyTypeParamConverterProvider 
+        implements ParamConverterProvider, ParamConverter<MyType<Integer>> {
+
+        @Override
+        public <T> ParamConverter<T> getConverter(Class<T> rawType, Type genericType,
+                                                  Annotation[] annotations) {
+            if (rawType == MyType.class) {
+                Type type = ((ParameterizedType)genericType).getActualTypeArguments()[0];
+                @SuppressWarnings("unchecked")
+                ParamConverter<T> converter = (ParamConverter<T>)this;
+                if (type == Integer.class) {
+                    return converter;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public MyType<Integer> fromString(String value) {
+            return new MyType<Integer>(Integer.valueOf(value));
+        }
+
+        @Override
+        public String toString(MyType<Integer> value) {
+            // TODO Auto-generated method stub
+            return null;
+        }
+        
+    }
     private static class LocaleParameterHandler implements ParamConverterProvider, ParamConverter<Locale> {
 
         @SuppressWarnings("unchecked")

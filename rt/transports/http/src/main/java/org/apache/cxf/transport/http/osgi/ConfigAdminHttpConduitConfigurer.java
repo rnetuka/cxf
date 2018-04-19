@@ -70,7 +70,7 @@ class ConfigAdminHttpConduitConfigurer implements ManagedServiceFactory, HTTPCon
         final Matcher matcher;
         final int order;
         
-        public PidInfo(Dictionary<String, String> p, Matcher m, int o) {
+        PidInfo(Dictionary<String, String> p, Matcher m, int o) {
             matcher = m;
             props = p;
             order = o;
@@ -121,7 +121,7 @@ class ConfigAdminHttpConduitConfigurer implements ManagedServiceFactory, HTTPCon
         String p = (String)properties.get("order");
         int order = 50; 
         if (p != null) {
-            order = Integer.valueOf(p);
+            order = Integer.parseInt(p);
         }
         
         PidInfo info = new PidInfo(properties, matcher, order);

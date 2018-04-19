@@ -42,10 +42,6 @@ import javax.xml.namespace.QName;
 import javax.xml.ws.Service;
 import javax.xml.ws.soap.SOAPBinding;
 
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.methods.FileRequestEntity;
-import org.apache.commons.httpclient.methods.PostMethod;
-import org.apache.commons.httpclient.methods.RequestEntity;
 import org.apache.cxf.Bus;
 import org.apache.cxf.endpoint.Client;
 import org.apache.cxf.feature.AbstractFeature;
@@ -60,7 +56,6 @@ import org.apache.cxf.interceptor.LoggingInInterceptor;
 import org.apache.cxf.interceptor.LoggingOutInterceptor;
 import org.apache.cxf.interceptor.transform.TransformInInterceptor;
 import org.apache.cxf.interceptor.transform.TransformOutInterceptor;
-import org.apache.cxf.io.CachedOutputStream;
 import org.apache.cxf.jaxrs.client.ClientConfiguration;
 import org.apache.cxf.jaxrs.client.JAXRSClientFactory;
 import org.apache.cxf.jaxrs.client.JAXRSClientFactoryBean;
@@ -83,7 +78,13 @@ import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
 import org.apache.cxf.transport.http.HTTPConduit;
 import org.apache.cxf.transports.http.configuration.HTTPClientPolicy;
 import org.apache.http.HttpStatus;
-
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.FileEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.util.EntityUtils;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -748,22 +749,20 @@ public class JAXRSSoapBookTest extends AbstractBusClientServerTestBase {
         
         String endpointAddress =
             "http://localhost:" + PORT + "/test/services/rest/bookstore/books";
-        
-        File input = new File(getClass().getResource("resources/add_book.txt").toURI());         
-        PostMethod post = new PostMethod(endpointAddress);
-        post.setRequestHeader("Content-Type", "application/xml");
-        RequestEntity entity = new FileRequestEntity(input, "text/xml; charset=ISO-8859-1");
-        post.setRequestEntity(entity);
-        HttpClient httpclient = new HttpClient();
-        
+        File input = new File(getClass().getResource("resources/add_book.txt").toURI());
+        CloseableHttpClient client = HttpClientBuilder.create().build();
+        HttpPost post = new HttpPost(endpointAddress);
+        post.addHeader("Content-Type", "application/xml");
+        post.setEntity(new FileEntity(input, ContentType.TEXT_XML));
+
         try {
-            int result = httpclient.executeMethod(post);
-            assertEquals(200, result);
-            
+            CloseableHttpResponse response = client.execute(post);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+
             InputStream expected = getClass().getResourceAsStream("resources/expected_add_book.txt");
             
             assertEquals(stripXmlInstructionIfNeeded(getStringFromInputStream(expected)),
-                         stripXmlInstructionIfNeeded(post.getResponseBodyAsString()));
+                         stripXmlInstructionIfNeeded(EntityUtils.toString(response.getEntity())));
         } finally {
             // Release current connection to the connection pool once you are done
             post.releaseConnection();
@@ -936,12 +935,7 @@ public class JAXRSSoapBookTest extends AbstractBusClientServerTestBase {
     }
 
     private String getStringFromInputStream(InputStream in) throws Exception {        
-        CachedOutputStream bos = new CachedOutputStream();
-        IOUtils.copy(in, bos);
-        String str = new String(bos.getBytes()); 
-        in.close();
-        bos.close();
-        return str;
+        return IOUtils.toString(in);
     }
 
     private InputStream getHttpInputStream(String endpointAddress) throws Exception {

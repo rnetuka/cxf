@@ -68,13 +68,10 @@ public class JAASTest extends AbstractBusClientServerTestBase {
                    // set this to false to fork
                    launchServer(Server2.class, true)
         );
-        assertTrue(
-                   "Server failed to launch",
-                   // run the server in the same process
-                   // set this to false to fork
-                   launchServer(STSServer.class, true)
-        );
         
+        STSServer stsServer = new STSServer();
+        stsServer.setContext("cxf-transport.xml");
+        assertTrue(launchServer(stsServer));
     }
     
     @org.junit.AfterClass
@@ -345,13 +342,13 @@ public class JAASTest extends AbstractBusClientServerTestBase {
         doubleIt("alice", "clarinet", address, false);
     }
     
-    @org.junit.Test
+    @org.junit.Test(expected = RuntimeException.class)
     public void testJAXRSUnsuccessfulAuthentication() throws Exception {
         final String address = "https://localhost:" + PORT + "/doubleit/services/doubleit-rs";
         doubleIt("alice", "clarinet2", address, true);
     }
     
-    @org.junit.Test
+    @org.junit.Test(expected = RuntimeException.class)
     public void testJAXRSUnsuccessfulAuthorization() throws Exception {
         final String address = "https://localhost:" + PORT + "/doubleit/services/doubleit-rs";
         doubleIt("bob", "trombone", address, true);
@@ -363,13 +360,13 @@ public class JAASTest extends AbstractBusClientServerTestBase {
         doubleIt("alice", "clarinet", address, false);
     }
     
-    @org.junit.Test
+    @org.junit.Test(expected = RuntimeException.class)
     public void testJAXRSUnsuccessfulAuthenticationPassthroughInvocation() throws Exception {
         final String address = "https://localhost:" + PORT + "/doubleit/services/doubleit-rs3";
         doubleIt("alice", "clarinet2", address, true);
     }
     
-    @org.junit.Test
+    @org.junit.Test(expected = RuntimeException.class)
     public void testJAXRSUnsuccessfulAuthorizationPassthroughInvocation() throws Exception {
         final String address = "https://localhost:" + PORT + "/doubleit/services/doubleit-rs3";
         doubleIt("bob", "trombone", address, true);
@@ -383,7 +380,7 @@ public class JAASTest extends AbstractBusClientServerTestBase {
     
     private static void doubleIt(DoubleItPortType port, int numToDouble) {
         int resp = port.doubleIt(numToDouble);
-        assertEquals(numToDouble * 2 , resp);
+        assertEquals(numToDouble * 2, resp);
     }
     
     private static void doubleIt(String username, String password, 

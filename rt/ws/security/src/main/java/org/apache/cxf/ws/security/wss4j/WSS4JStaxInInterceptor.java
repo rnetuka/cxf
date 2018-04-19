@@ -32,6 +32,8 @@ import javax.xml.stream.util.StreamReaderDelegate;
 
 import org.apache.cxf.binding.soap.SoapFault;
 import org.apache.cxf.binding.soap.SoapMessage;
+import org.apache.cxf.binding.soap.interceptor.AbstractSoapInterceptor;
+import org.apache.cxf.binding.soap.interceptor.StartBodyInterceptor;
 import org.apache.cxf.common.classloader.ClassLoaderUtils;
 import org.apache.cxf.common.i18n.Message;
 import org.apache.cxf.common.logging.LogUtils;
@@ -48,12 +50,12 @@ import org.apache.wss4j.common.cache.ReplayCache;
 import org.apache.wss4j.common.crypto.Crypto;
 import org.apache.wss4j.common.crypto.ThreadLocalSecurityProvider;
 import org.apache.wss4j.common.ext.WSSecurityException;
-import org.apache.wss4j.stax.ConfigurationConverter;
-import org.apache.wss4j.stax.WSSec;
-import org.apache.wss4j.stax.ext.InboundWSSec;
 import org.apache.wss4j.stax.ext.WSSConstants;
 import org.apache.wss4j.stax.ext.WSSSecurityProperties;
 import org.apache.wss4j.stax.securityEvent.WSSecurityEventConstants;
+import org.apache.wss4j.stax.setup.ConfigurationConverter;
+import org.apache.wss4j.stax.setup.InboundWSSec;
+import org.apache.wss4j.stax.setup.WSSec;
 import org.apache.wss4j.stax.validate.Validator;
 import org.apache.xml.security.exceptions.XMLSecurityException;
 import org.apache.xml.security.stax.securityEvent.AbstractSecuredElementSecurityEvent;
@@ -96,6 +98,8 @@ public class WSS4JStaxInInterceptor extends AbstractWSS4JStaxInterceptor {
         if (soapMessage.containsKey(SECURITY_PROCESSED) || isGET(soapMessage)) {
             return;
         }
+        
+        soapMessage.getInterceptorChain().add(new StaxStartBodyInterceptor());
 
         XMLStreamReader originalXmlStreamReader = soapMessage.getContent(XMLStreamReader.class);
         XMLStreamReader newXmlStreamReader;
@@ -184,7 +188,7 @@ public class WSS4JStaxInInterceptor extends AbstractWSS4JStaxInterceptor {
         final SecurityEventListener securityEventListener = new SecurityEventListener() {
             @Override
             public void registerSecurityEvent(SecurityEvent securityEvent) throws WSSecurityException {
-                if (securityEvent.getSecurityEventType() == WSSecurityEventConstants.Timestamp
+                if (securityEvent.getSecurityEventType() == WSSecurityEventConstants.TIMESTAMP
                     || securityEvent.getSecurityEventType() == WSSecurityEventConstants.SignatureValue
                     || securityEvent instanceof TokenSecurityEvent
                     || securityEvent instanceof AbstractSecuredElementSecurityEvent) {
@@ -368,15 +372,15 @@ public class WSS4JStaxInInterceptor extends AbstractWSS4JStaxInterceptor {
     ) throws WSSecurityException {
         Validator validator = loadValidator(SecurityConstants.SAML1_TOKEN_VALIDATOR, message);
         if (validator != null) {
-            properties.addValidator(WSSConstants.TAG_saml_Assertion, validator);
+            properties.addValidator(WSSConstants.TAG_SAML_ASSERTION, validator);
         }
         validator = loadValidator(SecurityConstants.SAML2_TOKEN_VALIDATOR, message);
         if (validator != null) {
-            properties.addValidator(WSSConstants.TAG_saml2_Assertion, validator);
+            properties.addValidator(WSSConstants.TAG_SAML2_ASSERTION, validator);
         }
         validator = loadValidator(SecurityConstants.USERNAME_TOKEN_VALIDATOR, message);
         if (validator != null) {
-            properties.addValidator(WSSConstants.TAG_wsse_UsernameToken, validator);
+            properties.addValidator(WSSConstants.TAG_WSSE_USERNAME_TOKEN, validator);
         }
         validator = loadValidator(SecurityConstants.SIGNATURE_TOKEN_VALIDATOR, message);
         if (validator != null) {
@@ -384,16 +388,16 @@ public class WSS4JStaxInInterceptor extends AbstractWSS4JStaxInterceptor {
         }
         validator = loadValidator(SecurityConstants.TIMESTAMP_TOKEN_VALIDATOR, message);
         if (validator != null) {
-            properties.addValidator(WSSConstants.TAG_wsu_Timestamp, validator);
+            properties.addValidator(WSSConstants.TAG_WSU_TIMESTAMP, validator);
         }
         validator = loadValidator(SecurityConstants.BST_TOKEN_VALIDATOR, message);
         if (validator != null) {
-            properties.addValidator(WSSConstants.TAG_wsse_BinarySecurityToken, validator);
+            properties.addValidator(WSSConstants.TAG_WSSE_BINARY_SECURITY_TOKEN, validator);
         }
         validator = loadValidator(SecurityConstants.SCT_TOKEN_VALIDATOR, message);
         if (validator != null) {
-            properties.addValidator(WSSConstants.TAG_wsc0502_SecurityContextToken, validator);
-            properties.addValidator(WSSConstants.TAG_wsc0512_SecurityContextToken, validator);
+            properties.addValidator(WSSConstants.TAG_WSC0502_SCT, validator);
+            properties.addValidator(WSSConstants.TAG_WSC0512_SCT, validator);
         }
     }
     
@@ -421,5 +425,45 @@ public class WSS4JStaxInInterceptor extends AbstractWSS4JStaxInterceptor {
             throw new WSSecurityException(WSSecurityException.ErrorCode.FAILURE, ex);
         }
     }
+    
+    /**
+     * This interceptor runs after the StartBodyInterceptor. It skips any white space after the SOAP:Body start tag, 
+     * to make sure that the WSS4J OperationInputProcessor is triggered by the first SOAP Body child (if it is not, 
+     * then WS-Security processing does not happen correctly).
+     */
+    private class StaxStartBodyInterceptor extends AbstractSoapInterceptor {
+        
+        StaxStartBodyInterceptor() {
+            super(Phase.READ);
+            super.addAfter(StartBodyInterceptor.class.getName());
+        }
+        
+        StaxStartBodyInterceptor(String phase) {
+            super(phase);
+        }
+
+        /** {@inheritDoc}*/
+        public void handleMessage(SoapMessage message) throws Fault {
+            if (isGET(message)) {
+                LOG.fine("StartBodyInterceptor skipped in HTTP GET method");
+                return;
+            }
+            XMLStreamReader xmlReader = message.getContent(XMLStreamReader.class);
+            try {
+                int i = xmlReader.getEventType();
+                while (i == XMLStreamReader.NAMESPACE
+                    || i == XMLStreamReader.ATTRIBUTE
+                    || i == XMLStreamReader.CHARACTERS) {
+                    i = xmlReader.next();
+                }
+            } catch (XMLStreamException e) {
+                throw new SoapFault(new Message("XML_STREAM_EXC", LOG, e.getMessage()), e, 
+                                    message.getVersion().getSender());
+            }
+
+        }
+
+    }
+
 
 }

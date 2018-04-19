@@ -1380,8 +1380,8 @@ public class CodeGenTest extends AbstractCodeGenTest {
         Class<?> sei = this.classLoader.loadClass("org.apache.w3c.epr.AddNumbersPortType");
         Method method = sei.getMethod("addNumbers", 
                                       new Class[]{javax.xml.ws.wsaddressing.W3CEndpointReference.class});
-        assertNotNull("wsdl2java does not map w3c:EndpointReferenceType to javax.xml.ws.EndpointReference"
-                      , method);
+        assertNotNull("wsdl2java does not map w3c:EndpointReferenceType to javax.xml.ws.EndpointReference",
+                      method);
     }
     
     @Test
@@ -1586,6 +1586,19 @@ public class CodeGenTest extends AbstractCodeGenTest {
         
         Class<?> fault = classLoader.loadClass("org.apache.cxf.w2j.hello_world_soap_http.NoSuchCodeLitFault");
         assertEquals(Exception.class, fault.getSuperclass());
+    }
+    @Test
+    public void testNoTargetNamespaceSchema() throws Exception {
+        env.put(ToolConstants.CFG_WSDLURL, getLocation("/wsdl2java_wsdl/cxf6580/hello_import.wsdl"));
+        env.put(ToolConstants.CFG_CATALOG, getLocation("/wsdl2java_wsdl/cxf6580/catalog.xml"));
+
+        processor.setContext(env);
+        processor.execute();
+
+        File helloFile = new File(output, "org/apache/hello_soap_http/types/Hello.java");
+        assertTrue(helloFile.exists());
+        helloFile = new File(output, "org/apache/hello_soap_http/types/HelloResponse.java");
+        assertTrue(helloFile.exists());
     }
     @Test
     public void testExceptionSuper() throws Exception {

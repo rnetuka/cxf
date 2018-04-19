@@ -238,6 +238,8 @@ public class WSDiscoveryServiceImpl implements WSDiscoveryService {
         startup(false);
     }    
     public synchronized boolean startup(boolean optional) {
+        String preferIPv4StackValue = System.getProperty("java.net.preferIPv4Stack");
+        String preferIPv6AddressesValue = System.getProperty("java.net.preferIPv6Addresses");
         if (!started && client.isAdHoc()) {
             Bus b = BusFactory.getAndSetThreadDefaultBus(bus);
             try {
@@ -245,8 +247,18 @@ public class WSDiscoveryServiceImpl implements WSDiscoveryService {
                 Map<String, Object> props = new HashMap<String, Object>();
                 props.put("jaxws.provider.interpretNullAsOneway", "true");
                 udpEndpoint.setProperties(props);
-                udpEndpoint.publish("soap.udp://239.255.255.250:3702");
-                started = true;
+                if ("true".equals(preferIPv6AddressesValue) && "false".equals(preferIPv4StackValue)) {
+                    try {
+                        udpEndpoint.publish("soap.udp://[FF02::C]:3702");
+                        started = true;
+                    } catch (Exception e) {
+                        LOG.log(Level.WARNING, "Could not start WS-Discovery Service with ipv6 address", e);
+                    }
+                }
+                if (!started) {
+                    udpEndpoint.publish("soap.udp://239.255.255.250:3702");
+                    started = true;
+                }
             } catch (RuntimeException ex) {
                 if (!optional) {
                     throw ex;
@@ -426,7 +438,7 @@ public class WSDiscoveryServiceImpl implements WSDiscoveryService {
     class WSDiscoveryProvider implements Provider<Source> {
         
         JAXBContext context;
-        public WSDiscoveryProvider() {
+        WSDiscoveryProvider() {
             try {
                 context = JAXBContextCache.getCachedContextAndSchemas(ObjectFactory.class).getContext();
             } catch (JAXBException e) {
@@ -447,7 +459,7 @@ public class WSDiscoveryServiceImpl implements WSDiscoveryService {
             inMap.put("{" + WSDVersion.INSTANCE_1_1.getAddressingNamespace() + "}*",
                       "{" + WSDVersion.INSTANCE_1_0.getAddressingNamespace() + "}*");
             
-            InTransformReader reader = new InTransformReader(domReader, inMap , null, false);
+            InTransformReader reader = new InTransformReader(domReader, inMap, null, false);
             doc = StaxUtils.read(reader);
             return new DOMSource(doc);            
         }
@@ -470,7 +482,7 @@ public class WSDiscoveryServiceImpl implements WSDiscoveryService {
                       "{" + WSDVersion.INSTANCE_1_1.getNamespace() + "}*");
             inMap.put("{" + WSDVersion.INSTANCE_1_0.getAddressingNamespace() + "}*",
                       "{" + WSDVersion.INSTANCE_1_1.getAddressingNamespace() + "}*");
-            InTransformReader reader = new InTransformReader(domReader, inMap , null, false);
+            InTransformReader reader = new InTransformReader(domReader, inMap, null, false);
             doc = StaxUtils.read(reader);
             //System.out.println(StaxUtils.toString(doc));
            

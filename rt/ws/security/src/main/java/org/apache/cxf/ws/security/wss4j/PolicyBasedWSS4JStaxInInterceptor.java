@@ -53,8 +53,8 @@ import org.apache.wss4j.policy.SP12Constants;
 import org.apache.wss4j.policy.SPConstants;
 import org.apache.wss4j.policy.model.AlgorithmSuite;
 import org.apache.wss4j.policy.stax.OperationPolicy;
-import org.apache.wss4j.policy.stax.PolicyEnforcer;
-import org.apache.wss4j.policy.stax.PolicyInputProcessor;
+import org.apache.wss4j.policy.stax.enforcer.PolicyEnforcer;
+import org.apache.wss4j.policy.stax.enforcer.PolicyInputProcessor;
 import org.apache.wss4j.stax.ext.WSSSecurityProperties;
 import org.apache.wss4j.stax.impl.securityToken.HttpsSecurityTokenImpl;
 import org.apache.wss4j.stax.securityEvent.HttpsTokenSecurityEvent;
@@ -138,7 +138,7 @@ public class PolicyBasedWSS4JStaxInInterceptor extends WSS4JStaxInInterceptor {
             );
             HttpsSecurityTokenImpl httpsSecurityToken = new HttpsSecurityTokenImpl();
             try {
-                httpsSecurityToken.addTokenUsage(WSSecurityTokenConstants.TokenUsage_MainSignature);
+                httpsSecurityToken.addTokenUsage(WSSecurityTokenConstants.TOKENUSAGE_MAIN_SIGNATURE);
             } catch (XMLSecurityException e) {
                 LOG.fine(e.getMessage());
             }
@@ -257,16 +257,23 @@ public class PolicyBasedWSS4JStaxInInterceptor extends WSS4JStaxInInterceptor {
         checkSymmetricBinding(aim, msg, securityProperties);
         checkTransportBinding(aim, msg, securityProperties);
         
-        // Allow for setting non-standard asymmetric signature algorithms
+        // Allow for setting non-standard signature algorithms
         String asymSignatureAlgorithm = 
             (String)msg.getContextualProperty(SecurityConstants.ASYMMETRIC_SIGNATURE_ALGORITHM);
-        if (asymSignatureAlgorithm != null) {
+        String symSignatureAlgorithm = 
+            (String)msg.getContextualProperty(SecurityConstants.SYMMETRIC_SIGNATURE_ALGORITHM);
+        if (asymSignatureAlgorithm != null || symSignatureAlgorithm != null) {
             Collection<AssertionInfo> algorithmSuites = 
                 aim.get(SP12Constants.ALGORITHM_SUITE);
             if (algorithmSuites != null && !algorithmSuites.isEmpty()) {
                 for (AssertionInfo algorithmSuite : algorithmSuites) {
                     AlgorithmSuite algSuite = (AlgorithmSuite)algorithmSuite.getAssertion();
-                    algSuite.setAsymmetricSignature(asymSignatureAlgorithm);
+                    if (asymSignatureAlgorithm != null) {
+                        algSuite.setAsymmetricSignature(asymSignatureAlgorithm);
+                    }
+                    if (symSignatureAlgorithm != null) {
+                        algSuite.setSymmetricSignature(symSignatureAlgorithm);
+                    }
                 }
             }
         }

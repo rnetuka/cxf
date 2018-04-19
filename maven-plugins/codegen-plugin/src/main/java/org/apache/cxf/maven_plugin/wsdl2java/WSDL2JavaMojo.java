@@ -22,13 +22,12 @@ package org.apache.cxf.maven_plugin.wsdl2java;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -158,8 +157,8 @@ public class WSDL2JavaMojo extends AbstractCodegenMoho {
     /**
      * Merge WsdlOptions that point to the same file by adding the extraargs to the first option and deleting
      * the second from the options list
-     * 
-     * @param options
+     *
+     * @param effectiveWsdlOptions
      */
     protected void mergeOptions(List<GenericWsdlOption> effectiveWsdlOptions) {
 
@@ -206,8 +205,8 @@ public class WSDL2JavaMojo extends AbstractCodegenMoho {
 
     /**
      * Determine if code should be generated from the given wsdl
-     * 
-     * @param wsdlOption
+     *
+     * @param genericWsdlOption
      * @param doneFile
      * @param wsdlURI
      * @return
@@ -241,7 +240,7 @@ public class WSDL2JavaMojo extends AbstractCodegenMoho {
             String options = wsdlOption.generateCommandLine(null, basedir, wsdlURI, false).toString();
             DataInputStream reader = null;
             try {
-                reader = new DataInputStream(new FileInputStream(doneFile));
+                reader = new DataInputStream(Files.newInputStream(doneFile.toPath()));
                 String s = reader.readUTF();
                 if (!options.equals(s)) {
                     doWork = true;
@@ -265,7 +264,7 @@ public class WSDL2JavaMojo extends AbstractCodegenMoho {
         doneFile.createNewFile();
         URI basedir = project.getBasedir().toURI();
         String options = wsdlOption.generateCommandLine(null, basedir, wsdlURI, false).toString();
-        try (DataOutputStream writer = new DataOutputStream(new FileOutputStream(doneFile))) {
+        try (DataOutputStream writer = new DataOutputStream(Files.newOutputStream(doneFile.toPath()))) {
             writer.writeUTF(options);
             writer.flush();
         }

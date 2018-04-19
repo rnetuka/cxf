@@ -19,7 +19,6 @@
 
 package org.apache.cxf.rs.security.saml.sso;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -78,7 +77,7 @@ public final class SamlpRequestComponentBuilder {
         AuthnRequest authnRequest = authnRequestBuilder.buildObject();
         authnRequest.setAssertionConsumerServiceURL(serviceURL);
         authnRequest.setForceAuthn(forceAuthn);
-        authnRequest.setID(UUID.randomUUID().toString());
+        authnRequest.setID("_" + UUID.randomUUID());
         authnRequest.setIsPassive(isPassive);
         authnRequest.setIssueInstant(new DateTime());
         authnRequest.setProtocolBinding(protocolBinding);
@@ -138,17 +137,11 @@ public final class SamlpRequestComponentBuilder {
         
         if (authnCtxClassRefList != null) {
             List<AuthnContextClassRef> classRefList = authnCtx.getAuthnContextClassRefs();
-            if (classRefList == null) {
-                classRefList = new ArrayList<>();
-            }
             classRefList.addAll(authnCtxClassRefList);
         }
         
         if (authnCtxDeclRefList != null) {
             List<AuthnContextDeclRef> declRefList = authnCtx.getAuthnContextDeclRefs();
-            if (declRefList == null) {
-                declRefList = new ArrayList<>();
-            }
             declRefList.addAll(authnCtxDeclRefList);
         }
         

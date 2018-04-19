@@ -19,12 +19,15 @@
 package org.apache.cxf.rs.security.oauth2.common;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
 import javax.xml.bind.annotation.XmlRootElement;
+
+import org.apache.cxf.rs.security.oauth2.utils.OAuthUtils;
 
 /**
  * This bean represents a resource owner authorization challenge.
@@ -46,14 +49,19 @@ public class OAuthAuthorizationData extends OAuthRedirectionState implements Ser
     private String applicationLogoUri;
     private List<String> applicationCertificates = new LinkedList<String>();
     private Map<String, String> extraApplicationProperties = new HashMap<String, String>();
+    private boolean implicitFlow;
     
-    private List<? extends Permission> permissions;
-    
+    private List<OAuthPermission> permissions;
+    private List<OAuthPermission> alreadyAuthorizedPermissions;
+    private boolean hidePreauthorizedScopesInForm;
+    private boolean applicationRegisteredDynamically;
+    private boolean supportSinglePageApplications;
+
     public OAuthAuthorizationData() {
     }
 
     /**
-     * Sets the client application name
+     * Get the client application name
      * @return application name
      */
     public String getApplicationName() {
@@ -61,7 +69,7 @@ public class OAuthAuthorizationData extends OAuthRedirectionState implements Ser
     }
 
     /**
-     * Sets the client application name
+     * Set the client application name
      * @param applicationName application name
      */
     public void setApplicationName(String applicationName) {
@@ -69,24 +77,40 @@ public class OAuthAuthorizationData extends OAuthRedirectionState implements Ser
     }
 
     /**
-     * Gets the list of scopes translated to {@link Permission} instances
+     * Get the list of scopes translated to {@link Permission} instances
      * requested by the client application
      * @return the list of scopes
      */
-    public List<? extends Permission> getPermissions() {
+    public List<OAuthPermission> getPermissions() {
         return permissions;
     }
 
     /**
-     * Gets the list of scopes translated to {@link Permission} instances
-     * @return the list of scopses
+     * Set the list of scopes translated to {@link OAuthPermission} instances
+     * @return the list of scopes
      **/
-    public void setPermissions(List<? extends Permission> permissions) {
+    public void setPermissions(List<OAuthPermission> permissions) {
         this.permissions = permissions;
+    }
+    
+    /** 
+     * Get the list of scopes already approved by a user
+     * @return the list of approved scopes
+     */
+    public List<OAuthPermission> getAlreadyAuthorizedPermissions() {
+        return alreadyAuthorizedPermissions;
     }
 
     /**
-     * Sets the authenticity token linking the authorization 
+     * Set the list of scopes already approved by a user
+     * @param permissions the list of approved scopes
+     */
+    public void setAlreadyAuthorizedPermissions(List<OAuthPermission> perms) {
+        this.alreadyAuthorizedPermissions = perms;
+    }
+
+    /**
+     * Set the authenticity token linking the authorization 
      * challenge to the current end user session
      * 
      * @param authenticityToken the session authenticity token 
@@ -96,7 +120,7 @@ public class OAuthAuthorizationData extends OAuthRedirectionState implements Ser
     }
 
     /**
-     * Gets the authenticity token linking the authorization 
+     * Get the authenticity token linking the authorization 
      * challenge to the current end user session
      * @return the session authenticity token
      */
@@ -105,7 +129,7 @@ public class OAuthAuthorizationData extends OAuthRedirectionState implements Ser
     }
 
     /**
-     * Sets the application description
+     * Set the application description
      * @param applicationDescription the description
      */
     public void setApplicationDescription(String applicationDescription) {
@@ -113,7 +137,7 @@ public class OAuthAuthorizationData extends OAuthRedirectionState implements Ser
     }
 
     /**
-     * Gets the application description
+     * Get the application description
      * @return the description
      */
     public String getApplicationDescription() {
@@ -121,7 +145,7 @@ public class OAuthAuthorizationData extends OAuthRedirectionState implements Ser
     }
 
     /**
-     * Sets the application web URI
+     * Set the application web URI
      * @param applicationWebUri the application URI
      */
     public void setApplicationWebUri(String applicationWebUri) {
@@ -129,7 +153,7 @@ public class OAuthAuthorizationData extends OAuthRedirectionState implements Ser
     }
 
     /**
-     * Gets the application web URI
+     * Get the application web URI
      * @return the application URI
      */
     public String getApplicationWebUri() {
@@ -137,7 +161,7 @@ public class OAuthAuthorizationData extends OAuthRedirectionState implements Ser
     }
 
     /**
-     * Sets the application logo URI
+     * Set the application logo URI
      * @param applicationLogoUri the logo URI
      */
     public void setApplicationLogoUri(String applicationLogoUri) {
@@ -145,7 +169,7 @@ public class OAuthAuthorizationData extends OAuthRedirectionState implements Ser
     }
 
     /**
-     * Gets the application logo URI
+     * Get the application logo URI
      * @return the logo URI
      */
     public String getApplicationLogoUri() {
@@ -153,7 +177,7 @@ public class OAuthAuthorizationData extends OAuthRedirectionState implements Ser
     }
 
     /**
-     * Sets the absolute URI where the authorization decision data 
+     * Set the absolute URI where the authorization decision data 
      * will need to be sent to
      * @param replyTo authorization decision handler URI
      */
@@ -162,7 +186,7 @@ public class OAuthAuthorizationData extends OAuthRedirectionState implements Ser
     }
 
     /**
-     * Gets the absolute URI where the authorization decision data 
+     * Get the absolute URI where the authorization decision data 
      * will need to be sent to
      * @return authorization decision handler URI
      */
@@ -192,4 +216,64 @@ public class OAuthAuthorizationData extends OAuthRedirectionState implements Ser
     public void setApplicationCertificates(List<String> applicationCertificates) {
         this.applicationCertificates = applicationCertificates;
     }
+
+    public boolean isImplicitFlow() {
+        return implicitFlow;
+    }
+
+    public void setImplicitFlow(boolean implicitFlow) {
+        this.implicitFlow = implicitFlow;
+    }
+
+    public boolean isHidePreauthorizedScopesInForm() {
+        return hidePreauthorizedScopesInForm;
+    }
+
+    public void setHidePreauthorizedScopesInForm(boolean hidePreauthorizedScopesInForm) {
+        this.hidePreauthorizedScopesInForm = hidePreauthorizedScopesInForm;
+    }
+    public List<String> getPermissionsAsStrings() {
+        return permissions != null ? OAuthUtils.convertPermissionsToScopeList(permissions) 
+            : Collections.<String>emptyList();
+    }
+    public List<String> getAlreadyAuthorizedPermissionsAsStrings() {
+        return alreadyAuthorizedPermissions != null 
+            ? OAuthUtils.convertPermissionsToScopeList(alreadyAuthorizedPermissions) 
+            : Collections.<String>emptyList();
+    }
+    public List<OAuthPermission> getAllPermissions() {
+        List<OAuthPermission> allPerms = new LinkedList<OAuthPermission>();
+        if (alreadyAuthorizedPermissions != null) {
+            allPerms.addAll(alreadyAuthorizedPermissions);
+            if (permissions != null) {
+                List<String> list = getAlreadyAuthorizedPermissionsAsStrings();
+                for (OAuthPermission perm : permissions) {
+                    if (!list.contains(perm.getPermission())) {
+                        allPerms.add(perm);
+                    }
+                }
+            }
+        } else if (permissions != null) {
+            allPerms.addAll(permissions);
+        }
+        return allPerms;
+    }
+
+    public boolean isApplicationRegisteredDynamically() {
+        return applicationRegisteredDynamically;
+    }
+
+    public void setApplicationRegisteredDynamically(boolean applicationRegisteredDynamically) {
+        this.applicationRegisteredDynamically = applicationRegisteredDynamically;
+    }
+
+    public boolean isSupportSinglePageApplications() {
+        return supportSinglePageApplications;
+    }
+
+    public void setSupportSinglePageApplications(boolean supportSinglePageApplications) {
+        this.supportSinglePageApplications = supportSinglePageApplications;
+    }
+
+    
 }

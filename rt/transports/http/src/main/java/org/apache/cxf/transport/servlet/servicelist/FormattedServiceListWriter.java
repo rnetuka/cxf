@@ -20,8 +20,12 @@ package org.apache.cxf.transport.servlet.servicelist;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.URI;
 import java.util.Map;
 
+import org.apache.cxf.Bus;
+import org.apache.cxf.common.util.PropertyUtils;
+import org.apache.cxf.helpers.CastUtils;
 import org.apache.cxf.service.model.OperationInfo;
 import org.apache.cxf.transport.AbstractDestination;
 
@@ -30,15 +34,20 @@ public class FormattedServiceListWriter implements ServiceListWriter {
     private String title;
     private Map<String, String> atomMap;
     private boolean showForeignContexts;
+    private Bus bus;
     
     public FormattedServiceListWriter(String styleSheetPath, 
                                       String title,
                                       boolean showForeignContexts,
-                                      Map<String, String> atomMap) {
+                                      Bus bus) {
         this.styleSheetPath = styleSheetPath;
         this.title = title;
         this.showForeignContexts = showForeignContexts;
-        this.atomMap = atomMap;
+        this.bus = bus;
+        if (this.bus != null) {
+            this.atomMap = 
+                CastUtils.cast((Map<?, ?>)this.bus.getProperty("org.apache.cxf.extensions.logging.atom.pull"));
+        }
     }
 
     public String getContentType() {
@@ -53,7 +62,7 @@ public class FormattedServiceListWriter implements ServiceListWriter {
                      + "\"http://www.w3.org/TR/html4/loose.dtd\">");
         writer.write("<HTML><HEAD>");
         writer.write("<LINK type=\"text/css\" rel=\"stylesheet\" href=\"" + styleSheetPath + "\">");
-        writer.write("<meta http-equiv=content-type content=\"text/html; charset=UTF-8\">");
+        writer.write("<meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">");
         if (title != null) {
             writer.write("<title>" + title + "</title>");
         } else {
@@ -62,8 +71,12 @@ public class FormattedServiceListWriter implements ServiceListWriter {
         writer.write("</head><body>");
 
         if (soapDestinations.length > 0 || restDestinations.length > 0) {
-            writeSOAPEndpoints(writer, basePath, soapDestinations);
-            writeRESTfulEndpoints(writer, basePath, restDestinations);
+            if (soapDestinations.length > 0) {
+                writeSOAPEndpoints(writer, basePath, soapDestinations);
+            }
+            if (restDestinations.length > 0) {
+                writeRESTfulEndpoints(writer, basePath, restDestinations);
+            }
         } else {
             writer.write("<span class=\"heading\">No services have been found.</span>");
         }
@@ -129,7 +142,11 @@ public class FormattedServiceListWriter implements ServiceListWriter {
                 return null;
             }
         } else {
-            return basePath + endpointAddress;
+            String address = basePath;
+            if (address.endsWith("/") && endpointAddress.startsWith("/")) { 
+                address = address.substring(0, address.length() - 1);
+            }
+            return address + endpointAddress;
         }
     }
     
@@ -157,8 +174,28 @@ public class FormattedServiceListWriter implements ServiceListWriter {
         writer.write("<tr><td>");
         writer.write("<span class=\"field\">Endpoint address:</span> " + "<span class=\"value\">"
                      + absoluteURL + "</span>");
-        writer.write("<br/><span class=\"field\">WADL :</span> " + "<a href=\"" + absoluteURL
+        if (bus != null && PropertyUtils.isTrue(bus.getProperty("wadl.service.description.available"))) {
+            writer.write("<br/><span class=\"field\">WADL :</span> " + "<a href=\"" + absoluteURL
                      + "?_wadl\">" + absoluteURL + "?_wadl" + "</a>");
+        }
+        if (bus != null && PropertyUtils.isTrue(bus.getProperty("swagger.service.description.available"))) {
+            String swaggerPath = "swagger.json";
+            if (PropertyUtils.isTrue(bus.getProperty("swagger.service.ui.available"))) {
+                URI uri = URI.create(absoluteURL);
+                String schemePath = uri.getScheme() + "://" + uri.getHost() 
+                    + (uri.getPort() == -1 ? "" : ":" + uri.getPort());
+                String relPath = absoluteURL.substring(schemePath.length());
+                if (!relPath.endsWith("/")) {
+                    relPath += "/";
+                }
+                swaggerPath = "api-docs?url=" + relPath + swaggerPath;
+            }
+            if (!absoluteURL.endsWith("/")) {
+                swaggerPath = "/" + swaggerPath;
+            }
+            writer.write("<br/><span class=\"field\">Swagger :</span> " + "<a href=\"" + absoluteURL
+                     + swaggerPath + "\">" + absoluteURL + swaggerPath + "</a>");
+        }
         addAtomLinkIfNeeded(absoluteURL, atomMap, writer);
         writer.write("</td></tr>");
     }

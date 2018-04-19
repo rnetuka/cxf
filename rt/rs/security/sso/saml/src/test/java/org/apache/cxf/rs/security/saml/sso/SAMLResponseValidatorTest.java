@@ -45,7 +45,7 @@ import org.apache.wss4j.common.saml.bean.ConditionsBean;
 import org.apache.wss4j.common.saml.bean.SubjectConfirmationDataBean;
 import org.apache.wss4j.common.saml.builder.SAML2Constants;
 import org.apache.wss4j.common.util.Loader;
-import org.apache.wss4j.dom.WSSConfig;
+import org.apache.wss4j.dom.engine.WSSConfig;
 import org.joda.time.DateTime;
 import org.opensaml.saml.common.SAMLVersion;
 import org.opensaml.saml.common.SignableSAMLObject;
@@ -462,6 +462,7 @@ public class SAMLResponseValidatorTest extends org.junit.Assert {
         InputStream input = Merlin.loadInputStream(loader, "alice.jks");
         keyStore.load(input, "password".toCharArray());
         ((Merlin)issuerCrypto).setKeyStore(keyStore);
+        issuerCrypto.setDefaultX509Identifier("alice");
         
         response.getAssertions().add(assertion.getSaml2());
         signResponse(response, "alice", "password", issuerCrypto, false);

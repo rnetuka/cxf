@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -66,11 +67,6 @@ public final class JAXBContextCache {
         private CachedContextAndSchemas(JAXBContext context, Set<Class<?>> classes, CachedContextAndSchemasInternal i) {
             this.context = context;
             this.classes = classes;
-            ccas = new WeakReference<CachedContextAndSchemasInternal>(i);
-        }
-        private CachedContextAndSchemas(CachedContextAndSchemasInternal i) {
-            this.context = i.getContext();
-            this.classes = i.getClasses();
             ccas = new WeakReference<CachedContextAndSchemasInternal>(i);
         }
         public JAXBContext getContext() {
@@ -233,10 +229,14 @@ public final class JAXBContextCache {
                 if (cachedContextAndSchemasInternal != null) {
                     context = cachedContextAndSchemasInternal.getContext();
                     if (context == null) {
-                        JAXBCONTEXT_CACHE.remove(cachedContextAndSchemasInternal.getClasses());
+                        final Set<Class<?>> cls = cachedContextAndSchemasInternal.getClasses();
+                        if (cls != null) {
+                            JAXBCONTEXT_CACHE.remove(cls);
+                        }
                         cachedContextAndSchemasInternal = null;
                     } else {
-                        return new CachedContextAndSchemas(cachedContextAndSchemasInternal);
+                        return new CachedContextAndSchemas(context, cachedContextAndSchemasInternal.getClasses(),
+                            cachedContextAndSchemasInternal);
                     }
                 }
             }
@@ -403,7 +403,7 @@ public final class JAXBContextCache {
             //ignore
         }
         try (InputStream ins = loader.getResourceAsStream("/" + pkg.replace('.', '/') + "/jaxb.index");
-            BufferedReader reader = new BufferedReader(new InputStreamReader(ins, "UTF-8"))) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(ins, StandardCharsets.UTF_8))) {
             if (!StringUtils.isEmpty(pkg)) {
                 pkg += ".";
             }

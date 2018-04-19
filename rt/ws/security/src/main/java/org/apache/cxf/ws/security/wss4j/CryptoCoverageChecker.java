@@ -48,7 +48,7 @@ import org.apache.cxf.ws.security.wss4j.CryptoCoverageUtil.CoverageType;
 import org.apache.wss4j.common.ext.WSSecurityException;
 import org.apache.wss4j.dom.WSConstants;
 import org.apache.wss4j.dom.WSDataRef;
-import org.apache.wss4j.dom.WSSecurityEngineResult;
+import org.apache.wss4j.dom.engine.WSSecurityEngineResult;
 import org.apache.wss4j.dom.handler.WSHandlerConstants;
 import org.apache.wss4j.dom.handler.WSHandlerResult;
 
@@ -91,8 +91,7 @@ public class CryptoCoverageChecker extends AbstractSoapInterceptor {
      * @param xPaths
      *            a list of XPath expressions
      */
-    public CryptoCoverageChecker(Map<String, String> prefixes, List<XPathExpression> xPaths)
-    {
+    public CryptoCoverageChecker(Map<String, String> prefixes, List<XPathExpression> xPaths) {
         super(Phase.PRE_PROTOCOL);
         this.addAfter(WSS4JInInterceptor.class.getName());
         this.setPrefixes(prefixes);
@@ -137,32 +136,34 @@ public class CryptoCoverageChecker extends AbstractSoapInterceptor {
         List<WSHandlerResult> results = CastUtils.cast(
                 (List<?>) message.get(WSHandlerConstants.RECV_RESULTS));
         
-        // Get all encrypted and signed references
-        for (WSHandlerResult wshr : results) {
-            List<WSSecurityEngineResult> signedResults = wshr.getActionResults().get(WSConstants.SIGN);
-            if (signedResults != null) {
-                for (WSSecurityEngineResult signedResult : signedResults) {
-                    List<WSDataRef> sl = 
-                        CastUtils.cast((List<?>)signedResult.get(WSSecurityEngineResult.TAG_DATA_REF_URIS));
-                    if (sl != null) {
-                        if (sl.size() == 1
-                            && sl.get(0).getName().equals(new QName(WSConstants.SIG_NS, WSConstants.SIG_LN))) {
-                            //endorsing the signature so don't include
-                            continue;
+        if (results != null) {
+            // Get all encrypted and signed references
+            for (WSHandlerResult wshr : results) {
+                List<WSSecurityEngineResult> signedResults = wshr.getActionResults().get(WSConstants.SIGN);
+                if (signedResults != null) {
+                    for (WSSecurityEngineResult signedResult : signedResults) {
+                        List<WSDataRef> sl =
+                            CastUtils.cast((List<?>)signedResult.get(WSSecurityEngineResult.TAG_DATA_REF_URIS));
+                        if (sl != null) {
+                            if (sl.size() == 1
+                                && sl.get(0).getName().equals(new QName(WSConstants.SIG_NS, WSConstants.SIG_LN))) {
+                                //endorsing the signature so don't include
+                                continue;
+                            }
+
+                            signed.addAll(sl);
                         }
-                        
-                        signed.addAll(sl);
                     }
                 }
-            }
-            
-            List<WSSecurityEngineResult> encryptedResults = wshr.getActionResults().get(WSConstants.ENCR);
-            if (encryptedResults != null) {
-                for (WSSecurityEngineResult encryptedResult : encryptedResults) {
-                    List<WSDataRef> el = 
-                        CastUtils.cast((List<?>)encryptedResult.get(WSSecurityEngineResult.TAG_DATA_REF_URIS));
-                    if (el != null) {
-                        encrypted.addAll(el);
+
+                List<WSSecurityEngineResult> encryptedResults = wshr.getActionResults().get(WSConstants.ENCR);
+                if (encryptedResults != null) {
+                    for (WSSecurityEngineResult encryptedResult : encryptedResults) {
+                        List<WSDataRef> el =
+                            CastUtils.cast((List<?>)encryptedResult.get(WSSecurityEngineResult.TAG_DATA_REF_URIS));
+                        if (el != null) {
+                            encrypted.addAll(el);
+                        }
                     }
                 }
             }

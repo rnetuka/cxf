@@ -26,7 +26,7 @@
             <entry key="ws-security.sct.validator">
                 <bean class="org.apache.cxf.systest.sts.distributed_caching.SCTTokenValidator"/>
             </entry>
-            <entry key="ws-security.sts.client">
+            <entry key="security.sts.client">
                 <bean class="org.apache.cxf.ws.security.trust.STSClient">
                     <constructor-arg ref="cxf"/>
                     <property name="wsdlLocation" value="https://localhost:${testutil.ports.distributed_caching.STSServer.2}/SecurityTokenService/Transport?wsdl"/>
@@ -45,7 +45,7 @@
                     <constructor-arg value="true"/>
                 </bean>
             </entry>
-            <entry key="ws-security.sts.client">
+            <entry key="security.sts.client">
                 <bean class="org.apache.cxf.ws.security.trust.STSClient">
                     <constructor-arg ref="cxf"/>
                     <property name="wsdlLocation" value="https://localhost:${testutil.ports.distributed_caching.STSServer.2}/SecurityTokenService/Transport?wsdl"/>
@@ -64,7 +64,7 @@
                     <constructor-arg value="true"/>
                 </bean>
             </entry>
-            <entry key="ws-security.sts.client">
+            <entry key="security.sts.client">
                 <bean class="org.apache.cxf.ws.security.trust.STSClient">
                     <constructor-arg ref="cxf"/>
                     <property name="wsdlLocation" value="https://localhost:${testutil.ports.distributed_caching.STSServer.2}/SecurityTokenService/Transport?wsdl"/>
@@ -78,10 +78,10 @@
         <httpj:engine port="${testutil.ports.distributed_caching.Server}">
             <httpj:tlsServerParameters>
                 <sec:keyManagers keyPassword="skpass">
-                    <sec:keyStore type="jks" password="sspass" resource="servicestore.jks"/>
+                    <sec:keyStore type="jks" password="sspass" resource="keys/servicestore.jks"/>
                 </sec:keyManagers>
                 <sec:trustManagers>
-                    <sec:keyStore type="jks" password="stsspass" resource="stsstore.jks"/>
+                    <sec:keyStore type="jks" password="stsspass" resource="keys/stsstore.jks"/>
                 </sec:trustManagers>
                 <sec:clientAuthentication want="true" required="true"/>
             </httpj:tlsServerParameters>
@@ -90,10 +90,10 @@
     <http:conduit name="https://localhost:.*">
         <http:tlsClientParameters disableCNCheck="true">
             <sec:trustManagers>
-                <sec:keyStore type="jks" password="sspass" resource="servicestore.jks"/>
+                <sec:keyStore type="jks" password="sspass" resource="keys/servicestore.jks"/>
             </sec:trustManagers>
             <sec:keyManagers keyPassword="skpass">
-                <sec:keyStore type="jks" password="sspass" resource="servicestore.jks"/>
+                <sec:keyStore type="jks" password="sspass" resource="keys/servicestore.jks"/>
             </sec:keyManagers>
         </http:tlsClientParameters>
     </http:conduit>

@@ -19,6 +19,7 @@
 package org.apache.cxf.ws.security.wss4j;
 
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.Provider;
 import java.util.LinkedList;
 import java.util.List;
@@ -46,11 +47,11 @@ import org.apache.wss4j.common.WSSPolicyException;
 import org.apache.wss4j.common.crypto.Crypto;
 import org.apache.wss4j.common.crypto.ThreadLocalSecurityProvider;
 import org.apache.wss4j.common.ext.WSSecurityException;
-import org.apache.wss4j.stax.ConfigurationConverter;
-import org.apache.wss4j.stax.WSSec;
-import org.apache.wss4j.stax.ext.OutboundWSSec;
 import org.apache.wss4j.stax.ext.WSSSecurityProperties;
 import org.apache.wss4j.stax.securityEvent.WSSecurityEventConstants;
+import org.apache.wss4j.stax.setup.ConfigurationConverter;
+import org.apache.wss4j.stax.setup.OutboundWSSec;
+import org.apache.wss4j.stax.setup.WSSec;
 import org.apache.xml.security.exceptions.XMLSecurityException;
 import org.apache.xml.security.stax.ext.OutboundSecurityContext;
 import org.apache.xml.security.stax.impl.OutboundSecurityContextImpl;
@@ -118,7 +119,7 @@ public class WSS4JStaxOutInterceptor extends AbstractWSS4JStaxInterceptor {
         //must turn off mtom when using WS-Sec so binary is inlined so it can
         //be properly signed/encrypted/etc...
         String mtomKey = org.apache.cxf.message.Message.MTOM_ENABLED;
-        if (mc.get(mtomKey) == Boolean.TRUE) {
+        if (Boolean.TRUE.equals(mc.get(mtomKey))) {
             LOG.warning("MTOM will be disabled as the WSS4JOutInterceptor.mtomEnabled property"
                     + " is set to false");
         }
@@ -193,7 +194,7 @@ public class WSS4JStaxOutInterceptor extends AbstractWSS4JStaxInterceptor {
         final SecurityEventListener securityEventListener = new SecurityEventListener() {
             @Override
             public void registerSecurityEvent(SecurityEvent securityEvent) throws XMLSecurityException {
-                if (securityEvent.getSecurityEventType() == WSSecurityEventConstants.SamlToken) {
+                if (securityEvent.getSecurityEventType() == WSSecurityEventConstants.SAML_TOKEN) {
                     // Store SAML keys in case we need them on the inbound side
                     TokenSecurityEvent<?> tokenSecurityEvent = (TokenSecurityEvent<?>)securityEvent;
                     WSS4JUtils.parseAndStoreStreamingSecurityToken(tokenSecurityEvent.getSecurityToken(), msg);
@@ -298,14 +299,14 @@ public class WSS4JStaxOutInterceptor extends AbstractWSS4JStaxInterceptor {
         }
 
         if (encoding == null) {
-            encoding = "UTF-8";
+            encoding = StandardCharsets.UTF_8.name();
             message.put(Message.ENCODING, encoding);
         }
         return encoding;
     }
     
     final class WSS4JStaxOutInterceptorInternal extends AbstractPhaseInterceptor<Message> {
-        public WSS4JStaxOutInterceptorInternal() {
+        WSS4JStaxOutInterceptorInternal() {
             super(Phase.PRE_STREAM_ENDING);
             getBefore().add(AttachmentOutInterceptor.AttachmentOutEndingInterceptor.class.getName());
         }

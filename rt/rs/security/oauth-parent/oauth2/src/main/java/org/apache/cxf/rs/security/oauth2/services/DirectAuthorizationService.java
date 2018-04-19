@@ -45,14 +45,16 @@ import org.apache.cxf.security.SecurityContext;
 public class DirectAuthorizationService extends AbstractOAuthService {
     private SubjectCreator subjectCreator;
     private boolean partialMatchScopeValidation;
+    private boolean useAllClientScopes;
     @POST
     @Consumes("application/x-www-form-urlencoded")
     @Produces("text/html")
     public Response authorize(MultivaluedMap<String, String> params) {
         SecurityContext sc = getAndValidateSecurityContext(params);
-        // Create a UserSubject representing the end user 
-        UserSubject userSubject = createUserSubject(sc);
         Client client = getClient(params);
+        // Create a UserSubject representing the end user 
+        UserSubject userSubject = createUserSubject(sc, params);
+        
         
         AccessTokenRegistration reg = new AccessTokenRegistration();
         reg.setClient(client);
@@ -62,6 +64,7 @@ public class DirectAuthorizationService extends AbstractOAuthService {
         String providedScope = params.getFirst(OAuthConstants.SCOPE);
         List<String> requestedScope = OAuthUtils.getRequestedScopes(client, 
                                                            providedScope, 
+                                                           useAllClientScopes,
                                                            partialMatchScopeValidation);
         
         reg.setRequestedScope(requestedScope);        
@@ -80,10 +83,11 @@ public class DirectAuthorizationService extends AbstractOAuthService {
         checkTransportSecurity();
         return securityContext;
     }
-    protected UserSubject createUserSubject(SecurityContext securityContext) {
+    protected UserSubject createUserSubject(SecurityContext securityContext,
+                                            MultivaluedMap<String, String> params) {
         UserSubject subject = null;
         if (subjectCreator != null) {
-            subject = subjectCreator.createUserSubject(getMessageContext());
+            subject = subjectCreator.createUserSubject(getMessageContext(), params);
             if (subject != null) {
                 return subject; 
             }
@@ -105,13 +109,10 @@ public class DirectAuthorizationService extends AbstractOAuthService {
         this.subjectCreator = subjectCreator;
     }
     protected Client getClient(MultivaluedMap<String, String> params) {
-        return getClient(params.getFirst(OAuthConstants.CLIENT_ID));
-    }
-    protected Client getClient(String clientId) {
         Client client = null;
         
         try {
-            client = getValidClient(clientId);
+            client = getValidClient(params.getFirst(OAuthConstants.CLIENT_ID), params);
         } catch (OAuthServiceException ex) {
             if (ex.getError() != null) {
                 reportInvalidRequestError(ex.getError(), null);
@@ -131,6 +132,10 @@ public class DirectAuthorizationService extends AbstractOAuthService {
 
     public void setPartialMatchScopeValidation(boolean partialMatchScopeValidation) {
         this.partialMatchScopeValidation = partialMatchScopeValidation;
+    }
+
+    public void setUseAllClientScopes(boolean useAllClientScopes) {
+        this.useAllClientScopes = useAllClientScopes;
     }
 }
 

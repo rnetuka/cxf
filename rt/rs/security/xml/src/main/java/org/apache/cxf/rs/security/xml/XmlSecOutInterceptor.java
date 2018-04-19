@@ -19,6 +19,7 @@
 package org.apache.cxf.rs.security.xml;
 
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ import org.apache.cxf.phase.Phase;
 import org.apache.cxf.rs.security.common.CryptoLoader;
 import org.apache.cxf.rs.security.common.RSSecurityUtils;
 import org.apache.cxf.rt.security.SecurityConstants;
+import org.apache.cxf.rt.security.utils.SecurityUtils;
 import org.apache.wss4j.common.crypto.Crypto;
 import org.apache.wss4j.common.ext.WSPasswordCallback;
 import org.apache.wss4j.common.ext.WSSecurityException;
@@ -158,9 +160,8 @@ public class XmlSecOutInterceptor extends AbstractPhaseInterceptor<Message> {
         properties.setEncryptionKey(getSymmetricKey(symEncAlgo));
         if (encryptSymmetricKey) {
             X509Certificate sendingCert = null;
-            String userName = 
-                (String)org.apache.cxf.rt.security.utils.SecurityUtils.getSecurityPropertyValue(
-                    SecurityConstants.ENCRYPT_USERNAME, message);
+            String userName =
+                (String)SecurityUtils.getSecurityPropertyValue(SecurityConstants.ENCRYPT_USERNAME, message);
             if (RSSecurityUtils.USE_REQUEST_SIGNATURE_CERT.equals(userName)
                 && !MessageUtils.isRequestor(message)) {
                 sendingCert = 
@@ -192,7 +193,9 @@ public class XmlSecOutInterceptor extends AbstractPhaseInterceptor<Message> {
             
             properties.setEncryptionKeyIdentifier(
                 convertKeyIdentifier(encryptionProperties.getEncryptionKeyIdType()));
-                                      
+
+            properties.setEncryptionKeyName(encryptionProperties.getEncryptionKeyName());
+
             if (encryptionProperties.getEncryptionKeyTransportAlgo() != null) {
                 properties.setEncryptionKeyTransportAlgorithm(
                     encryptionProperties.getEncryptionKeyTransportAlgo());
@@ -312,6 +315,7 @@ public class XmlSecOutInterceptor extends AbstractPhaseInterceptor<Message> {
         if (this.keyInfoMustBeAvailable) {
             properties.setSignatureKeyIdentifier(
                 convertKeyIdentifier(sigProps.getSignatureKeyIdType()));
+            properties.setSignatureKeyName(sigProps.getSignatureKeyName());
         } else {
             properties.setSignatureKeyIdentifier(SecurityTokenConstants.KeyIdentifier_NoKeyInfo);
         }
@@ -327,6 +331,10 @@ public class XmlSecOutInterceptor extends AbstractPhaseInterceptor<Message> {
         String transform = "http://www.w3.org/2001/10/xml-exc-c14n#";
         if (sigProps.getSignatureC14nTransform() != null) {
             transform = sigProps.getSignatureC14nTransform();
+        }
+
+        if (sigProps.getSignatureLocation() != null) {
+            properties.setSignaturePosition(sigProps.getSignatureLocation());
         }
         
         if (elementsToSign == null || elementsToSign.isEmpty()) {
@@ -418,7 +426,7 @@ public class XmlSecOutInterceptor extends AbstractPhaseInterceptor<Message> {
         }
 
         if (encoding == null) {
-            encoding = "UTF-8";
+            encoding = StandardCharsets.UTF_8.name();
             message.put(Message.ENCODING, encoding);
         }
         return encoding;
@@ -433,6 +441,8 @@ public class XmlSecOutInterceptor extends AbstractPhaseInterceptor<Message> {
             return SecurityTokenConstants.KeyIdentifier_SkiKeyIdentifier;
         } else if ("KeyValue".equals(keyIdentifier)) {
             return SecurityTokenConstants.KeyIdentifier_KeyValue;
+        } else if ("KeyName".equals(keyIdentifier)) {
+            return SecurityTokenConstants.KeyIdentifier_KeyName;
         }
         return SecurityTokenConstants.KeyIdentifier_X509KeyIdentifier;
     }
@@ -470,7 +480,7 @@ public class XmlSecOutInterceptor extends AbstractPhaseInterceptor<Message> {
     }
 
     final class XmlSecStaxOutInterceptorInternal extends AbstractPhaseInterceptor<Message> {
-        public XmlSecStaxOutInterceptorInternal() {
+        XmlSecStaxOutInterceptorInternal() {
             super(Phase.PRE_STREAM_ENDING);
         }
         

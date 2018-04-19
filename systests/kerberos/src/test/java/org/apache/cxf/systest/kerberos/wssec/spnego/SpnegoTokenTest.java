@@ -20,21 +20,21 @@
 package org.apache.cxf.systest.kerberos.wssec.spnego;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import javax.xml.namespace.QName;
 import javax.xml.ws.Service;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.cxf.Bus;
 import org.apache.cxf.bus.spring.SpringBusFactory;
 import org.apache.cxf.systest.kerberos.common.SecurityTestUtil;
 import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
 import org.apache.cxf.testutil.common.TestUtil;
 import org.apache.directory.server.annotations.CreateKdcServer;
-import org.apache.directory.server.annotations.CreateLdapServer;
 import org.apache.directory.server.annotations.CreateTransport;
 import org.apache.directory.server.core.annotations.ApplyLdifFiles;
 import org.apache.directory.server.core.annotations.CreateDS;
@@ -43,7 +43,7 @@ import org.apache.directory.server.core.annotations.CreatePartition;
 import org.apache.directory.server.core.integ.AbstractLdapTestUnit;
 import org.apache.directory.server.core.integ.FrameworkRunner;
 import org.apache.directory.server.core.kerberos.KeyDerivationInterceptor;
-import org.apache.wss4j.dom.WSSConfig;
+import org.apache.wss4j.dom.engine.WSSConfig;
 import org.example.contract.doubleit.DoubleItPortType;
 import org.junit.Assert;
 import org.junit.Before;
@@ -76,15 +76,9 @@ import org.junit.runner.RunWith;
         }
 )
 
-@CreateLdapServer(
-    transports = {
-        @CreateTransport(protocol = "LDAP")
-        }
-)
-
 @CreateKdcServer(
     transports = {
-        @CreateTransport(protocol = "KRB", address = "127.0.0.1")
+        @CreateTransport(protocol = "KRB", address = "localhost")
         },
     primaryRealm = "service.ws.apache.org",
     kdcPrincipal = "krbtgt/service.ws.apache.org@service.ws.apache.org"
@@ -117,19 +111,14 @@ public class SpnegoTokenTest extends AbstractLdapTestUnit {
             }
             
             // Read in krb5.conf and substitute in the correct port
-            File f = new File(basedir + "/src/test/resources/krb5.conf");
-            
-            FileInputStream inputStream = new FileInputStream(f);
-            String content = IOUtils.toString(inputStream, "UTF-8");
-            inputStream.close();
+            Path path = FileSystems.getDefault().getPath(basedir, "/src/test/resources/krb5.conf");
+            String content = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
             content = content.replaceAll("port", "" + super.getKdcServer().getTransports()[0].getPort());
             
-            File f2 = new File(basedir + "/target/test-classes/wssec.spnego.krb5.conf");
-            FileOutputStream outputStream = new FileOutputStream(f2);
-            IOUtils.write(content, outputStream, "UTF-8");
-            outputStream.close();
+            Path path2 = FileSystems.getDefault().getPath(basedir, "/target/test-classes/wssec.spnego.krb5.conf");
+            Files.write(path2, content.getBytes());
             
-            System.setProperty("java.security.krb5.conf", f2.getPath());
+            System.setProperty("java.security.krb5.conf", path2.toString());
             
             portUpdated = true;
         }

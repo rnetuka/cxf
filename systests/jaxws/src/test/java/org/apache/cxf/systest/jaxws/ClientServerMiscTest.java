@@ -39,6 +39,7 @@ import javax.xml.namespace.QName;
 import javax.xml.ws.BindingProvider;
 import javax.xml.ws.Holder;
 import javax.xml.ws.Service;
+import javax.xml.ws.WebServiceException;
 import javax.xml.ws.soap.SOAPBinding;
 import javax.xml.ws.soap.SOAPFaultException;
 import javax.xml.xpath.XPathConstants;
@@ -54,9 +55,11 @@ import org.apache.cxf.anonymous_complex_type.SplitName;
 import org.apache.cxf.anonymous_complex_type.SplitNameResponse.Names;
 import org.apache.cxf.binding.soap.Soap11;
 import org.apache.cxf.binding.soap.SoapFault;
+import org.apache.cxf.binding.xml.XMLBinding;
 import org.apache.cxf.common.util.ASMHelper;
 import org.apache.cxf.common.util.ReflectionUtil;
 import org.apache.cxf.endpoint.Client;
+import org.apache.cxf.frontend.ClientProxy;
 import org.apache.cxf.frontend.ClientProxyFactoryBean;
 import org.apache.cxf.helpers.IOUtils;
 import org.apache.cxf.helpers.XPathUtils;
@@ -473,6 +476,30 @@ public class ClientServerMiscTest extends AbstractBusClientServerTestBase {
         String echoMsg = port.echo("Hello");
         assertEquals("Hello", echoMsg);
     }
+    
+    @Test
+    public void testSimpleClientWithWsdlAndBindingId() throws Exception {
+        QName portName = new QName("http://cxf.apache.org/systest/jaxws/DocLitWrappedCodeFirstService",
+            "DocLitWrappedCodeFirstServicePort");
+        QName servName = new QName("http://cxf.apache.org/systest/jaxws/DocLitWrappedCodeFirstService",
+            "DocLitWrappedCodeFirstService");
+
+        ClientProxyFactoryBean factory = new ClientProxyFactoryBean();
+        factory.setBindingId("http://cxf.apache.org/bindings/xformat");
+        factory.setWsdlURL(ServerMisc.DOCLIT_CODEFIRST_URL_XMLBINDING + "?wsdl");
+        factory.setServiceName(servName);
+        factory.setServiceClass(DocLitWrappedCodeFirstService.class);
+        factory.setEndpointName(portName);
+        factory.setAddress(ServerMisc.DOCLIT_CODEFIRST_URL_XMLBINDING);
+        DocLitWrappedCodeFirstService port = (DocLitWrappedCodeFirstService) factory.create();
+        assertNotNull(port);
+        assertEquals(factory.getBindingId(), "http://cxf.apache.org/bindings/xformat");
+        assertTrue(ClientProxy.getClient(port).getEndpoint().getBinding() instanceof XMLBinding);
+        
+        String echoMsg = port.echo("Hello");
+        assertEquals("Hello", echoMsg);
+    }
+    
     private void runDocLitTest(DocLitWrappedCodeFirstService port) throws Exception {
         assertEquals("snarf", port.doBug2692("snarf"));
         CXF2411Result<CXF2411SubClass> o = port.doCXF2411();
@@ -570,7 +597,7 @@ public class ClientServerMiscTest extends AbstractBusClientServerTestBase {
         assertEquals(2, foos2.get(0).length);
         assertEquals(2, foos2.get(1).length);
         
-        int ints[] = port.echoIntArray(new int[] {1, 2 , 3}, null);
+        int ints[] = port.echoIntArray(new int[] {1, 2, 3}, null);
         assertEquals(3, ints.length);
         assertEquals(1, ints[0]);
 
@@ -621,6 +648,12 @@ public class ClientServerMiscTest extends AbstractBusClientServerTestBase {
             assertEquals("Throw user fault -3", ex.getMessage());
         }    
         
+        try {
+            port.throwException(-4);
+            fail("Expected exception not found");
+        } catch (WebServiceException ex) {
+            assertEquals("RuntimeException!!", ex.getMessage());
+        }    
         try {
             Foo foo = new Foo();
             foo.setNameIgnore("DoNoName");
@@ -673,7 +706,7 @@ public class ClientServerMiscTest extends AbstractBusClientServerTestBase {
 
     private void runRpcLitTest(RpcLitCodeFirstService port) throws Exception {
        
-        String ret[] = port.convertToString(new int[] {1, 2 , 3});
+        String ret[] = port.convertToString(new int[] {1, 2, 3});
         assertEquals(3, ret.length);
 
         List<String> rev = new ArrayList<String>(Arrays.asList(RpcLitCodeFirstServiceImpl.DATA));
@@ -887,14 +920,15 @@ public class ClientServerMiscTest extends AbstractBusClientServerTestBase {
         String str = IOUtils.readStringFromStream(con.getInputStream());
         
         //Check to make sure SESSIONID is a string
-        BufferedReader reader = new BufferedReader(new StringReader(str)); 
-        String s = reader.readLine();
-        while (s != null) {
-            if (s.contains("SESSIONID") && s.contains("element ")) {
-                assertTrue(s.contains("string"));
-                assertFalse(s.contains("headerObj"));
+        try (BufferedReader reader = new BufferedReader(new StringReader(str))) {
+            String s = reader.readLine();
+            while (s != null) {
+                if (s.contains("SESSIONID") && s.contains("element ")) {
+                    assertTrue(s.contains("string"));
+                    assertFalse(s.contains("headerObj"));
+                }
+                s = reader.readLine();   
             }
-            s = reader.readLine();   
         }
         //wsdl is correct, now make sure we can actually invoke it 
         QName name = new QName("http://cxf.apache.org/cxf5064", 

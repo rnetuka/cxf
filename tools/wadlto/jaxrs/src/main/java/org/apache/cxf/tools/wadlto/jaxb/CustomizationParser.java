@@ -19,10 +19,10 @@
 package org.apache.cxf.tools.wadlto.jaxb;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.net.URL;
+import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -30,6 +30,7 @@ import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
 import org.w3c.dom.Element;
+
 import org.xml.sax.InputSource;
 
 import org.apache.cxf.Bus;
@@ -90,9 +91,20 @@ public final class CustomizationParser {
         //pass additional JAXB compiler arguments
         Object jaxbCompilerArgs = env.get(WadlToolConstants.CFG_XJC_ARGS);
         if (jaxbCompilerArgs != null) {
+            
             String[] jaxbArgs = jaxbCompilerArgs instanceof String
                     ? new String[]{(String)jaxbCompilerArgs} : (String[])jaxbCompilerArgs;
-            compilerArgs.addAll(Arrays.asList(jaxbArgs));
+            List<String> jaxbArgsList = new LinkedList<String>();
+            for (String jaxbArg : jaxbArgs) {        
+                String[] allArgs = jaxbArg.split(" ");
+                for (String arg : allArgs) {
+                    String s = arg.trim();
+                    if (!StringUtils.isEmpty(s)) {
+                        jaxbArgsList.add(s);
+                    }
+                }
+            }
+            compilerArgs.addAll(jaxbArgsList);
         }
         
         // Schema Namespace to Package customizations
@@ -142,7 +154,7 @@ public final class CustomizationParser {
         InputSource result = null;
         ele.setAttribute("schemaLocation", schemaLoc);
         File tmpFile = FileUtils.createTempFile("jaxbbinding", ".xml");
-        StaxUtils.writeTo(ele, new FileOutputStream(tmpFile));
+        StaxUtils.writeTo(ele, Files.newOutputStream(tmpFile.toPath()));
         result = new InputSource(URIParserUtil.getAbsoluteURI(tmpFile.getAbsolutePath()));
         tmpFile.deleteOnExit();
         return result;

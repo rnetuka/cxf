@@ -25,6 +25,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.ParseException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
@@ -67,6 +68,16 @@ public abstract class AbstractSearchConditionParser<T> implements SearchConditio
     
     protected String getActualSetterName(String setter) {
         String beanPropertyName = beanPropertiesMap == null ? null : beanPropertiesMap.get(setter);
+        if (beanPropertyName == null) {
+            Message m = JAXRSUtils.getCurrentMessage();
+            if (m != null) {
+                Object converterProp = m.getContextualProperty(SearchUtils.BEAN_PROPERTY_CONVERTER);
+                if (converterProp != null) {
+                    PropertyNameConverter converter = (PropertyNameConverter)converterProp;
+                    beanPropertyName = converter.getPropertyName(setter);
+                }
+            }
+        }
         return beanPropertyName != null ? beanPropertyName : setter;
     }
     
@@ -200,8 +211,13 @@ public abstract class AbstractSearchConditionParser<T> implements SearchConditio
                     nextObject = actualReturnType.newInstance();
                 }
                 Method setterM = actualType.getMethod("set" + nextPart, new Class[]{returnType});
-                Object valueObjectValue = lastTry || !returnCollection 
-                    ? nextObject : getCollectionSingleton(valueType, nextObject); 
+                Object valueObjectValue = null;
+                if (lastTry || !returnCollection) {
+                    valueObjectValue = nextObject;
+                } else {
+                    Class<?> collCls = Collection.class.isAssignableFrom(valueType) ? valueType : returnType;
+                    valueObjectValue = getCollectionSingleton(collCls, nextObject);
+                }
                 setterM.invoke(valueObject, new Object[]{valueObjectValue});
                 
                 if (lastTry) {
@@ -233,7 +249,7 @@ public abstract class AbstractSearchConditionParser<T> implements SearchConditio
     private boolean paramConverterAvailable(Class<?> pClass) {
         Message m = JAXRSUtils.getCurrentMessage();
         ServerProviderFactory pf = m == null ? null : ServerProviderFactory.getInstance(m);
-        return pf != null && pf.createParameterHandler(pClass, pClass, EMPTY_ANNOTTAIONS) != null;
+        return pf != null && pf.createParameterHandler(pClass, pClass, EMPTY_ANNOTTAIONS, m) != null;
     }
 
     private CollectionCheck getCollectionCheck(String propName, boolean isCollection, Class<?> actualCls) {

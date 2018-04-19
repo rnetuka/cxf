@@ -19,7 +19,6 @@
 
 package org.apache.cxf.interceptor;
 
-
 import java.io.FilterWriter;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -35,7 +34,6 @@ import org.apache.cxf.io.CachedOutputStream;
 import org.apache.cxf.io.CachedOutputStreamCallback;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.phase.Phase;
-
 
 /**
  * 
@@ -70,7 +68,7 @@ public class LoggingOutInterceptor extends AbstractLoggingInterceptor {
             return;
         }
         Logger logger = getMessageLogger(message);
-        if (logger.isLoggable(Level.INFO) || writer != null) {
+        if (logger != null && (logger.isLoggable(Level.INFO) || writer != null)) {
             // Write the output while caching it for the log message
             boolean hasLogged = message.containsKey(LOG_SETUP);
             if (!hasLogged) {
@@ -144,7 +142,7 @@ public class LoggingOutInterceptor extends AbstractLoggingInterceptor {
         Message message;
         final int lim;
         
-        public LogWriter(Logger logger, Message message, Writer writer) {
+        LogWriter(Logger logger, Message message, Writer writer) {
             super(writer);
             this.logger = logger;
             this.message = message;
@@ -189,7 +187,7 @@ public class LoggingOutInterceptor extends AbstractLoggingInterceptor {
             } catch (Exception ex) {
                 //ignore
             }
-            log(logger, buffer.toString());
+            log(logger, formatLoggingMessage(buffer));
             message.setContent(Writer.class, out);
             super.close();
         }
@@ -206,7 +204,7 @@ public class LoggingOutInterceptor extends AbstractLoggingInterceptor {
         private final Logger logger; //NOPMD
         private final int lim;
         
-        public LoggingCallback(final Logger logger, final Message msg, final OutputStream os) {
+        LoggingCallback(final Logger logger, final Message msg, final OutputStream os) {
             this.logger = logger;
             this.message = msg;
             this.origStream = os;
@@ -228,7 +226,7 @@ public class LoggingOutInterceptor extends AbstractLoggingInterceptor {
             }
             if (!isShowMultipartContent() && isMultipartContent(ct)) {
                 buffer.getMessage().append(MULTIPART_CONTENT_MESSAGE).append('\n');
-                log(logger, buffer.toString());
+                log(logger, formatLoggingMessage(buffer));
                 return;
             }
             
@@ -259,8 +257,7 @@ public class LoggingOutInterceptor extends AbstractLoggingInterceptor {
             } catch (Exception ex) {
                 //ignore
             }
-            message.setContent(OutputStream.class, 
-                               origStream);
+            message.setContent(OutputStream.class, origStream);
         }
     }
 

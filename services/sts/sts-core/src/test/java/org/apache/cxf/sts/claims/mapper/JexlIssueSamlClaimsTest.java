@@ -20,6 +20,7 @@ package org.apache.cxf.sts.claims.mapper;
 
 import java.io.IOException;
 import java.net.URI;
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,7 +36,6 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 import org.apache.cxf.helpers.DOMUtils;
-import org.apache.cxf.jaxws.context.WebServiceContextImpl;
 import org.apache.cxf.jaxws.context.WrappedMessageContext;
 import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.rt.security.claims.Claim;
@@ -64,8 +64,8 @@ import org.apache.cxf.sts.token.provider.SAMLTokenProvider;
 import org.apache.cxf.sts.token.provider.TokenProvider;
 import org.apache.cxf.sts.token.provider.TokenProviderParameters;
 import org.apache.cxf.sts.token.provider.TokenProviderResponse;
+import org.apache.cxf.sts.token.realm.RealmProperties;
 import org.apache.cxf.sts.token.realm.Relationship;
-import org.apache.cxf.sts.token.realm.SAMLRealm;
 import org.apache.cxf.sts.token.validator.IssuerSAMLRealmCodec;
 import org.apache.cxf.sts.token.validator.SAMLTokenValidator;
 import org.apache.cxf.sts.token.validator.TokenValidator;
@@ -100,8 +100,9 @@ public class JexlIssueSamlClaimsTest extends org.junit.Assert {
      * @return
      */
     private List<RequestSecurityTokenResponseType> issueToken(TokenIssueOperation issueOperation,
-        RequestSecurityTokenType request, WebServiceContextImpl webServiceContext) {
-        RequestSecurityTokenResponseCollectionType response = issueOperation.issue(request, webServiceContext);
+        RequestSecurityTokenType request, Principal principal, Map<String, Object> messageContext) {
+        RequestSecurityTokenResponseCollectionType response = 
+            issueOperation.issue(request, principal, messageContext);
         List<RequestSecurityTokenResponseType> securityTokenResponse = response.getRequestSecurityTokenResponse();
         assertTrue(!securityTokenResponse.isEmpty());
         return securityTokenResponse;
@@ -124,7 +125,7 @@ public class JexlIssueSamlClaimsTest extends org.junit.Assert {
     public void testIssueSaml2TokenOnBehalfOfSaml2DifferentRealmFederateClaims() throws Exception {
         TokenIssueOperation issueOperation = new TokenIssueOperation();
 
-        Map<String, SAMLRealm> realms = createSamlRealms();
+        Map<String, RealmProperties> realms = createSamlRealms();
 
         // Add Token Provider
         List<TokenProvider> providerList = new ArrayList<TokenProvider>();
@@ -173,10 +174,9 @@ public class JexlIssueSamlClaimsTest extends org.junit.Assert {
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
         msgCtx.put("url", "https");
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
 
         List<RequestSecurityTokenResponseType> securityTokenResponseList = issueToken(issueOperation, request,
-                                                                                      webServiceContext);
+                                                                                      null, msgCtx);
         RequestSecurityTokenResponseType securityTokenResponse = securityTokenResponseList.get(0);
 
         // Test the generated token.
@@ -203,7 +203,7 @@ public class JexlIssueSamlClaimsTest extends org.junit.Assert {
         assertTrue(tokenString.contains(SAML2Constants.CONF_BEARER));
     }
 
-    private RequestSecurityTokenType createRequest(Map<String, SAMLRealm> realms, Crypto crypto)
+    private RequestSecurityTokenType createRequest(Map<String, RealmProperties> realms, Crypto crypto)
         throws WSSecurityException {
         RequestSecurityTokenType request = new RequestSecurityTokenType();
         JAXBElement<String> tokenType = new JAXBElement<String>(QNameConstants.TOKEN_TYPE, String.class,
@@ -286,7 +286,7 @@ public class JexlIssueSamlClaimsTest extends org.junit.Assert {
         Properties properties = new Properties();
         properties.put("org.apache.ws.security.crypto.provider", "org.apache.ws.security.components.crypto.Merlin");
         properties.put("org.apache.ws.security.crypto.merlin.keystore.password", "stsspass");
-        properties.put("org.apache.ws.security.crypto.merlin.keystore.file", "stsstore.jks");
+        properties.put("org.apache.ws.security.crypto.merlin.keystore.file", "keys/stsstore.jks");
 
         return properties;
     }
@@ -299,13 +299,13 @@ public class JexlIssueSamlClaimsTest extends org.junit.Assert {
         return claimType;
     }
 
-    private Map<String, SAMLRealm> createSamlRealms() {
+    private Map<String, RealmProperties> createSamlRealms() {
         // Create Realms
-        Map<String, SAMLRealm> samlRealms = new HashMap<String, SAMLRealm>();
-        SAMLRealm samlRealm = new SAMLRealm();
+        Map<String, RealmProperties> samlRealms = new HashMap<String, RealmProperties>();
+        RealmProperties samlRealm = new RealmProperties();
         samlRealm.setIssuer("A-Issuer");
         samlRealms.put("A", samlRealm);
-        samlRealm = new SAMLRealm();
+        samlRealm = new RealmProperties();
         samlRealm.setIssuer("B-Issuer");
         samlRealms.put("B", samlRealm);
         return samlRealms;
@@ -315,7 +315,7 @@ public class JexlIssueSamlClaimsTest extends org.junit.Assert {
      * Mock up an SAML assertion element
      */
     private Element createSAMLAssertion(String tokenType, Crypto crypto, String signatureUsername,
-        CallbackHandler callbackHandler, Map<String, SAMLRealm> realms) throws WSSecurityException {
+        CallbackHandler callbackHandler, Map<String, RealmProperties> realms) throws WSSecurityException {
 
         SAMLTokenProvider samlTokenProvider = new SAMLTokenProvider();
         samlTokenProvider.setRealmMap(realms);
@@ -358,7 +358,7 @@ public class JexlIssueSamlClaimsTest extends org.junit.Assert {
         assertTrue(providerResponse != null);
         assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
 
-        return providerResponse.getToken();
+        return (Element)providerResponse.getToken();
     }
 
     private TokenProviderParameters createProviderParameters(String tokenType, String keyType, Crypto crypto,
@@ -377,8 +377,7 @@ public class JexlIssueSamlClaimsTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
-        parameters.setWebServiceContext(webServiceContext);
+        parameters.setMessageContext(msgCtx);
 
         parameters.setAppliesToAddress("http://dummy-service.com/dummy");
 

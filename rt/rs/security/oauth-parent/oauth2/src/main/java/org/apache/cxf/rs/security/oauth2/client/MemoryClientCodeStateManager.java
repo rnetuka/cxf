@@ -27,18 +27,26 @@ import org.apache.cxf.jaxrs.impl.MetadataMap;
 import org.apache.cxf.rs.security.oauth2.provider.OAuthServiceException;
 import org.apache.cxf.rs.security.oauth2.utils.OAuthConstants;
 import org.apache.cxf.rs.security.oauth2.utils.OAuthUtils;
+import org.apache.cxf.rt.security.crypto.CryptoUtils;
+import org.apache.cxf.rt.security.crypto.MessageDigestUtils;
 
 public class MemoryClientCodeStateManager implements ClientCodeStateManager {
     private ConcurrentHashMap<String, MultivaluedMap<String, String>> map = 
             new ConcurrentHashMap<String, MultivaluedMap<String, String>>();
-    
+    private boolean generateNonce;
     @Override
     public MultivaluedMap<String, String> toRedirectState(MessageContext mc, 
                                                           MultivaluedMap<String, String> requestState) {
         String stateParam = OAuthUtils.generateRandomTokenKey();
+        MultivaluedMap<String, String> redirectMap = new MetadataMap<String, String>();
+        
+        if (generateNonce) {
+            String nonceParam = MessageDigestUtils.generate(CryptoUtils.generateSecureRandomBytes(16));
+            requestState.putSingle(OAuthConstants.NONCE, nonceParam);
+            redirectMap.putSingle(OAuthConstants.NONCE, nonceParam);
+        }
         map.put(stateParam, requestState);
         OAuthUtils.setSessionToken(mc, stateParam, "state", 0);
-        MultivaluedMap<String, String> redirectMap = new MetadataMap<String, String>();
         redirectMap.putSingle(OAuthConstants.STATE, stateParam);
         return redirectMap;
     }
@@ -48,9 +56,12 @@ public class MemoryClientCodeStateManager implements ClientCodeStateManager {
                                                             MultivaluedMap<String, String> redirectState) {
         String stateParam = redirectState.getFirst(OAuthConstants.STATE);
         String sessionToken = OAuthUtils.getSessionToken(mc, "state");
-        if (!sessionToken.equals(stateParam)) {
+        if (sessionToken == null || !sessionToken.equals(stateParam)) {
             throw new OAuthServiceException("Invalid session token");
         }
         return map.remove(stateParam);
+    }
+    public void setGenerateNonce(boolean generateNonce) {
+        this.generateNonce = generateNonce;
     }
 }

@@ -33,7 +33,9 @@ import org.apache.cxf.phase.AbstractPhaseInterceptor;
 import org.apache.cxf.phase.Phase;
 import org.apache.cxf.ws.security.SecurityConstants;
 import org.apache.cxf.ws.security.tokenstore.SecurityToken;
+import org.apache.cxf.ws.security.trust.DefaultSTSTokenCacher;
 import org.apache.cxf.ws.security.trust.STSClient;
+import org.apache.cxf.ws.security.trust.STSTokenCacher;
 import org.apache.cxf.ws.security.trust.STSTokenRetriever;
 import org.apache.cxf.ws.security.trust.STSTokenRetriever.TokenRequestParams;
 
@@ -49,9 +51,14 @@ public class STSTokenOutInterceptor extends AbstractPhaseInterceptor<Message> {
     
     private STSClient stsClient;
     private TokenRequestParams tokenParams;
+    private STSTokenCacher tokenCacher = new DefaultSTSTokenCacher();
 
     public STSTokenOutInterceptor(AuthParams authParams, String stsWsdlLocation, Bus bus) {
-        super(Phase.PREPARE_SEND);
+        this(Phase.PREPARE_SEND, authParams, stsWsdlLocation, bus);
+    }
+    
+    public STSTokenOutInterceptor(String phase, AuthParams authParams, String stsWsdlLocation, Bus bus) {
+        super(phase);
         this.stsClient = configureBasicSTSClient(authParams, stsWsdlLocation, bus);
         this.tokenParams = new TokenRequestParams();
     }
@@ -75,24 +82,43 @@ public class STSTokenOutInterceptor extends AbstractPhaseInterceptor<Message> {
         if (stsClient != null) {
             message.put(SecurityConstants.STS_CLIENT, stsClient);
         }
-        SecurityToken tok = STSTokenRetriever.getToken(message, tokenParams);
+        SecurityToken tok = STSTokenRetriever.getToken(message, tokenParams, tokenCacher);
         if (tok == null) {
             LOG.warning("Security token was not retrieved from STS");
         }
+        processToken(message, tok);
+    }
+    
+    // An extension point to allow custom processing of the token
+    protected void processToken(Message message, SecurityToken tok) {
+        
     }
     
     public STSClient getSTSClient() {
         return stsClient;
     }
-    
-    public static enum AuthMode {
+
+    public STSTokenCacher getTokenCacher() {
+        return tokenCacher;
+    }
+
+    public void setTokenCacher(STSTokenCacher tokenCacher) {
+        this.tokenCacher = tokenCacher;
+    }
+
+    /**
+     * A enumeration to specify authentication mode in communication with STS.
+     * @deprecated use {@link org.apache.cxf.ws.security.trust.STSAuthParams.AuthMode}
+     */
+    @Deprecated
+    public enum AuthMode {
         X509(X509_ENDPOINT, KEY_TYPE_X509), 
         TRANSPORT(TRANSPORT_ENDPOINT, null);
         
         private final QName endpointName;
         private final String keyType;
         
-        private AuthMode(QName endpointName, String keyType) {
+        AuthMode(QName endpointName, String keyType) {
             this.endpointName = endpointName;
             this.keyType = keyType;
         }
@@ -162,7 +188,7 @@ public class STSTokenOutInterceptor extends AbstractPhaseInterceptor<Message> {
             props.put(SecurityConstants.USERNAME, authParams.getUserName());
         }
         props.put(SecurityConstants.CALLBACK_HANDLER, authParams.getCallbackHandler());
-        if ((authParams.getKeystoreProperties() != null) && (authParams.getKeystoreProperties() != null)) {
+        if (authParams.getKeystoreProperties() != null) {
             props.put(SecurityConstants.ENCRYPT_USERNAME, authParams.getAlias());
             props.put(SecurityConstants.ENCRYPT_PROPERTIES, authParams.getKeystoreProperties());
             props.put(SecurityConstants.SIGNATURE_PROPERTIES, authParams.getKeystoreProperties());

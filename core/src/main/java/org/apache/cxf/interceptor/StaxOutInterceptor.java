@@ -21,6 +21,7 @@ package org.apache.cxf.interceptor;
 
 import java.io.OutputStream;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ResourceBundle;
@@ -77,7 +78,7 @@ public class StaxOutInterceptor extends AbstractPhaseInterceptor<Message> {
             XMLOutputFactory factory = getXMLOutputFactory(message);
             if (factory == null) {
                 if (writer == null) {
-                    os = setupOutputStream(message, os);
+                    os = setupOutputStream(os);
                     xwriter = StaxUtils.createXMLStreamWriter(os, encoding);
                 } else {
                     xwriter = StaxUtils.createXMLStreamWriter(writer);
@@ -85,7 +86,7 @@ public class StaxOutInterceptor extends AbstractPhaseInterceptor<Message> {
             } else {
                 synchronized (factory) {
                     if (writer == null) {
-                        os = setupOutputStream(message, os);
+                        os = setupOutputStream(os);
                         xwriter = factory.createXMLStreamWriter(os, encoding);
                     } else {
                         xwriter = factory.createXMLStreamWriter(writer);
@@ -107,7 +108,8 @@ public class StaxOutInterceptor extends AbstractPhaseInterceptor<Message> {
         // Add a final interceptor to write end elements
         message.getInterceptorChain().add(ENDING);
     }
-    private OutputStream setupOutputStream(Message message, OutputStream os) {
+    
+    private OutputStream setupOutputStream(OutputStream os) {
         if (!(os instanceof AbstractWrappedOutputStream)) {
             os = new AbstractWrappedOutputStream(os) { };
         }
@@ -137,7 +139,7 @@ public class StaxOutInterceptor extends AbstractPhaseInterceptor<Message> {
         }
         
         if (encoding == null) {
-            encoding = "UTF-8";
+            encoding = StandardCharsets.UTF_8.name();
             message.put(Message.ENCODING, encoding);
         }
         return encoding;

@@ -49,6 +49,7 @@ import javax.ws.rs.container.DynamicFeature;
 import javax.ws.rs.container.PreMatching;
 import javax.ws.rs.container.ResourceInfo;
 import javax.ws.rs.core.Context;
+import javax.ws.rs.core.Feature;
 import javax.ws.rs.core.FeatureContext;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
@@ -96,7 +97,7 @@ public class BookServer20 extends AbstractBusTestServerBase {
         providers.add(new PostMatchContainerRequestFilter());
         providers.add(new FaultyContainerRequestFilter());
         providers.add(new PreMatchReplaceStreamOrAddress());
-        providers.add(new GenericHandlerWriter());
+        providers.add(new ServerTestFeature());
         providers.add(new JacksonJaxbJsonProvider());
         sf.setProviders(providers);
         sf.setResourceProvider(BookStore.class,
@@ -214,7 +215,12 @@ public class BookServer20 extends AbstractBusTestServerBase {
                 replaceStream(context);
             } else if (path.endsWith("books/check2")) {
                 replaceStream(context);
+            } else if (path.endsWith("books/checkNQuery")) {
+                URI requestURI = URI.create(path.replace("NQuery", "2?a=b"));
+                context.setRequestUri(requestURI);
+                replaceStream(context);
             }
+            
         }
         private void replaceStream(ContainerRequestContext context) {
             InputStream is = new ByteArrayInputStream("123".getBytes());
@@ -505,6 +511,15 @@ public class BookServer20 extends AbstractBusTestServerBase {
                     configurable.register(new PostMatchDynamicEchoBookFilter(2));
                 }
             }
+        }
+        
+    }
+    private static class ServerTestFeature implements Feature {
+
+        @Override
+        public boolean configure(FeatureContext context) {
+            context.register(new GenericHandlerWriter());
+            return true;
         }
         
     }

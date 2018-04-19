@@ -23,9 +23,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.logging.Logger;
@@ -77,10 +82,15 @@ import org.apache.cxf.testutil.recorders.OutMessageRecorder;
 import org.apache.cxf.transport.http.HTTPConduit;
 import org.apache.cxf.transports.http.configuration.HTTPClientPolicy;
 import org.apache.cxf.ws.addressing.VersionTransformer.Names200408;
+import org.apache.cxf.ws.rm.DestinationSequence;
 import org.apache.cxf.ws.rm.RM10Constants;
 import org.apache.cxf.ws.rm.RMContextUtils;
 import org.apache.cxf.ws.rm.RMManager;
 import org.apache.cxf.ws.rm.RMProperties;
+import org.apache.cxf.ws.rm.SourceSequence;
+import org.apache.cxf.ws.rm.persistence.RMMessage;
+import org.apache.cxf.ws.rm.persistence.RMStore;
+import org.apache.cxf.ws.rm.v200702.Identifier;
 
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -749,7 +759,7 @@ public class SequenceTest extends AbstractBusClientServerTestBase {
         init(cfg);
         
         class MessageNumberInterceptor extends AbstractPhaseInterceptor<Message> {
-            public MessageNumberInterceptor() {
+            MessageNumberInterceptor() {
                 super(Phase.PRE_STREAM);
             }
             
@@ -816,7 +826,7 @@ public class SequenceTest extends AbstractBusClientServerTestBase {
         init("org/apache/cxf/systest/ws/rm/rminterceptors.xml");
         
         class SequenceIdInterceptor extends AbstractPhaseInterceptor<Message> {
-            public SequenceIdInterceptor() {
+            SequenceIdInterceptor() {
                 super(Phase.PRE_STREAM);
             }
             
@@ -904,7 +914,7 @@ public class SequenceTest extends AbstractBusClientServerTestBase {
                                         RM10_GENERIC_FAULT_ACTION};
         mf.verifyActions(expectedActions, false);
         mf.verifyMessageNumbers(new String[] {null, "1", null}, false);
-        mf.verifyAcknowledgements(new boolean[] {false, true, false} , false);
+        mf.verifyAcknowledgements(new boolean[] {false, true, false}, false);
         
         // the third inbound message has a SequenceFault header
         mf.verifySequenceFault(RM10Constants.UNKNOWN_SEQUENCE_FAULT_QNAME, false, 2);
@@ -1018,7 +1028,7 @@ public class SequenceTest extends AbstractBusClientServerTestBase {
         for (int i = 2; i < expectedAcks.length; i++) {
             expectedAcks[i] = true;
         }
-        mf.verifyAcknowledgements(expectedAcks , true);
+        mf.verifyAcknowledgements(expectedAcks, true);
  
         // Expected inbound:
         // createSequenceResponse 
@@ -1392,6 +1402,11 @@ public class SequenceTest extends AbstractBusClientServerTestBase {
     public void testTerminateOnShutdown() throws Exception {
         init("org/apache/cxf/systest/ws/rm/terminate-on-shutdown.xml", true);
 
+        RMManager manager = greeterBus.getExtension(RMManager.class);
+        // this test also verify the DB is correctly being updated during the shutdown
+        RMMemoryStore store = new RMMemoryStore();
+        manager.setStore(store);
+
         greeter.greetMeOneWay("neutrophil");
         greeter.greetMeOneWay("basophil");
         greeter.greetMeOneWay("eosinophil");
@@ -1422,6 +1437,10 @@ public class SequenceTest extends AbstractBusClientServerTestBase {
         mf.verifyActions(expectedActions, false);
         mf.verifyAcknowledgements(new boolean[] {false, true}, false);
         
+        // additional check to verify the operations performed on DB
+        assertEquals("sequences not released from DB", 0, store.ssmap.size());
+        assertEquals("messages not released from DB", 0, store.ommap.size());
+        assertEquals("sequence not closed in DB", 1, store.ssclosed.size());
     }    
 
     @Test
@@ -1641,10 +1660,11 @@ public class SequenceTest extends AbstractBusClientServerTestBase {
 
     private static String convertToString(DOMSource domSource)
         throws TransformerException {
-        Transformer xformer =
-            TransformerFactory.newInstance().newTransformer();
+        TransformerFactory transformerFactory = TransformerFactory.newInstance();
+        transformerFactory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        Transformer transformer = transformerFactory.newTransformer();
         StringWriter output = new StringWriter();
-        xformer.transform(domSource, new StreamResult(output));
+        transformer.transform(domSource, new StreamResult(output));
         return output.toString();
     }
 
@@ -1692,5 +1712,111 @@ public class SequenceTest extends AbstractBusClientServerTestBase {
             }
         }
         return null;
+    }
+
+    private static class RMMemoryStore implements RMStore {
+        // during this particular test, the operations are expected to be invoked sequentially so use just HashMap
+        Map<Identifier, SourceSequence> ssmap = new HashMap<Identifier, SourceSequence>();
+        Map<Identifier, DestinationSequence> dsmap = new HashMap<Identifier, DestinationSequence>();
+        Map<Identifier, Collection<RMMessage>> ommap = new HashMap<Identifier, Collection<RMMessage>>();
+        Map<Identifier, Collection<RMMessage>> immap = new HashMap<Identifier, Collection<RMMessage>>();
+        Set<Identifier> ssclosed = new HashSet<Identifier>();
+
+        @Override
+        public void createSourceSequence(SourceSequence seq) {
+            ssmap.put(seq.getIdentifier(), seq);
+        }
+
+        @Override
+        public void createDestinationSequence(DestinationSequence seq) {
+            dsmap.put(seq.getIdentifier(), seq);
+        }
+
+        @Override
+        public SourceSequence getSourceSequence(Identifier seq) {
+            return ssmap.get(seq);
+        }
+
+        @Override
+        public DestinationSequence getDestinationSequence(Identifier seq) {
+            return dsmap.get(seq);
+        }
+
+        @Override
+        public void removeSourceSequence(Identifier seq) {
+            ssmap.remove(seq);
+        }
+
+        @Override
+        public void removeDestinationSequence(Identifier seq) {
+            dsmap.remove(seq);
+        }
+
+        @Override
+        public Collection<SourceSequence> getSourceSequences(String endpointIdentifier) {
+            return ssmap.values();
+        }
+
+        @Override
+        public Collection<DestinationSequence> getDestinationSequences(String endpointIdentifier) {
+            return dsmap.values();
+        }
+
+        @Override
+        public Collection<RMMessage> getMessages(Identifier sid, boolean outbound) {
+            return outbound ? ommap.get(sid) : immap.get(sid);
+        }
+
+        @Override
+        public void persistOutgoing(SourceSequence seq, RMMessage msg) {
+            Collection<RMMessage> cm = getMessages(seq.getIdentifier(), ommap);
+            if (msg != null) {
+                //  update the sequence status and add the message
+                cm.add(msg);
+            } else {
+                // update only the sequence status
+                if (seq.isLastMessage()) {
+                    ssclosed.add(seq.getIdentifier());
+                }
+            }
+        }
+
+        @Override
+        public void persistIncoming(DestinationSequence seq, RMMessage msg) {
+            Collection<RMMessage> cm = getMessages(seq.getIdentifier(), immap);
+            if (msg != null) {
+                //  update the sequence status and add the message
+                cm.add(msg);
+            } else {
+                // update only the sequence status
+            }
+        }
+
+        @Override
+        public void removeMessages(Identifier sid, Collection<Long> messageNrs, boolean outbound) {
+            removeMessages(sid, messageNrs, outbound ? ommap : immap);
+        }
+
+        private Collection<RMMessage> getMessages(Identifier seq, Map<Identifier, Collection<RMMessage>> map) {
+            Collection<RMMessage> cm = map.get(seq);
+            if (cm == null) {
+                cm = new LinkedList<RMMessage>();
+                map.put(seq, cm);
+            }
+            return cm;
+        }
+
+        private void removeMessages(Identifier sid, Collection<Long> messageNrs,
+                                    Map<Identifier, Collection<RMMessage>> map) {
+            for (Iterator<RMMessage> it = map.get(sid).iterator(); it.hasNext();) {
+                RMMessage m = it.next();
+                if (messageNrs.contains(m.getMessageNumber())) {
+                    it.remove();
+                }
+            }
+            if (map.get(sid).size() == 0) {
+                map.remove(sid);
+            }
+        }
     }
 }

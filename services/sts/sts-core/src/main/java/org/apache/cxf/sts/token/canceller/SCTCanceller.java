@@ -22,11 +22,11 @@ package org.apache.cxf.sts.token.canceller;
 import java.security.Key;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.crypto.SecretKey;
-import javax.xml.ws.handler.MessageContext;
 
 import org.w3c.dom.Element;
 import org.apache.cxf.common.logging.LogUtils;
@@ -38,7 +38,7 @@ import org.apache.cxf.ws.security.tokenstore.SecurityToken;
 import org.apache.cxf.ws.security.trust.STSUtils;
 import org.apache.wss4j.common.ext.WSSecurityException;
 import org.apache.wss4j.dom.WSConstants;
-import org.apache.wss4j.dom.WSSecurityEngineResult;
+import org.apache.wss4j.dom.engine.WSSecurityEngineResult;
 import org.apache.wss4j.dom.handler.WSHandlerConstants;
 import org.apache.wss4j.dom.handler.WSHandlerResult;
 import org.apache.wss4j.dom.message.token.SecurityContextToken;
@@ -124,7 +124,7 @@ public class SCTCanceller implements TokenCanceller {
     }
     
     private boolean matchKey(TokenCancellerParameters tokenParameters, byte[] secretKey) {
-        MessageContext messageContext = tokenParameters.getWebServiceContext().getMessageContext();
+        Map<String, Object> messageContext = tokenParameters.getMessageContext();
 
         if (matchDOMSignatureSecret(messageContext, secretKey)) {
             return true;
@@ -150,7 +150,7 @@ public class SCTCanceller implements TokenCanceller {
     }
     
     private boolean matchDOMSignatureSecret(
-        MessageContext messageContext, byte[] secretToMatch
+        Map<String, Object> messageContext, byte[] secretToMatch
     ) {
         final List<WSHandlerResult> handlerResults = 
             CastUtils.cast((List<?>) messageContext.get(WSHandlerConstants.RECV_RESULTS));
@@ -179,14 +179,14 @@ public class SCTCanceller implements TokenCanceller {
     }
     
     private boolean matchStreamingSignatureSecret(
-        MessageContext messageContext, byte[] secretToMatch
+        Map<String, Object> messageContext, byte[] secretToMatch
     ) throws XMLSecurityException {
         @SuppressWarnings("unchecked")
         final List<SecurityEvent> incomingEventList = 
             (List<SecurityEvent>) messageContext.get(SecurityEvent.class.getName() + ".in");
         if (incomingEventList != null) {
             for (SecurityEvent incomingEvent : incomingEventList) {
-                if (WSSecurityEventConstants.SignedPart == incomingEvent.getSecurityEventType()
+                if (WSSecurityEventConstants.SIGNED_PART == incomingEvent.getSecurityEventType()
                     || WSSecurityEventConstants.SignedElement 
                         == incomingEvent.getSecurityEventType()) {
                     org.apache.xml.security.stax.securityToken.SecurityToken token = 

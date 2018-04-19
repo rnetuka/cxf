@@ -69,20 +69,31 @@ public class NettyHttpServletPipelineFactory extends ChannelInitializer<Channel>
 
     private final NettyHttpServerEngine nettyHttpServerEngine;
 
-    public NettyHttpServletPipelineFactory(TLSServerParameters tlsServerParameters, 
+    /**
+     * @deprecated use {@link #NettyHttpServletPipelineFactory(TLSServerParameters, boolean, int, Map,
+     * NettyHttpServerEngine, EventExecutorGroup)}
+     */
+    @Deprecated
+    public NettyHttpServletPipelineFactory(TLSServerParameters tlsServerParameters,
                                            boolean supportSession, int threadPoolSize, int maxChunkContentSize,
                                            Map<String, NettyHttpContextHandler> handlerMap,
                                            NettyHttpServerEngine engine) {
+        this(tlsServerParameters, supportSession, maxChunkContentSize, handlerMap, engine,
+                new DefaultEventExecutorGroup(threadPoolSize));
+    }
+
+    public NettyHttpServletPipelineFactory(TLSServerParameters tlsServerParameters,
+                                           boolean supportSession, int maxChunkContentSize,
+                                           Map<String, NettyHttpContextHandler> handlerMap,
+                                           NettyHttpServerEngine engine, EventExecutorGroup applicationExecutor) {
         this.supportSession = supportSession;
         this.watchdog = new HttpSessionWatchdog();
         this.handlerMap = handlerMap;
         this.tlsServerParameters = tlsServerParameters;
         this.maxChunkContentSize = maxChunkContentSize;
         this.nettyHttpServerEngine = engine;
-        //TODO need to configure the thread size of EventExecutorGroup
-        applicationExecutor = new DefaultEventExecutorGroup(threadPoolSize);
+        this.applicationExecutor = applicationExecutor;
     }
-
 
     public Map<String, NettyHttpContextHandler> getHttpContextHandlerMap() {
         return handlerMap;
@@ -136,15 +147,15 @@ public class NettyHttpServletPipelineFactory extends ChannelInitializer<Channel>
         SslHandler sslHandler = configureServerSSLOnDemand();
         if (sslHandler != null) {
             LOG.log(Level.FINE, 
-                    "Server SSL handler configured and added as an interceptor against the ChannelPipeline: {}"
-                    , sslHandler);
+                    "Server SSL handler configured and added as an interceptor against the ChannelPipeline: {}",
+                    sslHandler);
             pipeline.addLast("ssl", sslHandler);
         }
 
         pipeline.addLast("decoder", new HttpRequestDecoder());
-        pipeline.addLast("aggregator", new HttpObjectAggregator(maxChunkContentSize));
         pipeline.addLast("encoder", new HttpResponseEncoder());
-
+        pipeline.addLast("aggregator", new HttpObjectAggregator(maxChunkContentSize));
+        
         // Remove the following line if you don't want automatic content
         // compression.
         pipeline.addLast("deflater", new HttpContentCompressor());

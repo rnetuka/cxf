@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.logging.Logger;
 
@@ -141,7 +142,12 @@ public class ConfigurationImpl implements Configuration {
 
     @Override
     public boolean isRegistered(Object obj) {
-        return isRegistered(obj.getClass());
+        for (Object o : getInstances()) {
+            if (o.equals(obj)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -171,8 +177,12 @@ public class ConfigurationImpl implements Configuration {
         register(provider, initContractsMap(bindingPriority, contracts));
     }
     
-    public boolean register(Object provider, Map<Class<?>, Integer> contracts) {
+    public boolean register(Object provider, Map<Class<?>, Integer> contracts) {        
         if (provider.getClass() == Class.class) {
+            if (isRegistered((Class<?>)provider)) {
+                LOG.warning("Provider class " + ((Class<?>)provider).getName() + " has already been registered");
+                return false;
+            }
             provider = createProvider((Class<?>)provider);
         }
         if (isRegistered(provider)) {
@@ -185,9 +195,9 @@ public class ConfigurationImpl implements Configuration {
             metadata = new HashMap<Class<?>, Integer>();
             providers.put(provider, metadata);
         }
-        for (Class<?> contract : contracts.keySet()) {
-            if (contract.isAssignableFrom(provider.getClass())) {
-                metadata.put(contract, contracts.get(contract));
+        for (Entry<Class<?>, Integer> entry : contracts.entrySet()) {
+            if (entry.getKey().isAssignableFrom(provider.getClass())) {
+                metadata.put(entry.getKey(), entry.getValue());
             }
         }
         return true;

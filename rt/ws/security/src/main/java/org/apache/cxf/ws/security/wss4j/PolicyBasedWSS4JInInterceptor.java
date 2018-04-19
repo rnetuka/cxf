@@ -41,12 +41,13 @@ import org.apache.cxf.ws.security.SecurityConstants;
 import org.apache.cxf.ws.security.policy.PolicyUtils;
 import org.apache.cxf.ws.security.wss4j.policyvalidators.PolicyValidatorParameters;
 import org.apache.cxf.ws.security.wss4j.policyvalidators.SecurityPolicyValidator;
+import org.apache.cxf.ws.security.wss4j.policyvalidators.ValidatorUtils;
 import org.apache.wss4j.common.crypto.Crypto;
 import org.apache.wss4j.common.crypto.PasswordEncryptor;
 import org.apache.wss4j.common.ext.WSSecurityException;
 import org.apache.wss4j.dom.WSConstants;
 import org.apache.wss4j.dom.WSDataRef;
-import org.apache.wss4j.dom.WSSecurityEngineResult;
+import org.apache.wss4j.dom.engine.WSSecurityEngineResult;
 import org.apache.wss4j.dom.handler.RequestData;
 import org.apache.wss4j.dom.handler.WSHandlerConstants;
 import org.apache.wss4j.dom.handler.WSHandlerResult;
@@ -63,6 +64,7 @@ import org.apache.wss4j.policy.model.Wss11;
  * 
  */
 public class PolicyBasedWSS4JInInterceptor extends WSS4JInInterceptor {
+    
     /**
      * 
      */
@@ -361,12 +363,23 @@ public class PolicyBasedWSS4JInInterceptor extends WSS4JInInterceptor {
         AlgorithmSuiteTranslater translater = new AlgorithmSuiteTranslater();
         translater.translateAlgorithmSuites(message.get(AssertionInfoMap.class), data);
         
-        // Allow for setting non-standard asymmetric signature algorithms
+        // Allow for setting non-standard signature algorithms
+        boolean asymmAlgSet = false;
         String asymSignatureAlgorithm = 
             (String)message.getContextualProperty(SecurityConstants.ASYMMETRIC_SIGNATURE_ALGORITHM);
         if (asymSignatureAlgorithm != null && data.getAlgorithmSuite() != null) {
             data.getAlgorithmSuite().getSignatureMethods().clear();
             data.getAlgorithmSuite().getSignatureMethods().add(asymSignatureAlgorithm);
+            asymmAlgSet = true;
+        }
+        
+        String symSignatureAlgorithm = 
+            (String)message.getContextualProperty(SecurityConstants.SYMMETRIC_SIGNATURE_ALGORITHM);
+        if (symSignatureAlgorithm != null && data.getAlgorithmSuite() != null) {
+            if (!asymmAlgSet) {
+                data.getAlgorithmSuite().getSignatureMethods().clear();
+            }
+            data.getAlgorithmSuite().getSignatureMethods().add(symSignatureAlgorithm);
         }
     }
 
@@ -389,13 +402,20 @@ public class PolicyBasedWSS4JInInterceptor extends WSS4JInInterceptor {
             // Allow for setting non-standard asymmetric signature algorithms
             String asymSignatureAlgorithm = 
                 (String)message.getContextualProperty(SecurityConstants.ASYMMETRIC_SIGNATURE_ALGORITHM);
-            if (asymSignatureAlgorithm != null) {
+            String symSignatureAlgorithm = 
+                (String)message.getContextualProperty(SecurityConstants.SYMMETRIC_SIGNATURE_ALGORITHM);
+            if (asymSignatureAlgorithm != null || symSignatureAlgorithm != null) {
                 Collection<AssertionInfo> algorithmSuites = 
-                    aim.get(SP12Constants.ALGORITHM_SUITE);
+                    PolicyUtils.getAllAssertionsByLocalname(aim, SPConstants.ALGORITHM_SUITE);
                 if (algorithmSuites != null && !algorithmSuites.isEmpty()) {
                     for (AssertionInfo algorithmSuite : algorithmSuites) {
                         AlgorithmSuite algSuite = (AlgorithmSuite)algorithmSuite.getAssertion();
-                        algSuite.setAsymmetricSignature(asymSignatureAlgorithm);
+                        if (asymSignatureAlgorithm != null) {
+                            algSuite.setAsymmetricSignature(asymSignatureAlgorithm);
+                        }
+                        if (symSignatureAlgorithm != null) {
+                            algSuite.setSymmetricSignature(symSignatureAlgorithm);
+                        }
                     }
                 }
             }
@@ -553,7 +573,7 @@ public class PolicyBasedWSS4JInInterceptor extends WSS4JInInterceptor {
         parameters.setTimestampElement(timestamp);
         
         // Validate security policies
-        Map<QName, SecurityPolicyValidator> validators = PolicyUtils.getSecurityPolicyValidators(msg);
+        Map<QName, SecurityPolicyValidator> validators = ValidatorUtils.getSecurityPolicyValidators(msg);
         for (Map.Entry<QName, Collection<AssertionInfo>> entry : aim.entrySet()) {
             // Check to see if we have a security policy + if we can validate it
             if (validators.containsKey(entry.getKey())) {

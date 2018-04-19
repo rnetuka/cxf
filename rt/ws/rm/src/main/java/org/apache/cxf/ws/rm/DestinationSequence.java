@@ -19,13 +19,16 @@
 
 package org.apache.cxf.ws.rm;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TimerTask;
+import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -33,11 +36,14 @@ import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.continuations.Continuation;
 import org.apache.cxf.continuations.ContinuationProvider;
 import org.apache.cxf.continuations.SuspendedInvocationException;
+import org.apache.cxf.interceptor.Fault;
+import org.apache.cxf.io.CachedOutputStream;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.message.MessageUtils;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 import org.apache.cxf.ws.rm.RMConfiguration.DeliveryAssurance;
 import org.apache.cxf.ws.rm.manager.AcksPolicyType;
+import org.apache.cxf.ws.rm.persistence.PersistenceUtils;
 import org.apache.cxf.ws.rm.persistence.RMMessage;
 import org.apache.cxf.ws.rm.persistence.RMStore;
 import org.apache.cxf.ws.rm.v200702.Identifier;
@@ -54,25 +60,34 @@ public class DestinationSequence extends AbstractSequence {
     private long lastMessageNumber;
     private SequenceMonitor monitor;
     private boolean acknowledgeOnNextOccasion;
+    private boolean terminated;
     private List<DeferredAcknowledgment> deferredAcknowledgments;
     private SequenceTermination scheduledTermination;
     private String correlationID;
     private volatile long inProcessNumber;
     private volatile long highNumberCompleted;
     private long nextInOrder;
-    private List<Continuation> continuations = new LinkedList<Continuation>();
+    //be careful, must be used in sync block
+    private Map<Long, Continuation> continuations = new TreeMap<Long, Continuation>();
+    // this map is used for robust and redelivery tracking. for redelivery it holds the beingDeliverd messages
     private Set<Long> deliveringMessageNumbers = new HashSet<Long>();
     
     public DestinationSequence(Identifier i, EndpointReferenceType a, Destination d, ProtocolVariation pv) {
-        this(i, a, 0, null, pv);
+        this(i, a, 0, false, null, pv);
         destination = d;
     }
     
     public DestinationSequence(Identifier i, EndpointReferenceType a,
                               long lmn, SequenceAcknowledgement ac, ProtocolVariation pv) {
+        this(i, a, lmn, false, ac, pv);
+    }
+    
+    public DestinationSequence(Identifier i, EndpointReferenceType a,
+                              long lmn, boolean t, SequenceAcknowledgement ac, ProtocolVariation pv) {
         super(i, pv);
         acksTo = a;
         lastMessageNumber = lmn;
+        terminated = t;
         acknowledgement = ac;
         if (null == acknowledgement) {
             acknowledgement = new SequenceAcknowledgement();
@@ -121,6 +136,7 @@ public class DestinationSequence extends AbstractSequence {
         }        
         
         monitor.acknowledgeMessage();
+        boolean updated = false;
         
         synchronized (this) {
             boolean done = false;
@@ -135,11 +151,13 @@ public class DestinationSequence extends AbstractSequence {
                 long diff = r.getLower() - messageNumber;
                 if (diff == 1) {
                     r.setLower(messageNumber);
+                    updated = true;
                     done = true;
                 } else if (diff > 0) {
                     break;
                 } else if (messageNumber - r.getUpper().longValue() == 1) {
                     r.setUpper(messageNumber);
+                    updated = true;
                     done = true;
                     break;
                 }
@@ -151,6 +169,7 @@ public class DestinationSequence extends AbstractSequence {
                 AcknowledgementRange range = new AcknowledgementRange();
                 range.setLower(messageNumber);
                 range.setUpper(messageNumber);
+                updated = true;
                 acknowledgement.getAcknowledgementRange().add(i, range);
                 if (acknowledgement.getAcknowledgementRange().size() > 1) {
                     
@@ -162,18 +181,30 @@ public class DestinationSequence extends AbstractSequence {
             mergeRanges();
         }
 
-        RMStore store = destination.getManager().getStore();
-        if (null != store) {
-            RMMessage msg = null;
-            if (!MessageUtils.isTrue(message.getContextualProperty(Message.ROBUST_ONEWAY))) {
-                msg = new RMMessage();
-                RewindableInputStream in = (RewindableInputStream)message.get(RMMessageConstants.SAVED_CONTENT);
-                in.rewind();
-                msg.setContent(in);
-                msg.setMessageNumber(st.getMessageNumber());
+        if (updated) {
+            RMStore store = destination.getManager().getStore();
+            if (null != store && !MessageUtils.isTrue(message.getContextualProperty(Message.ROBUST_ONEWAY))) {
+                try {
+                    RMMessage msg = new RMMessage();
+                    CachedOutputStream cos = (CachedOutputStream)message
+                        .get(RMMessageConstants.SAVED_CONTENT);
+                    msg.setMessageNumber(st.getMessageNumber());
+                    msg.setCreatedTime(rmps.getCreatedTime());
+                    // in case no attachments are available, cos can be saved directly
+                    if (message.getAttachments() == null) {
+                        msg.setContent(cos);
+                        msg.setContentType((String)message.get(Message.CONTENT_TYPE));
+                    } else {
+                        InputStream is = cos.getInputStream();
+                        PersistenceUtils.encodeRMContent(msg, message, is);
+                    }
+                    store.persistIncoming(this, msg);
+                } catch (IOException e) {
+                    throw new Fault(e);
+                }
             }
-            store.persistIncoming(this, msg);
         }
+        deliveringMessageNumbers.add(messageNumber);
         
         RMEndpoint reliableEndpoint = destination.getReliableEndpoint();
         RMConfiguration cfg = reliableEndpoint.getConfiguration();
@@ -276,7 +307,7 @@ public class DestinationSequence extends AbstractSequence {
             return false;
         } 
         if (robustDelivering) {
-            deliveringMessageNumbers.add(mn);
+            addDeliveringMessageNumber(mn);
         }
         if (config.isInOrder()) {
             return waitInQueue(mn, canSkip, message, cont);
@@ -285,9 +316,21 @@ public class DestinationSequence extends AbstractSequence {
     }
     
     void removeDeliveringMessageNumber(long mn) {
-        deliveringMessageNumbers.remove(mn);
+        synchronized (deliveringMessageNumbers) {
+            deliveringMessageNumbers.remove(mn);
+        }
+    }
+    void addDeliveringMessageNumber(long mn) {
+        synchronized (deliveringMessageNumbers) {
+            deliveringMessageNumbers.add(mn);
+        }
     }
     
+    // this method is only used for redelivery
+    boolean allAcknowledgedMessagesDelivered() {
+        return deliveringMessageNumbers.isEmpty();
+    }
+
     private Continuation getContinuation(Message message) {
         if (message == null) {
             return null;
@@ -326,7 +369,7 @@ public class DestinationSequence extends AbstractSequence {
             if (continuation != null) {
                 continuation.setObject(message);
                 if (continuation.suspend(-1)) {
-                    continuations.add(continuation);
+                    continuations.put(mn, continuation);
                     throw new SuspendedInvocationException();
                 }
             }
@@ -339,18 +382,24 @@ public class DestinationSequence extends AbstractSequence {
             }
         }
     }
-    synchronized void wakeupAll() {
-        while (!continuations.isEmpty()) {
-            Continuation c = continuations.remove(0);
-            c.resume();
+    synchronized void wakeupNext(long i) {
+        try {
+            Continuation c = continuations.remove(i + 1);
+            if (c != null) {
+                //next was found, don't resume everything, just the next one
+                c.resume();
+                return;
+            }
+            //next wasn't found, nothing to resume, assume it will come in later...
+        } finally {
+            notifyAll();
         }
-        notifyAll();
     }
     
     synchronized void processingComplete(long mn) {
         inProcessNumber = 0;
         highNumberCompleted = mn;
-        wakeupAll();
+        wakeupNext(mn);
     }
     
     void purgeAcknowledged(long messageNr) {
@@ -495,6 +544,22 @@ public class DestinationSequence extends AbstractSequence {
             } 
         }
     }
+
+    void terminate() {
+        if (!terminated) {
+            terminated = true;
+            RMStore store = destination.getManager().getStore();
+            if (null == store) {
+                return;
+            }
+            // only updating the sequence
+            store.persistIncoming(this, null);
+        }
+    }
+    
+    public boolean isTerminated() {
+        return terminated;
+    }
     
     final class SequenceTermination extends TimerTask {
         
@@ -517,11 +582,16 @@ public class DestinationSequence extends AbstractSequence {
                     
                     // terminate regardless outstanding acknowledgments - as we assume that the client is
                     // gone there is no point in sending a SequenceAcknowledgment
-                    
-                    LogUtils.log(LOG, Level.WARNING, "TERMINATING_INACTIVE_SEQ_MSG", 
+                    LogUtils.log(LOG, Level.WARNING, "TERMINATING_INACTIVE_SEQ_MSG",
                                  DestinationSequence.this.getIdentifier().getValue());
-                    DestinationSequence.this.destination.removeSequence(DestinationSequence.this);
-
+                    DestinationSequence.this.destination.terminateSequence(DestinationSequence.this, true);
+                    Source source = rme.getSource();
+                    if (source != null) {
+                        SourceSequence ss = source.getAssociatedSequence(DestinationSequence.this.getIdentifier());
+                        if (ss != null) {
+                            source.removeSequence(ss);
+                        }
+                    }
                 } else {
                    // reschedule 
                     SequenceTermination st = new SequenceTermination();

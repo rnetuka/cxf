@@ -21,6 +21,8 @@ package org.apache.cxf.systest.jaxrs;
 
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +33,7 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
 import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.MatrixParam;
@@ -51,13 +54,12 @@ import javax.xml.stream.XMLStreamException;
 import javax.xml.transform.Source;
 import javax.xml.transform.dom.DOMSource;
 
-import org.apache.cxf.annotations.Logging;
+import org.apache.cxf.helpers.IOUtils;
 import org.apache.cxf.staxutils.DepthExceededStaxException;
 import org.apache.cxf.staxutils.StaxUtils;
 
 @Path("/")
 @Produces("application/json")
-@Logging
 public class BookStoreSpring {
 
     private Map<Long, Book> books = new HashMap<Long, Book>();
@@ -80,6 +82,64 @@ public class BookStoreSpring {
     @PreDestroy
     public void preDestroy() {
         //System.out.println("PreDestroy called");
+    }
+    
+    @POST
+    @Path("/bookform")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces("application/xml")
+    public Book echoBookForm(@Context HttpServletRequest req) {
+        String name = req.getParameter("name");
+        long id = Long.valueOf(req.getParameter("id"));
+        return new Book(name, id);
+    }
+    @POST
+    @Path("/bookform2")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces("application/xml")
+    public Book echoBookForm2(@Context HttpServletRequest req) {
+        String name = req.getParameterValues("name")[0];
+        long id = Long.valueOf(req.getParameter("id"));
+        return new Book(name, id);
+    }
+    @POST
+    @Path("/bookform3")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces("application/xml")
+    public Book echoBookForm3(@Context HttpServletRequest req) {
+        String name = req.getParameterMap().get("name")[0];
+        long id = Long.valueOf(req.getParameter("id"));
+        return new Book(name, id);
+    }
+    @POST
+    @Path("/bookform4")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces("application/xml")
+    public Book echoBookForm4(@Context HttpServletRequest req) {
+        String key = req.getParameterNames().nextElement();
+        String name = req.getParameter(key);
+        long id = Long.valueOf(req.getParameter("id"));
+        return new Book(name, id);
+    }
+    @POST
+    @Path("/bookform5")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces("application/xml")
+    public Book echoBookForm5(@Context HttpServletRequest req, @FormParam("id") Long formId) {
+        String name = req.getParameter("name");
+        long id = Long.valueOf(req.getParameter("id"));
+        if (id != formId) {
+            throw new WebApplicationException();
+        }
+        return new Book(name, id);
+    }
+    @POST
+    @Path("/bookform")
+    @Consumes("application/xml")
+    @Produces("application/xml")
+    public String echoBookFormXml(@Context HttpServletRequest req) throws IOException {
+        InputStream is = req.getInputStream();
+        return IOUtils.readStringFromStream(is);
     }
     
     @GET
@@ -126,6 +186,12 @@ public class BookStoreSpring {
     @Produces("application/xml")
     public Book getBookXsiType() {
         return new SuperBook("SuperBook", 999L, true);
+    }
+    @GET
+    @Path("/books/text")
+    @Produces("text/*")
+    public String getBookText() {
+        return "SuperBook";
     }
     
     @SuppressWarnings("unchecked")

@@ -29,6 +29,7 @@ import java.util.logging.Logger;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.endpoint.Endpoint;
 import org.apache.cxf.helpers.CastUtils;
+import org.apache.cxf.io.CachedOutputStream;
 import org.apache.cxf.message.Exchange;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.message.MessageImpl;
@@ -73,6 +74,17 @@ public class Destination extends AbstractEndpoint {
             }
         }
         processingSequenceCount.incrementAndGet();
+    }
+
+    // this method ensures to keep the sequence until all the messages are delivered
+    public void terminateSequence(DestinationSequence seq) {
+        terminateSequence(seq, false);
+    }
+    public void terminateSequence(DestinationSequence seq, boolean forceRemove) {
+        seq.terminate();
+        if (forceRemove || seq.allAcknowledgedMessagesDelivered()) {
+            removeSequence(seq);
+        }
     }
 
     public void removeSequence(DestinationSequence seq) {
@@ -208,6 +220,20 @@ public class Destination extends AbstractEndpoint {
             long mn = sequenceType.getMessageNumber().longValue();
             seq.processingComplete(mn);
             seq.purgeAcknowledged(mn);
+            // remove acknowledged undelivered message
+            seq.removeDeliveringMessageNumber(mn);
+            if (seq.isTerminated() && seq.allAcknowledgedMessagesDelivered()) {
+                removeSequence(seq);
+            }
+        }
+        CachedOutputStream saved = (CachedOutputStream)message.remove(RMMessageConstants.SAVED_CONTENT);
+        if (saved != null) {
+            saved.releaseTempFileHold();
+            try {
+                saved.close();
+            } catch (IOException e) {
+                // ignore
+            }
         }
     }
     

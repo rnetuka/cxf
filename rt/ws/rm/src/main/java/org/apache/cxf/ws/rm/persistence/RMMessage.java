@@ -22,12 +22,17 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cxf.io.CachedOutputStream;
+
 public class RMMessage {
     
-    private InputStream content;
+    private CachedOutputStream content;
+    //TODO remove attachments when we remove the deprecated attachments related methods
     private List<InputStream> attachments = Collections.emptyList();
+    private String contentType;
     private long messageNumber;
     private String to;
+    private long createdTime;
     
     /**
      * Returns the message number of the message within its sequence.
@@ -46,11 +51,11 @@ public class RMMessage {
     }
     
     /**
-     * Sets the message content using the input stream.
+     * Sets the message content using the CachedOutputStream.class.
      * @param in
      */
-    public void setContent(InputStream in) {
-        content = in;
+    public void setContent(CachedOutputStream cos) {
+        content = cos;
     }
     
     /**
@@ -71,18 +76,20 @@ public class RMMessage {
     }
 
     /**
-     * Returns the input stream of this message content.
+     * Returns the CachedOutputStream of this message content.
      * @return
      * @throws IOException
      */
-    public InputStream getContent() {
+    public CachedOutputStream getContent() {
         return content;
     }
 
     /**
      * Returns the list of attachments.
      * @return list (non-null)
+     * @deprecated not used as the optional attachments are stored in the content
      */
+    @Deprecated
     public List<InputStream> getAttachments() {
         return attachments;
     }
@@ -90,9 +97,36 @@ public class RMMessage {
     /**
      * Set the list of attachments.
      * @param attaches (non-null)
+     * @deprecated not used as the optional attachments are stored in the content
      */
+    @Deprecated
     public void setAttachments(List<InputStream> attaches) {
         assert attaches != null;
         attachments = attaches;
     }
+
+    /**
+     * Returns the content type of the message content
+     * @return
+     */
+    public String getContentType() {
+        return contentType;
+    }
+
+    /**
+     * Set the content type of the RMMessage
+     * @param contentType
+     */
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
+    }
+
+    public long getCreatedTime() {
+        return createdTime;
+    }
+
+    public void setCreatedTime(long createdTime) {
+        this.createdTime = createdTime;
+    }
+
 }

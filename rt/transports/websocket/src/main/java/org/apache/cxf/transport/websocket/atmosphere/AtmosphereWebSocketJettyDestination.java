@@ -45,7 +45,6 @@ import org.atmosphere.cpr.AtmosphereRequest;
 import org.atmosphere.cpr.AtmosphereResource;
 import org.atmosphere.cpr.AtmosphereResponse;
 import org.atmosphere.handler.AbstractReflectorAtmosphereHandler;
-import org.atmosphere.util.Utils;
 import org.eclipse.jetty.server.Request;
 
 
@@ -112,14 +111,14 @@ public class AtmosphereWebSocketJettyDestination extends JettyHTTPDestination im
     }
 
     private class AtmosphereJettyWebSocketHandler extends JettyHTTPHandler {
-        public AtmosphereJettyWebSocketHandler(JettyHTTPDestination jhd, boolean cmExact) {
+        AtmosphereJettyWebSocketHandler(JettyHTTPDestination jhd, boolean cmExact) {
             super(jhd, cmExact);
         }
         
         @Override
         public void handle(String target, Request baseRequest, HttpServletRequest request,
                            HttpServletResponse response) throws IOException, ServletException {
-            if (Utils.webSocketEnabled(request)) {
+            if (AtmosphereUtils.useAtmosphere(request)) {
                 try {
                     framework.doCometSupport(AtmosphereRequest.wrap(request), 
                                              AtmosphereResponse.wrap(response));

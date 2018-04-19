@@ -48,15 +48,22 @@ public class TokenRevocationService extends AbstractTokenService {
         
         // Make sure the client is authenticated
         Client client = authenticateClientIfNeeded(params);
-        String token = params.getFirst(OAuthConstants.REVOKED_TOKEN_ID);
+        String token = params.getFirst(OAuthConstants.TOKEN_ID);
         if (token == null) {
             return createErrorResponse(params, OAuthConstants.UNSUPPORTED_TOKEN_TYPE);
         }
-        String tokenTypeHint = params.getFirst(OAuthConstants.REVOKED_TOKEN_TYPE_HINT);
+        String tokenTypeHint = params.getFirst(OAuthConstants.TOKEN_TYPE_HINT);
+        if (tokenTypeHint != null 
+            && !OAuthConstants.ACCESS_TOKEN.equals(tokenTypeHint)
+            && !OAuthConstants.REFRESH_TOKEN.equals(tokenTypeHint)) {
+            return createErrorResponseFromErrorCode(OAuthConstants.UNSUPPORTED_TOKEN_TYPE);
+        }
         try {
             getDataProvider().revokeToken(client, token, tokenTypeHint);
         } catch (OAuthServiceException ex) {
-            return handleException(ex, OAuthConstants.UNSUPPORTED_TOKEN_TYPE);
+            // Spec: The authorization server responds with HTTP status code 200 if the
+            // token has been revoked successfully or if the client submitted an
+            // invalid token
         }
         return Response.ok().build();
     }

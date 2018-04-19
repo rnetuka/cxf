@@ -89,11 +89,10 @@ public final class ClassLoaderUtils {
      * @param callingClass The Class object of the calling object
      */
     public static URL getResource(String resourceName, Class<?> callingClass) {
-        URL url = Thread.currentThread().getContextClassLoader().getResource(resourceName);
+        URL url = getContextClassLoader().getResource(resourceName);
         if (url == null && resourceName.startsWith("/")) {
             //certain classloaders need it without the leading /
-            url = Thread.currentThread().getContextClassLoader()
-                .getResource(resourceName.substring(1));
+            url = getContextClassLoader().getResource(resourceName.substring(1));
         }
 
         ClassLoader cluClassloader = ClassLoaderUtils.class.getClassLoader();
@@ -151,16 +150,14 @@ public final class ClassLoaderUtils {
             
         };
         try {
-            urls = Thread.currentThread().getContextClassLoader()
-                .getResources(resourceName);
+            urls = getContextClassLoader().getResources(resourceName);
         } catch (IOException e) {
             //ignore
         }
         if (!urls.hasMoreElements() && resourceName.startsWith("/")) {
             //certain classloaders need it without the leading /
             try {
-                urls = Thread.currentThread().getContextClassLoader()
-                    .getResources(resourceName.substring(1));
+                urls = getContextClassLoader().getResources(resourceName.substring(1));
             } catch (IOException e) {
                 // ignore
             }
@@ -250,7 +247,7 @@ public final class ClassLoaderUtils {
     public static Class<?> loadClass(String className, Class<?> callingClass)
         throws ClassNotFoundException {
         try {
-            ClassLoader cl = Thread.currentThread().getContextClassLoader();
+            ClassLoader cl = getContextClassLoader();
 
             if (cl != null) {
                 return cl.loadClass(className);
@@ -263,7 +260,7 @@ public final class ClassLoaderUtils {
     public static <T> Class<? extends T> loadClass(String className, Class<?> callingClass, Class<T> type)
         throws ClassNotFoundException {
         try {
-            ClassLoader cl = Thread.currentThread().getContextClassLoader();
+            ClassLoader cl = getContextClassLoader();
 
             if (cl != null) {
                 return cl.loadClass(className).asSubclass(type);
@@ -279,15 +276,46 @@ public final class ClassLoaderUtils {
             return Class.forName(className);
         } catch (ClassNotFoundException ex) {
             try {
-                if (ClassLoaderUtils.class.getClassLoader() != null) {
-                    return ClassLoaderUtils.class.getClassLoader().loadClass(className);
+                final ClassLoader loader = getClassLoader(ClassLoaderUtils.class);
+                if (loader != null) {
+                    return loader.loadClass(className);
                 }
             } catch (ClassNotFoundException exc) {
-                if (callingClass != null && callingClass.getClassLoader() != null) {
-                    return callingClass.getClassLoader().loadClass(className);
+                if (callingClass != null) {
+                    final ClassLoader callingClassLoader = getClassLoader(callingClass);
+                    if (callingClassLoader != null) {
+                        return callingClassLoader.loadClass(className);
+                    }
                 }
             }
             throw ex;
         }
     }
+
+    static ClassLoader getContextClassLoader() {
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            return AccessController.doPrivileged(new PrivilegedAction<ClassLoader>() {
+                public ClassLoader run() {
+                    ClassLoader loader = Thread.currentThread().getContextClassLoader();
+                    return loader != null ? loader : ClassLoader.getSystemClassLoader();
+                }
+            });
+        } 
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        return loader != null ? loader : ClassLoader.getSystemClassLoader();
+    }
+
+    private static ClassLoader getClassLoader(final Class<?> clazz) {
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            return AccessController.doPrivileged(new PrivilegedAction<ClassLoader>() {
+                public ClassLoader run() {
+                    return clazz.getClassLoader();
+                }
+            });
+        }
+        return clazz.getClassLoader();
+    }
+
 }

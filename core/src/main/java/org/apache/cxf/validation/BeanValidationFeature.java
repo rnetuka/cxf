@@ -19,10 +19,13 @@
 package org.apache.cxf.validation;
 
 import org.apache.cxf.Bus;
+import org.apache.cxf.annotations.Provider;
+import org.apache.cxf.annotations.Provider.Scope;
+import org.apache.cxf.annotations.Provider.Type;
 import org.apache.cxf.feature.AbstractFeature;
 import org.apache.cxf.interceptor.InterceptorProvider;
 
-
+@Provider(value = Type.Feature, scope = Scope.Server)
 public class BeanValidationFeature extends AbstractFeature {
 
     private BeanValidationProvider validationProvider;

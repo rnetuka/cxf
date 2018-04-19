@@ -20,12 +20,12 @@
 package org.apache.cxf.jaxrs.provider;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -62,6 +62,7 @@ import org.apache.cxf.jaxrs.ext.multipart.ContentDisposition;
 import org.apache.cxf.jaxrs.ext.multipart.InputStreamDataSource;
 import org.apache.cxf.jaxrs.ext.multipart.Multipart;
 import org.apache.cxf.jaxrs.ext.multipart.MultipartBody;
+import org.apache.cxf.jaxrs.ext.multipart.MultipartOutputFilter;
 import org.apache.cxf.jaxrs.impl.MetadataMap;
 import org.apache.cxf.jaxrs.utils.AnnotationUtils;
 import org.apache.cxf.jaxrs.utils.ExceptionUtils;
@@ -262,6 +263,12 @@ public class MultipartProvider extends AbstractConfigurableProvider
         throws IOException, WebApplicationException {
         
         List<Attachment> handlers = convertToDataHandlers(obj, type, genericType, anns, mt);
+        if (mc.get(AttachmentUtils.OUT_FILTERS) != null) {
+            List<MultipartOutputFilter> filters = CastUtils.cast((List<?>)mc.get(AttachmentUtils.OUT_FILTERS));
+            for (MultipartOutputFilter filter : filters) {
+                filter.filter(handlers);
+            }
+        }
         mc.put(MultipartBody.OUTBOUND_MESSAGE_ATTACHMENTS, handlers);
         handlers.get(0).getDataHandler().writeTo(os);
     }
@@ -343,7 +350,7 @@ public class MultipartProvider extends AbstractConfigurableProvider
             File f = (File)obj;
             ContentDisposition cd = mainMediaType.startsWith(MediaType.MULTIPART_FORM_DATA) 
                 ? new ContentDisposition("form-data;name=file;filename=" + f.getName()) :  null;
-            return new Attachment(AttachmentUtil.BODY_ATTACHMENT_ID, new FileInputStream(f), cd);
+            return new Attachment(AttachmentUtil.BODY_ATTACHMENT_ID, Files.newInputStream(f.toPath()), cd);
         } else if (Attachment.class.isAssignableFrom(obj.getClass())) {
             Attachment att = (Attachment)obj;
             if (att.getObject() == null) {
@@ -362,7 +369,10 @@ public class MultipartProvider extends AbstractConfigurableProvider
         }
         String contentId = getContentId(anns, id);
         
-        return new Attachment(contentId, dh, new MetadataMap<String, String>());
+        MultivaluedMap<String, String> headers = new MetadataMap<String, String>();
+        headers.putSingle("Content-Type", mimeType);
+        
+        return new Attachment(contentId, dh, headers);
     }
 
     private String getContentId(Annotation[] anns, int id) {
@@ -436,12 +446,12 @@ public class MultipartProvider extends AbstractConfigurableProvider
         private Type genericType;
         private Annotation[] anns;
         private MediaType contentType;
-        public MessageBodyWriterDataHandler(MessageBodyWriter<T> writer,
-                                            T obj,
-                                            Class<T> cls,
-                                            Type genericType,
-                                            Annotation[] anns,
-                                            MediaType contentType) {
+        MessageBodyWriterDataHandler(MessageBodyWriter<T> writer,
+                                     T obj,
+                                     Class<T> cls,
+                                     Type genericType,
+                                     Annotation[] anns,
+                                     MediaType contentType) {
             super(new ByteDataSource("1".getBytes()));
             this.writer = writer;
             this.obj = obj;

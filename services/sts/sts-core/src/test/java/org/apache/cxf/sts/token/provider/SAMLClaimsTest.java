@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Properties;
 
 import org.w3c.dom.Element;
-import org.apache.cxf.jaxws.context.WebServiceContextImpl;
 import org.apache.cxf.jaxws.context.WrappedMessageContext;
 import org.apache.cxf.message.MessageImpl;
 import org.apache.cxf.rt.security.claims.Claim;
@@ -35,12 +34,10 @@ import org.apache.cxf.rt.security.claims.ClaimCollection;
 import org.apache.cxf.sts.STSConstants;
 import org.apache.cxf.sts.StaticSTSProperties;
 import org.apache.cxf.sts.claims.ClaimTypes;
-import org.apache.cxf.sts.claims.ClaimsAttributeStatementProvider;
 import org.apache.cxf.sts.claims.ClaimsHandler;
 import org.apache.cxf.sts.claims.ClaimsManager;
 import org.apache.cxf.sts.claims.StaticClaimsHandler;
 import org.apache.cxf.sts.claims.StaticEndpointClaimsHandler;
-import org.apache.cxf.sts.common.CustomAttributeProvider;
 import org.apache.cxf.sts.common.CustomClaimsHandler;
 import org.apache.cxf.sts.common.PasswordCallbackHandler;
 import org.apache.cxf.sts.request.KeyRequirements;
@@ -91,16 +88,12 @@ public class SAMLClaimsTest extends org.junit.Assert {
         ClaimCollection claims = createClaims();
         providerParameters.setRequestedPrimaryClaims(claims);
         
-        List<AttributeStatementProvider> customProviderList = new ArrayList<AttributeStatementProvider>();
-        customProviderList.add(new CustomAttributeProvider());
-        ((SAMLTokenProvider)samlTokenProvider).setAttributeStatementProviders(customProviderList);
-        
         assertTrue(samlTokenProvider.canHandleToken(WSConstants.WSS_SAML2_TOKEN_TYPE));
         TokenProviderResponse providerResponse = samlTokenProvider.createToken(providerParameters);
         assertTrue(providerResponse != null);
         assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
         
-        Element token = providerResponse.getToken();
+        Element token = (Element)providerResponse.getToken();
         String tokenString = DOM2Writer.nodeToString(token);
         assertTrue(tokenString.contains(providerResponse.getTokenId()));
         assertTrue(tokenString.contains("AttributeStatement"));
@@ -136,16 +129,12 @@ public class SAMLClaimsTest extends org.junit.Assert {
         secondaryClaims.add(claim);
         providerParameters.setRequestedSecondaryClaims(secondaryClaims);
         
-        List<AttributeStatementProvider> customProviderList = new ArrayList<AttributeStatementProvider>();
-        customProviderList.add(new CustomAttributeProvider());
-        ((SAMLTokenProvider)samlTokenProvider).setAttributeStatementProviders(customProviderList);
-        
         assertTrue(samlTokenProvider.canHandleToken(WSConstants.WSS_SAML2_TOKEN_TYPE));
         TokenProviderResponse providerResponse = samlTokenProvider.createToken(providerParameters);
         assertTrue(providerResponse != null);
         assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
         
-        Element token = providerResponse.getToken();
+        Element token = (Element)providerResponse.getToken();
         String tokenString = DOM2Writer.nodeToString(token);
         assertTrue(tokenString.contains(providerResponse.getTokenId()));
         assertTrue(tokenString.contains("AttributeStatement"));
@@ -185,16 +174,12 @@ public class SAMLClaimsTest extends org.junit.Assert {
         secondaryClaims.setDialect(ClaimTypes.URI_BASE);
         providerParameters.setRequestedSecondaryClaims(secondaryClaims);
         
-        List<AttributeStatementProvider> customProviderList = new ArrayList<AttributeStatementProvider>();
-        customProviderList.add(new CustomAttributeProvider());
-        ((SAMLTokenProvider)samlTokenProvider).setAttributeStatementProviders(customProviderList);
-        
         assertTrue(samlTokenProvider.canHandleToken(WSConstants.WSS_SAML2_TOKEN_TYPE));
         TokenProviderResponse providerResponse = samlTokenProvider.createToken(providerParameters);
         assertTrue(providerResponse != null);
         assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
         
-        Element token = providerResponse.getToken();
+        Element token = (Element)providerResponse.getToken();
         String tokenString = DOM2Writer.nodeToString(token);
         assertTrue(tokenString.contains(providerResponse.getTokenId()));
         assertTrue(tokenString.contains("AttributeStatement"));
@@ -229,16 +214,12 @@ public class SAMLClaimsTest extends org.junit.Assert {
         claims.add(claim);
         providerParameters.setRequestedPrimaryClaims(claims);
         
-        List<AttributeStatementProvider> customProviderList = new ArrayList<AttributeStatementProvider>();
-        customProviderList.add(new ClaimsAttributeStatementProvider());
-        ((SAMLTokenProvider)samlTokenProvider).setAttributeStatementProviders(customProviderList);
-        
         assertTrue(samlTokenProvider.canHandleToken(WSConstants.WSS_SAML2_TOKEN_TYPE));
         TokenProviderResponse providerResponse = samlTokenProvider.createToken(providerParameters);
         assertTrue(providerResponse != null);
         assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
         
-        Element token = providerResponse.getToken();
+        Element token = (Element)providerResponse.getToken();
         String tokenString = DOM2Writer.nodeToString(token);
         assertTrue(tokenString.contains(providerResponse.getTokenId()));
         assertTrue(tokenString.contains("AttributeStatement"));
@@ -286,16 +267,12 @@ public class SAMLClaimsTest extends org.junit.Assert {
         claims.add(claim);
         providerParameters.setRequestedPrimaryClaims(claims);
         
-        List<AttributeStatementProvider> customProviderList = new ArrayList<AttributeStatementProvider>();
-        customProviderList.add(new ClaimsAttributeStatementProvider());
-        ((SAMLTokenProvider)samlTokenProvider).setAttributeStatementProviders(customProviderList);
-        
         assertTrue(samlTokenProvider.canHandleToken(WSConstants.WSS_SAML2_TOKEN_TYPE));
         TokenProviderResponse providerResponse = samlTokenProvider.createToken(providerParameters);
         assertTrue(providerResponse != null);
         assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
         
-        Element token = providerResponse.getToken();
+        Element token = (Element)providerResponse.getToken();
         String tokenString = DOM2Writer.nodeToString(token);
         assertTrue(tokenString.contains(providerResponse.getTokenId()));
         assertTrue(tokenString.contains("AttributeStatement"));
@@ -345,9 +322,6 @@ public class SAMLClaimsTest extends org.junit.Assert {
         claims.add(claim);
         providerParameters.setRequestedPrimaryClaims(claims);
         
-        List<AttributeStatementProvider> customProviderList = new ArrayList<AttributeStatementProvider>();
-        customProviderList.add(new ClaimsAttributeStatementProvider());
-        ((SAMLTokenProvider)samlTokenProvider).setAttributeStatementProviders(customProviderList);
         assertTrue(samlTokenProvider.canHandleToken(WSConstants.WSS_SAML2_TOKEN_TYPE));
         
         try {
@@ -378,16 +352,12 @@ public class SAMLClaimsTest extends org.junit.Assert {
         claims.add(claim);
         providerParameters.setRequestedPrimaryClaims(claims);
         
-        List<AttributeStatementProvider> customProviderList = new ArrayList<AttributeStatementProvider>();
-        customProviderList.add(new CustomAttributeProvider());
-        ((SAMLTokenProvider)samlTokenProvider).setAttributeStatementProviders(customProviderList);
-        
         assertTrue(samlTokenProvider.canHandleToken(WSConstants.WSS_SAML2_TOKEN_TYPE));
         TokenProviderResponse providerResponse = samlTokenProvider.createToken(providerParameters);
         assertTrue(providerResponse != null);
         assertTrue(providerResponse.getToken() != null && providerResponse.getTokenId() != null);
         
-        Element token = providerResponse.getToken();
+        Element token = (Element)providerResponse.getToken();
         String tokenString = DOM2Writer.nodeToString(token);
         assertTrue(tokenString.contains(providerResponse.getTokenId()));
         assertTrue(tokenString.contains("AttributeStatement"));
@@ -414,8 +384,7 @@ public class SAMLClaimsTest extends org.junit.Assert {
         // Mock up message context
         MessageImpl msg = new MessageImpl();
         WrappedMessageContext msgCtx = new WrappedMessageContext(msg);
-        WebServiceContextImpl webServiceContext = new WebServiceContextImpl(msgCtx);
-        parameters.setWebServiceContext(webServiceContext);
+        parameters.setMessageContext(msgCtx);
         
         if (appliesTo != null) {
             parameters.setAppliesToAddress(appliesTo);
@@ -447,7 +416,7 @@ public class SAMLClaimsTest extends org.junit.Assert {
             "org.apache.wss4j.crypto.provider", "org.apache.wss4j.common.crypto.Merlin"
         );
         properties.put("org.apache.wss4j.crypto.merlin.keystore.password", "stsspass");
-        properties.put("org.apache.wss4j.crypto.merlin.keystore.file", "stsstore.jks");
+        properties.put("org.apache.wss4j.crypto.merlin.keystore.file", "keys/stsstore.jks");
         
         return properties;
     }

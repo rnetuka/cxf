@@ -19,6 +19,7 @@
 
 package org.apache.cxf.systest.jaxrs;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -51,9 +52,12 @@ import javax.ws.rs.ext.MessageBodyReader;
 import javax.ws.rs.ext.MessageBodyWriter;
 import javax.xml.ws.Holder;
 
+import org.apache.cxf.jaxrs.client.ClientConfiguration;
+import org.apache.cxf.jaxrs.client.JAXRSClientFactory;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.jaxrs.model.AbstractResourceInfo;
 import org.apache.cxf.testutil.common.AbstractBusClientServerTestBase;
+import org.apache.cxf.transports.http.configuration.HTTPClientPolicy;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -97,6 +101,38 @@ public class JAXRSAsyncClientTest extends AbstractBusClientServerTestBase {
         wc.type("application/xml");
         WebClient.getConfig(wc).getRequestContext().put("use.async.http.conduit", true);
         Book book = wc.invoke("PATCH", new Book("Patch", 123L), Book.class);
+        assertEquals("Patch", book.getName());
+        wc.close();
+    }
+    
+    @Test
+    public void testPatchBookTimeout() throws Exception {
+        String address = "http://localhost:" + PORT + "/bookstore/patch";
+        WebClient wc = WebClient.create(address);
+        wc.type("application/xml");
+        ClientConfiguration clientConfig = WebClient.getConfig(wc);
+        clientConfig.getRequestContext().put("use.async.http.conduit", true);
+        HTTPClientPolicy clientPolicy = clientConfig.getHttpConduit().getClient();
+        clientPolicy.setReceiveTimeout(2000);
+        clientPolicy.setConnectionTimeout(2000);
+        try {
+            wc.invoke("PATCH", new Book("Timeout", 123L), Book.class);
+            fail("should throw an exception due to timeout");
+        } catch (javax.ws.rs.ProcessingException e) {
+            //expected!!!
+        }
+    }
+    
+    @Test
+    public void testPatchBookInputStream() throws Exception {
+        String address = "http://localhost:" + PORT + "/bookstore/patch";
+        WebClient wc = WebClient.create(address);
+        wc.type("application/xml");
+        WebClient.getConfig(wc).getRequestContext().put("use.async.http.conduit", true);
+        Book book = wc.invoke("PATCH", 
+                              new ByteArrayInputStream(
+                                  "<Book><name>Patch</name><id>123</id></Book>".getBytes()), 
+                              Book.class);
         assertEquals("Patch", book.getName());
         wc.close();
     }
@@ -237,6 +273,101 @@ public class JAXRSAsyncClientTest extends AbstractBusClientServerTestBase {
         wc.close();
     }
     
+    @SuppressWarnings("rawtypes")
+    @Test
+    public void testGenericInvocationCallback() throws Exception {
+        InvocationCallback<?> callback = createGenericInvocationCallback();
+        String address = "http://localhost:" + PORT + "/bookstore/books/check/123";
+        ClientBuilder.newBuilder().register(new BookServerAsyncClient.BooleanReaderWriter())
+            .build().target(address)
+            .request().accept("text/boolean").async().get(callback).get();
+        assertTrue(((GenericInvocationCallback)callback).getResult().readEntity(Boolean.class));
+    }
+    
+    @Test
+    public void testAsyncProxyPrimitiveResponse() throws Exception {
+        String address = "http://localhost:" + PORT;
+        final Holder<Boolean> holder = new Holder<Boolean>();
+        final InvocationCallback<Boolean> callback = new InvocationCallback<Boolean>() {
+            public void completed(Boolean response) {
+                holder.value = response;
+            }
+            public void failed(Throwable error) {
+            }
+        };
+        
+        BookStore store = JAXRSClientFactory.create(address, BookStore.class);
+        WebClient.getConfig(store).getRequestContext().put(InvocationCallback.class.getName(), callback);
+        store.checkBook(123L);
+        Thread.sleep(3000);
+        assertTrue(holder.value);
+    }
+    @Test
+    public void testAsyncProxyBookResponse() throws Exception {
+        String address = "http://localhost:" + PORT;
+        final Holder<Book> holder = new Holder<Book>();
+        final InvocationCallback<Book> callback = new InvocationCallback<Book>() {
+            public void completed(Book response) {
+                holder.value = response;
+            }
+            public void failed(Throwable error) {
+            }
+        };
+        
+        BookStore store = JAXRSClientFactory.create(address, BookStore.class);
+        WebClient.getConfig(store).getRequestContext().put(InvocationCallback.class.getName(), callback);
+        Book book = store.getBookByMatrixParams("12", "3");
+        assertNull(book);
+        Thread.sleep(3000);
+        assertNotNull(holder.value);
+        assertEquals(123L, holder.value.getId());
+    }
+    @Test
+    public void testAsyncProxyMultipleCallbacks() throws Exception {
+        String address = "http://localhost:" + PORT;
+        final Holder<Book> bookHolder = new Holder<Book>();
+        final InvocationCallback<Book> bookCallback = new InvocationCallback<Book>() {
+            public void completed(Book response) {
+                bookHolder.value = response;
+            }
+            public void failed(Throwable error) {
+            }
+        };
+        final Holder<Boolean> booleanHolder = new Holder<Boolean>();
+        final InvocationCallback<Boolean> booleanCallback = new InvocationCallback<Boolean>() {
+            public void completed(Boolean response) {
+                booleanHolder.value = response;
+            }
+            public void failed(Throwable error) {
+            }
+        };
+        List<InvocationCallback<?>> callbacks = new ArrayList<InvocationCallback<?>>();
+        callbacks.add(bookCallback);
+        callbacks.add(booleanCallback);
+        
+        BookStore store = JAXRSClientFactory.create(address, BookStore.class);
+        WebClient.getConfig(store).getRequestContext().put(InvocationCallback.class.getName(), callbacks);
+        
+        
+        
+        Book book = store.getBookByMatrixParams("12", "3");
+        assertNull(book);
+        Thread.sleep(3000);
+        assertNotNull(bookHolder.value);
+        assertEquals(123L, bookHolder.value.getId());
+        
+        store.checkBook(123L);
+        Thread.sleep(3000);
+        assertTrue(booleanHolder.value);
+    }
+    
+    @SuppressWarnings({
+     "unchecked", "rawtypes"
+    })
+    private static <T> InvocationCallback<T> createGenericInvocationCallback() {
+        return new GenericInvocationCallback();
+    }
+
     @Test
     public void testGetBookAsync404Callback() throws Exception {
         String address = "http://localhost:" + PORT + "/bookstore/bookheaders/404";
@@ -309,6 +440,7 @@ public class JAXRSAsyncClientTest extends AbstractBusClientServerTestBase {
 
                 
     }
+    
     public static class TestResponseFilter implements ClientResponseFilter {
 
         @Override
@@ -317,6 +449,25 @@ public class JAXRSAsyncClientTest extends AbstractBusClientServerTestBase {
             // TODO Auto-generated method stub
             
         }
+        
+    }
+    private static class GenericInvocationCallback<T> implements InvocationCallback<T> {
+        private Object result;
+
+        @Override
+        public void completed(final Object o) {
+            result = o;
+        }
+
+        @Override
+        public void failed(final Throwable throwable) {
+            // complete
+        }
+
+        public Response getResult() {
+            return (Response)result;
+        }
+
         
     }
 }

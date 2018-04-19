@@ -34,6 +34,7 @@ import javax.xml.bind.JAXBContext;
 
 import org.apache.cxf.endpoint.Endpoint;
 import org.apache.cxf.jaxrs.impl.HttpHeadersImpl;
+import org.apache.cxf.jaxrs.impl.HttpServletRequestFilter;
 import org.apache.cxf.jaxrs.impl.HttpServletResponseFilter;
 import org.apache.cxf.jaxrs.impl.ProvidersImpl;
 import org.apache.cxf.jaxrs.impl.RequestImpl;
@@ -58,6 +59,29 @@ public class MessageContextImplTest extends Assert {
         Message m = new MessageImpl();
         m.put("a", "b");
         MessageContext mc = new MessageContextImpl(m);
+        assertEquals("b", mc.get("a"));
+        assertNull(mc.get("b"));
+    }
+    @Test
+    public void testGetPropertyFromExchange() {
+        Message m = new MessageImpl();
+        Exchange ex = new ExchangeImpl();
+        ex.put("a", "b");
+        ex.setInMessage(m);
+        MessageContext mc = new MessageContextImpl(m);
+        assertEquals("b", mc.get("a"));
+        assertNull(mc.get("b"));
+    }
+    @Test
+    public void testGetPropertyFromOtherMessage() {
+        Message m1 = new MessageImpl();
+        Message m2 = new MessageImpl();
+        m2.put("a", "b");
+        
+        Exchange ex = new ExchangeImpl();
+        ex.setInMessage(m1);
+        ex.setOutMessage(m2);
+        MessageContext mc = new MessageContextImpl(m1);
         assertEquals("b", mc.get("a"));
         assertNull(mc.get("b"));
     }
@@ -99,17 +123,20 @@ public class MessageContextImplTest extends Assert {
     
     @Test
     public void testHttpRequest() {
-        Message m = new MessageImpl();
+        Message m = createMessage();
         MessageContext mc = new MessageContextImpl(m);
         HttpServletRequest request = EasyMock.createMock(HttpServletRequest.class);
         m.put(AbstractHTTPDestination.HTTP_REQUEST, request);
-        assertSame(request.getClass(), mc.getHttpServletRequest().getClass());
-        assertSame(request.getClass(), mc.getContext(HttpServletRequest.class).getClass());
+        
+        assertSame(request.getClass(), 
+                   ((HttpServletRequestFilter)mc.getHttpServletRequest()).getRequest().getClass());
+        assertSame(request.getClass(), 
+                   ((HttpServletRequestFilter)mc.getContext(HttpServletRequest.class)).getRequest().getClass());
     }
     
     @Test
     public void testHttpResponse() {
-        Message m = new MessageImpl();
+        Message m = createMessage();
         MessageContext mc = new MessageContextImpl(m);
         HttpServletResponse request = EasyMock.createMock(HttpServletResponse.class);
         m.put(AbstractHTTPDestination.HTTP_RESPONSE, request);
@@ -121,7 +148,7 @@ public class MessageContextImplTest extends Assert {
     
     @Test
     public void testServletContext() {
-        Message m = new MessageImpl();
+        Message m = createMessage();
         MessageContext mc = new MessageContextImpl(m);
         ServletContext request = EasyMock.createMock(ServletContext.class);
         m.put(AbstractHTTPDestination.HTTP_CONTEXT, request);
@@ -131,7 +158,7 @@ public class MessageContextImplTest extends Assert {
     
     @Test
     public void testServletConfig() {
-        Message m = new MessageImpl();
+        Message m = createMessage();
         MessageContext mc = new MessageContextImpl(m);
         ServletConfig request = EasyMock.createMock(ServletConfig.class);
         m.put(AbstractHTTPDestination.HTTP_CONFIG, request);

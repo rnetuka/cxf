@@ -53,7 +53,7 @@ import org.apache.neethi.Policy;
 import org.apache.wss4j.common.derivedKey.ConversationConstants;
 import org.apache.wss4j.common.ext.WSSecurityException;
 import org.apache.wss4j.dom.WSConstants;
-import org.apache.wss4j.dom.WSSecurityEngineResult;
+import org.apache.wss4j.dom.engine.WSSecurityEngineResult;
 import org.apache.wss4j.dom.handler.WSHandlerConstants;
 import org.apache.wss4j.dom.handler.WSHandlerResult;
 import org.apache.wss4j.dom.message.token.SecurityContextToken;
@@ -211,7 +211,7 @@ final class NegotiationUtils {
                 (List<SecurityEvent>) message.getExchange().get(SecurityEvent.class.getName() + ".in");
             if (incomingEventList != null) {
                 for (SecurityEvent incomingEvent : incomingEventList) {
-                    if (WSSecurityEventConstants.SecurityContextToken 
+                    if (WSSecurityEventConstants.SECURITY_CONTEXT_TOKEN 
                         == incomingEvent.getSecurityEventType()) {
                         return true;
                     }

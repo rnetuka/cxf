@@ -23,6 +23,7 @@ package org.apache.cxf.jaxb.io;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -90,7 +91,7 @@ public class DataWriterImpl<T> extends JAXBDataBase implements DataWriter<T> {
     private static class MtomValidationHandler implements ValidationEventHandler {
         ValidationEventHandler origHandler;
         JAXBAttachmentMarshaller marshaller;
-        public MtomValidationHandler(ValidationEventHandler v,
+        MtomValidationHandler(ValidationEventHandler v,
                                      JAXBAttachmentMarshaller m) {
             origHandler = v;
             marshaller = m;
@@ -99,7 +100,7 @@ public class DataWriterImpl<T> extends JAXBDataBase implements DataWriter<T> {
         public boolean handleEvent(ValidationEvent event) {
             // CXF-1194 this hack is specific to MTOM, so pretty safe to leave in here before calling the origHandler.
             String msg = event.getMessage();
-            if (msg.startsWith("cvc-type.3.1.2: ")
+            if (msg.startsWith("cvc-type.3.1.2")
                 && msg.contains(marshaller.getLastMTOMElementName().getLocalPart())) {
                 return true;
             }
@@ -130,7 +131,7 @@ public class DataWriterImpl<T> extends JAXBDataBase implements DataWriter<T> {
         try {
             
             marshaller = context.createMarshaller();
-            marshaller.setProperty(Marshaller.JAXB_ENCODING, "UTF-8");
+            marshaller.setProperty(Marshaller.JAXB_ENCODING, StandardCharsets.UTF_8.name());
             marshaller.setProperty(Marshaller.JAXB_FRAGMENT, true);
             marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.FALSE);
             marshaller.setListener(databinding.getMarshallerListener());

@@ -16,3 +16,6 @@
 target/
 velocity.log
 bin/
+*~
+node_modules/
+derby.log

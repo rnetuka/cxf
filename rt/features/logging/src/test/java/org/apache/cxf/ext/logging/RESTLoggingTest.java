@@ -19,6 +19,7 @@
 package org.apache.cxf.ext.logging;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.util.Collections;
 import java.util.List;
@@ -35,6 +36,7 @@ import org.junit.Test;
 public class RESTLoggingTest {
 
     private static final String SERVICE_URI = "http://localhost:5679/testrest";
+    private static final String SERVICE_URI_BINARY = "http://localhost:5680/testrest";
 
     @Test
     public void testSlf4j() throws IOException {
@@ -43,8 +45,45 @@ public class RESTLoggingTest {
         server.start();
         WebClient client = createClient(loggingFeature);
         String result = client.get(String.class);
-        Assert.assertEquals("test1", result);
         server.destroy();
+        Assert.assertEquals("test1", result);
+    }
+    
+    @Test
+    public void testBinary() throws IOException {
+        LoggingFeature loggingFeature = new LoggingFeature();
+        TestEventSender sender = new TestEventSender();
+        loggingFeature.setSender(sender);
+        Server server = createServiceBinary(loggingFeature);
+        server.start();
+        WebClient client = createClientBinary(loggingFeature);
+        client.get(InputStream.class).close();
+        loggingFeature.setLogBinary(true);
+        client.get(InputStream.class).close();
+        client.close();
+        server.stop();
+        server.destroy();
+
+        List<LogEvent> events = sender.getEvents();
+        assertLogged(events.get(0));
+        assertLogged(events.get(1));
+        assertNotLogged(events.get(2));
+        assertNotLogged(events.get(3));
+
+        assertLogged(events.get(4));
+        assertLogged(events.get(5));
+        assertLogged(events.get(6));
+
+        Assert.assertEquals(8, events.size());
+        assertLogged(events.get(7));
+    }
+
+    private void assertLogged(LogEvent event) {
+        Assert.assertNotEquals(AbstractLoggingInterceptor.CONTENT_SUPPRESSED, event.getPayload());
+    }
+    
+    private void assertNotLogged(LogEvent event) {
+        Assert.assertEquals(AbstractLoggingInterceptor.CONTENT_SUPPRESSED, event.getPayload());
     }
 
     private WebClient createClient(LoggingFeature loggingFeature) {
@@ -62,9 +101,25 @@ public class RESTLoggingTest {
         return factory.create();
     }
     
+    private WebClient createClientBinary(LoggingFeature loggingFeature) {
+        JAXRSClientFactoryBean bean = new JAXRSClientFactoryBean();
+        bean.setAddress(SERVICE_URI_BINARY + "/test1");
+        bean.setFeatures(Collections.singletonList(loggingFeature));
+        return bean.createWebClient();
+    }
+    
+    private Server createServiceBinary(LoggingFeature loggingFeature) {
+        JAXRSServerFactoryBean factory = new JAXRSServerFactoryBean();
+        factory.setAddress(SERVICE_URI_BINARY);
+        factory.setFeatures(Collections.singletonList(loggingFeature));
+        factory.setServiceBean(new TestServiceRestBinary());
+        return factory.create();
+    }
+    
     @Test
     public void testEvents() throws MalformedURLException {
         LoggingFeature loggingFeature = new LoggingFeature();
+        loggingFeature.setLogBinary(true);
         TestEventSender sender = new TestEventSender();
         loggingFeature.setSender(sender);
         Server server = createService(loggingFeature);
@@ -94,7 +149,7 @@ public class RESTLoggingTest {
 
     private void checkRequestIn(LogEvent requestIn) {
         Assert.assertEquals(SERVICE_URI + "/test1", requestIn.getAddress());
-        Assert.assertEquals("*/*", requestIn.getContentType());
+        Assert.assertNull(requestIn.getContentType());
         Assert.assertEquals(EventType.REQ_IN, requestIn.getType());
         Assert.assertNull(requestIn.getEncoding());
         Assert.assertNotNull(requestIn.getExchangeId());

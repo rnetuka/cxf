@@ -68,6 +68,14 @@ public class ContainerRequestContextImpl extends AbstractRequestContextImpl
 
     @Override
     public boolean hasEntity() {
+        InputStream is = getEntityStream();
+        if (is == null) {
+            return false;
+        }
+        // Is Content-Length is explicitly set to 0 ?
+        if (HttpUtils.isPayloadEmpty(getHeaders())) {
+            return false;
+        }
         try {
             return !IOUtils.isEmpty(getEntityStream());
         } catch (IOException ex) {
@@ -107,9 +115,13 @@ public class ContainerRequestContextImpl extends AbstractRequestContextImpl
         doSetRequestUri(requestUri);
     }
     
-    public void doSetRequestUri(URI requestUri) throws IllegalStateException {
+    protected void doSetRequestUri(URI requestUri) throws IllegalStateException {
         checkNotPreMatch();
-        HttpUtils.resetRequestURI(m, requestUri.toString());
+        HttpUtils.resetRequestURI(m, requestUri.getRawPath());
+        String query = requestUri.getRawQuery();
+        if (query != null) {
+            m.put(Message.QUERY_STRING, query);
+        }
     }
 
     @Override
@@ -126,6 +138,10 @@ public class ContainerRequestContextImpl extends AbstractRequestContextImpl
     public void setSecurityContext(SecurityContext sc) {
         checkContext();
         m.put(SecurityContext.class, sc);
+        if (sc instanceof org.apache.cxf.security.SecurityContext) {
+            m.put(org.apache.cxf.security.SecurityContext.class, 
+                  (org.apache.cxf.security.SecurityContext)sc);
+        }
     }
 
     private void checkNotPreMatch() {

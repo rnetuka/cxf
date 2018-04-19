@@ -19,10 +19,13 @@
 package org.apache.cxf.ext.logging;
 
 import org.apache.cxf.Bus;
+import org.apache.cxf.annotations.Provider;
+import org.apache.cxf.annotations.Provider.Type;
 import org.apache.cxf.common.injection.NoJSR250Annotations;
 import org.apache.cxf.ext.logging.event.LogEventSender;
 import org.apache.cxf.ext.logging.event.PrettyLoggingFilter;
 import org.apache.cxf.ext.logging.slf4j.Slf4jEventSender;
+import org.apache.cxf.ext.logging.slf4j.Slf4jVerboseEventSender;
 import org.apache.cxf.feature.AbstractFeature;
 import org.apache.cxf.interceptor.InterceptorProvider;
 
@@ -42,25 +45,22 @@ import org.apache.cxf.interceptor.InterceptorProvider;
   </pre>
  */
 @NoJSR250Annotations
+@Provider(value = Type.Feature)
 public class LoggingFeature extends AbstractFeature {
     private LogEventSender sender;
     private LoggingInInterceptor in;
     private LoggingOutInterceptor out;
-    private WireTapIn wireTapIn;
     private PrettyLoggingFilter prettyFilter;
 
     public LoggingFeature() {
-        this.sender = new Slf4jEventSender();
+        this.sender = new Slf4jVerboseEventSender();
         prettyFilter = new PrettyLoggingFilter(sender);
-        wireTapIn = new WireTapIn();
         in = new LoggingInInterceptor(prettyFilter);
         out = new LoggingOutInterceptor(prettyFilter);
     }
     
     @Override
     protected void initializeProvider(InterceptorProvider provider, Bus bus) {
-        
-        provider.getInInterceptors().add(wireTapIn);
         provider.getInInterceptors().add(in);
         provider.getInFaultInterceptors().add(in);
 
@@ -71,13 +71,11 @@ public class LoggingFeature extends AbstractFeature {
     public void setLimit(int limit) {
         in.setLimit(limit);
         out.setLimit(limit);
-        wireTapIn.setLimit(limit);
     }
     
     public void setInMemThreshold(long inMemThreshold) {
         in.setInMemThreshold(inMemThreshold);
         out.setInMemThreshold(inMemThreshold);
-        wireTapIn.setThreshold(inMemThreshold);
     }
     
     public void setSender(LogEventSender sender) {
@@ -86,5 +84,28 @@ public class LoggingFeature extends AbstractFeature {
 
     public void setPrettyLogging(boolean prettyLogging) {
         this.prettyFilter.setPrettyLogging(prettyLogging);
+    }
+    
+    /**
+     * Log binary content?
+     * @param logBinary defaults to false 
+     */
+    public void setLogBinary(boolean logBinary) {
+        in.setLogBinary(logBinary);
+        out.setLogBinary(logBinary);
+    }
+    
+    /**
+     * Log multipart content? 
+     * @param logMultipart defaults to true
+     */
+    public void setLogMultipart(boolean logMultipart) {
+        in.setLogMultipart(logMultipart);
+        out.setLogMultipart(logMultipart);
+    }
+    
+    public void setVerbose(boolean verbose) {
+        this.sender = verbose ? new Slf4jVerboseEventSender() : new Slf4jEventSender();
+        this.prettyFilter.setNext(sender);
     }
 }

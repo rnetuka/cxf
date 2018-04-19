@@ -20,6 +20,8 @@ package org.apache.cxf.feature;
 
 import org.apache.cxf.Bus;
 import org.apache.cxf.annotations.Logging;
+import org.apache.cxf.annotations.Provider;
+import org.apache.cxf.annotations.Provider.Type;
 import org.apache.cxf.common.injection.NoJSR250Annotations;
 import org.apache.cxf.interceptor.AbstractLoggingInterceptor;
 import org.apache.cxf.interceptor.InterceptorProvider;
@@ -42,6 +44,7 @@ import org.apache.cxf.interceptor.LoggingOutInterceptor;
   </pre>
  */
 @NoJSR250Annotations
+@Provider(value = Type.Feature)
 public class LoggingFeature extends AbstractFeature {
     private static final int DEFAULT_LIMIT = AbstractLoggingInterceptor.DEFAULT_LIMIT;
     private static final LoggingInInterceptor IN = new LoggingInInterceptor(DEFAULT_LIMIT);
@@ -117,7 +120,7 @@ public class LoggingFeature extends AbstractFeature {
     }
 
     /**
-     * This function has no effect at this time.
+     * Set a limit on how much content can be logged
      * @param lim
      */
     public void setLimit(int lim) {

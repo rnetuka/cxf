@@ -21,6 +21,7 @@ package org.apache.cxf.jaxrs.provider.json.utils;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -135,7 +136,7 @@ public final class JSONUtils {
     
     public static XMLStreamReader createStreamReader(InputStream is, boolean readXsiType,
         ConcurrentHashMap<String, String> namespaceMap) throws Exception {
-        return createStreamReader(is, readXsiType, namespaceMap, null, null, null, "UTF-8");
+        return createStreamReader(is, readXsiType, namespaceMap, null, null, null, StandardCharsets.UTF_8.name());
     }
     
     public static XMLStreamReader createStreamReader(InputStream is, boolean readXsiType,
@@ -164,7 +165,7 @@ public final class JSONUtils {
     
     private static class JettisonMappedReaderFactory extends MappedXMLInputFactory {
         private DocumentDepthProperties depthProps;
-        public JettisonMappedReaderFactory(Configuration conf, DocumentDepthProperties depthProps) {
+        JettisonMappedReaderFactory(Configuration conf, DocumentDepthProperties depthProps) {
             super(conf);
             this.depthProps = depthProps;
         }
@@ -175,7 +176,7 @@ public final class JSONUtils {
 
     private static class JettisonReader extends DepthXMLStreamReader {
         private Map<String, String> namespaceMap;
-        public JettisonReader(Map<String, String> nsMap,
+        JettisonReader(Map<String, String> nsMap,
                                       XMLStreamReader reader) {
             super(reader);
             this.namespaceMap = nsMap;
@@ -234,8 +235,8 @@ public final class JSONUtils {
         private boolean rootDropped;
         private int index; 
                 
-        public IgnoreContentJettisonWriter(XMLStreamWriter writer, boolean writeXsiType, 
-                                           boolean dropRootElement) {
+        IgnoreContentJettisonWriter(XMLStreamWriter writer, boolean writeXsiType, 
+                                    boolean dropRootElement) {
             super(writer);
             this.writeXsiType = writeXsiType;
             this.dropRootElement = dropRootElement;
@@ -281,7 +282,7 @@ public final class JSONUtils {
         boolean isMixed;
         List<Boolean> mixed = new LinkedList<Boolean>();
         
-        public IgnoreMixedContentWriter(XMLStreamWriter writer) {
+        IgnoreMixedContentWriter(XMLStreamWriter writer) {
             super(writer);
         }
 

@@ -95,6 +95,12 @@ public class SoapPreProtocolOutInterceptor extends AbstractSoapInterceptor {
         if (message.get(MIME_HEADERS) == null) {
             message.put(MIME_HEADERS, new HashMap<String, List<String>>());
         }
+        String cte = (String)message.getContextualProperty(Message.CONTENT_TRANSFER_ENCODING);
+        if (cte != null) {
+            //root part MUST be binary
+            message.put(Message.CONTENT_TRANSFER_ENCODING, "binary");
+            message.put("soap.attachement.content.transfer.encoding", cte);
+        }
     }
     
     private void setSoapAction(SoapMessage message) {
@@ -118,9 +124,7 @@ public class SoapPreProtocolOutInterceptor extends AbstractSoapInterceptor {
                 message.put(Message.PROTOCOL_HEADERS, reqHeaders);
             }
             
-            if (!reqHeaders.containsKey(SoapBindingConstants.SOAP_ACTION)) {            
-                reqHeaders.put(SoapBindingConstants.SOAP_ACTION, Collections.singletonList(action));
-            }
+            reqHeaders.put(SoapBindingConstants.SOAP_ACTION, Collections.singletonList(action));
         } else if (message.getVersion() instanceof Soap12 && !"\"\"".equals(action)) {
             String ct = (String) message.get(Message.CONTENT_TYPE);
             

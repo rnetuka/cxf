@@ -21,9 +21,7 @@ package org.apache.cxf.transport.servlet.servicelist;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
@@ -32,6 +30,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.cxf.Bus;
+import org.apache.cxf.BusFactory;
 import org.apache.cxf.common.util.StringUtils;
 import org.apache.cxf.helpers.IOUtils;
 import org.apache.cxf.message.Message;
@@ -51,6 +50,10 @@ public class ServiceListGeneratorServlet extends HttpServlet {
     public ServiceListGeneratorServlet(DestinationRegistry destinationRegistry, Bus bus) {
         this.destinationRegistry = destinationRegistry;
         this.bus = bus;
+        if (this.bus == null) {
+            this.bus = BusFactory.getDefaultBus(false);
+        }
+        
         this.title = "CXF - Service list";
     }
 
@@ -88,17 +91,10 @@ public class ServiceListGeneratorServlet extends HttpServlet {
             return;
         }
         List<String> privateEndpoints;
-        Map<String, String> atomMap;
-        
         if (bus != null) {
             privateEndpoints = (List<String>)bus.getProperty("org.apache.cxf.private.endpoints");
-            // TODO : we may introduce a bus extension instead
-
-            atomMap = (Map<String, String>)bus
-                .getProperty("org.apache.cxf.extensions.logging.atom.pull");
         } else {
             privateEndpoints = new ArrayList<String>();
-            atomMap = new HashMap<String, String>();
         }
         
         AbstractDestination[] soapEndpoints = getSOAPEndpoints(destinations, privateEndpoints);
@@ -106,17 +102,33 @@ public class ServiceListGeneratorServlet extends HttpServlet {
         ServiceListWriter serviceListWriter;
         if ("false".equals(request.getParameter("formatted"))) {
             boolean renderWsdlList = "true".equals(request.getParameter("wsdlList"));
-            serviceListWriter = new UnformattedServiceListWriter(renderWsdlList);
+            serviceListWriter = new UnformattedServiceListWriter(renderWsdlList, bus);
         } else {
             String styleSheetPath;
             if (serviceListStyleSheet != null) {
                 styleSheetPath = request.getContextPath() + "/" + serviceListStyleSheet;
-                
             } else {
-                styleSheetPath = request.getRequestURI() + "/?stylesheet=1";
+                styleSheetPath = "";
+                String contextPath = request.getContextPath();
+                if (contextPath != null) {
+                    styleSheetPath += contextPath;
+                }
+                String servletPath = request.getServletPath();
+                if (servletPath != null) {
+                    styleSheetPath += servletPath;
+                }
+                String pathInfo = request.getPathInfo();
+                if (pathInfo != null) {
+                    styleSheetPath += pathInfo;
+                }
+                
+                if (!styleSheetPath.endsWith("/")) {
+                    styleSheetPath += "/";
+                }
+                styleSheetPath += "?stylesheet=1";
             }
             serviceListWriter = 
-                new FormattedServiceListWriter(styleSheetPath, title, showForeignContexts, atomMap);
+                new FormattedServiceListWriter(styleSheetPath, title, showForeignContexts, bus);
             
         }
         response.setContentType(serviceListWriter.getContentType());

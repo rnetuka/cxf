@@ -72,6 +72,7 @@ import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.common.util.ClassHelper;
 import org.apache.cxf.common.util.PrimitiveUtils;
 import org.apache.cxf.common.util.ProxyClassLoader;
+import org.apache.cxf.common.util.ReflectionUtil;
 import org.apache.cxf.common.util.StringUtils;
 import org.apache.cxf.helpers.CastUtils;
 import org.apache.cxf.jaxrs.ext.MessageContext;
@@ -113,6 +114,17 @@ public final class InjectionUtils {
         
     }
 
+    public static Field getDeclaredField(Class<?> cls, String fieldName) {
+        if (cls == null || cls == Object.class) {
+            return null;
+        }
+        Field f = ReflectionUtil.getDeclaredField(cls, fieldName);
+        if (f != null) {
+            return f;
+        }
+        return getDeclaredField(cls.getSuperclass(), fieldName);
+    }
+    
     public static boolean isConcreteClass(Class<?> cls) {
         return !cls.isInterface() && !Modifier.isAbstract(cls.getModifiers());
     }
@@ -357,6 +369,7 @@ public final class InjectionUtils {
         return null;
     }
     
+    @SuppressWarnings("unchecked")
     public static <T> T handleParameter(String value, 
                                         boolean decoded,
                                         Class<T> pClass,
@@ -385,11 +398,21 @@ public final class InjectionUtils {
             throw createParamConversionException(pType, nfe);
         }
         if (result != null) {
-            return pClass.cast(result);
+            T theResult = null;
+            if (pClass.isPrimitive()) {
+                theResult = (T)result;
+            } else {
+                theResult = pClass.cast(result);
+            }
+            return theResult;
+        }
+
+        if (Number.class.isAssignableFrom(pClass) && "".equals(value)) {
+            //pass empty string to boxed number type will result in 404
+            return null;
         }
         if (pClass.isPrimitive()) {
             try {
-                @SuppressWarnings("unchecked")
                 T ret = (T)PrimitiveUtils.read(value, pClass);
                 // cannot us pClass.cast as the pClass is something like
                 // Boolean.TYPE (representing the boolean primitive) and
@@ -420,8 +443,8 @@ public final class InjectionUtils {
             throw ex;
         } catch (Exception ex) {
             Throwable t = getOrThrowActualException(ex);
-            LOG.severe(new org.apache.cxf.common.i18n.Message("CLASS_CONSTRUCTOR_FAILURE", 
-                                                               BUNDLE, 
+            LOG.warning(new org.apache.cxf.common.i18n.Message("CLASS_CONSTRUCTOR_FAILURE",
+                                                               BUNDLE,
                                                                pClass.getName()).toString());
             Response r = JAXRSUtils.toResponse(HttpUtils.getParameterFailureStatus(pType));
             throw ExceptionUtils.toHttpException(t, r);
@@ -470,7 +493,7 @@ public final class InjectionUtils {
         T result = null;
         if (message != null) {
             ServerProviderFactory pf = ServerProviderFactory.getInstance(message);
-            ParamConverter<T> pm = pf.createParameterHandler(pClass, genericType, anns);
+            ParamConverter<T> pm = pf.createParameterHandler(pClass, genericType, anns, message);
             if (pm != null) {
                 result = pm.fromString(value);
             }
@@ -517,8 +540,8 @@ public final class InjectionUtils {
         }
         if (factoryMethodEx != null) {
             Throwable t = getOrThrowActualException(factoryMethodEx);
-            LOG.severe(new org.apache.cxf.common.i18n.Message("CLASS_VALUE_OF_FAILURE", 
-                                                               BUNDLE, 
+            LOG.warning(new org.apache.cxf.common.i18n.Message("CLASS_VALUE_OF_FAILURE",
+                                                               BUNDLE,
                                                                cls.getName()).toString());
             throw new WebApplicationException(t, HttpUtils.getParameterFailureStatus(pType));
         } else {
@@ -871,9 +894,21 @@ public final class InjectionUtils {
      //CHECKSTYLE:ON    
         Class<?> type = getCollectionType(rawType);
 
-        Class<?> realType = rawType.isArray() ? rawType.getComponentType() 
-                : InjectionUtils.getActualType(genericType);
-        
+        Class<?> realType = null;
+        Type realGenericType = null;
+        if (rawType.isArray()) {
+            realType = rawType.getComponentType();
+            realGenericType = realType;
+        } else {
+            Type[] types = getActualTypes(genericType);
+            if (types.length == 0 || !(types[0] instanceof ParameterizedType)) {
+                realType = getActualType(genericType);
+                realGenericType = realType;
+            } else {
+                realType = getRawType(types[0]);
+                realGenericType = types[0] == realType ? realType : types[0];
+            }
+        }
         Object theValues = null;
         if (type != null) {
             try {
@@ -894,7 +929,7 @@ public final class InjectionUtils {
             valuesList = checkPathSegment(valuesList, realType, pathParam);
             for (int ind = 0; ind < valuesList.size(); ind++) {
                 Object o = InjectionUtils.handleParameter(valuesList.get(ind), decoded, 
-                                                          realType, realType, paramAnns, pathParam, message);
+                               realType, realGenericType, paramAnns, pathParam, message);
                 addToCollectionValues(theValues, o, ind);
             }
         }
@@ -1046,7 +1081,7 @@ public final class InjectionUtils {
     }
     
     public static Method getGetterFromSetter(Method setter) throws Exception {
-        return setter.getClass().getMethod("get" + setter.getName().substring(3), new Class[]{});
+        return setter.getDeclaringClass().getMethod("get" + setter.getName().substring(3));
     }
     
     public static void injectContextProxiesAndApplication(AbstractResourceInfo cri, 
@@ -1415,15 +1450,21 @@ public final class InjectionUtils {
        
         if (type instanceof TypeVariable) {
             type = InjectionUtils.getSuperType(serviceCls, (TypeVariable<?>)type);
-        } else if (type instanceof ParameterizedType
-            && ((ParameterizedType)type).getActualTypeArguments()[0] instanceof TypeVariable
-            && isSupportedCollectionOrArray(getRawType(type))) {
-            TypeVariable<?> typeVar = (TypeVariable<?>)((ParameterizedType)type).getActualTypeArguments()[0];
-            Type theType = InjectionUtils.getSuperType(serviceCls, typeVar);
-            Class<?> cls = theType instanceof Class 
-                ? (Class<?>)theType : InjectionUtils.getActualType(theType, 0);
-            type = new ParameterizedCollectionType(cls);
-        } 
+        } else if (type instanceof ParameterizedType) {
+            ParameterizedType pt = (ParameterizedType)type;
+            if (pt.getActualTypeArguments()[0] instanceof TypeVariable
+                && isSupportedCollectionOrArray(getRawType(pt))) {
+                TypeVariable<?> typeVar = (TypeVariable<?>)pt.getActualTypeArguments()[0];
+                Type theType = InjectionUtils.getSuperType(serviceCls, typeVar);
+                if (theType instanceof Class) {
+                    type = new ParameterizedCollectionType((Class<?>)theType);
+                } else {
+                    type = processGenericTypeIfNeeded(serviceCls, paramCls, theType);
+                    type = new ParameterizedCollectionType(type);
+                }
+            }
+        }
+            
         if (type == null || type == Object.class) {
             type = paramCls;
         }

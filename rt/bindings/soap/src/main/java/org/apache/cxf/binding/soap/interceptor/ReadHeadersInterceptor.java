@@ -53,6 +53,7 @@ import org.apache.cxf.common.i18n.Message;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.common.util.StringUtils;
 import org.apache.cxf.databinding.DataBinding;
+import org.apache.cxf.databinding.DataReader;
 import org.apache.cxf.headers.HeaderManager;
 import org.apache.cxf.headers.HeaderProcessor;
 import org.apache.cxf.helpers.DOMUtils;
@@ -70,6 +71,8 @@ public class ReadHeadersInterceptor extends AbstractSoapInterceptor {
     
     public static final String ENVELOPE_EVENTS = "envelope.events";
     public static final String BODY_EVENTS = "body.events";
+    public static final String ENVELOPE_PREFIX = "envelope.prefix";
+    public static final String BODY_PREFIX = "body.prefix";
     /**
      * 
      */
@@ -205,6 +208,8 @@ public class ReadHeadersInterceptor extends AbstractSoapInterceptor {
                     } else {
                         message.put(ENVELOPE_EVENTS, processor.getEnvAttributeAndNamespaceEvents());
                         message.put(BODY_EVENTS, processor.getBodyAttributeAndNamespaceEvents());
+                        message.put(ENVELOPE_PREFIX, processor.getEnvelopePrefix());
+                        message.put(BODY_PREFIX, processor.getBodyPrefix());
                     }
                     if (addNC) {
                         // add the Body-level declarations
@@ -250,7 +255,11 @@ public class ReadHeadersInterceptor extends AbstractSoapInterceptor {
                                 obj = hel;
                             } else {
                                 dataBinding = p.getDataBinding();
-                                obj = dataBinding.createReader(Node.class).read(hel);
+                                DataReader<Node> dataReader = dataBinding.createReader(Node.class);
+                                dataReader.setAttachments(message.getAttachments());
+                                dataReader.setProperty(DataReader.ENDPOINT, message.getExchange().getEndpoint());
+                                dataReader.setProperty(Message.class.getName(), message);
+                                obj = dataReader.read(hel);
                             }
                             // TODO - add the interceptors
 
@@ -314,7 +323,7 @@ public class ReadHeadersInterceptor extends AbstractSoapInterceptor {
      * out while parsing the stream).
      */
     private static class HeadersProcessor {
-        private static final XMLEventFactory FACTORY = XMLEventFactory.newInstance();
+        private static XMLEventFactory eventFactory;
         private final String ns;
         private final String header;
         private final String body;
@@ -326,8 +335,19 @@ public class ReadHeadersInterceptor extends AbstractSoapInterceptor {
         private Document doc;
         private Node parent;
         private QName lastStartElementQName;
+        private String envelopePrefix;
+        private String bodyPrefix;
+        
+        static {
+            try {
+                eventFactory = XMLEventFactory.newInstance();
+            } catch (Throwable t) {
+                //explicity create woodstox event factory as last try
+                eventFactory = StaxUtils.createWoodstoxEventFactory();
+            }
+        }
 
-        public HeadersProcessor(SoapVersion version) {
+        HeadersProcessor(SoapVersion version) {
             this.header = version.getHeader().getLocalPart();
             this.ns = version.getEnvelope().getNamespaceURI();
             this.envelope = version.getEnvelope().getLocalPart();
@@ -342,14 +362,14 @@ public class ReadHeadersInterceptor extends AbstractSoapInterceptor {
                 switch (event) {
                 case XMLStreamConstants.START_ELEMENT:
                     read++;
-                    addEvent(FACTORY.createStartElement(new QName(reader.getNamespaceURI(), reader
+                    addEvent(eventFactory.createStartElement(new QName(reader.getNamespaceURI(), reader
                                                             .getLocalName(), reader.getPrefix()), null, null));
                     for (int i = 0; i < reader.getNamespaceCount(); i++) {
-                        addEvent(FACTORY.createNamespace(reader.getNamespacePrefix(i),
+                        addEvent(eventFactory.createNamespace(reader.getNamespacePrefix(i),
                                                          reader.getNamespaceURI(i)));
                     }
                     for (int i = 0; i < reader.getAttributeCount(); i++) {
-                        addEvent(FACTORY.createAttribute(reader.getAttributePrefix(i),
+                        addEvent(eventFactory.createAttribute(reader.getAttributePrefix(i),
                                                          reader.getAttributeNamespace(i),
                                                          reader.getAttributeLocalName(i),
                                                          reader.getAttributeValue(i)));
@@ -361,7 +381,7 @@ public class ReadHeadersInterceptor extends AbstractSoapInterceptor {
                     break;
                 case XMLStreamConstants.END_ELEMENT:
                     if (read > 0) {
-                        addEvent(FACTORY.createEndElement(new QName(reader.getNamespaceURI(), reader
+                        addEvent(eventFactory.createEndElement(new QName(reader.getNamespaceURI(), reader
                                                               .getLocalName(), reader.getPrefix()), null));
                     }
                     read--;
@@ -369,14 +389,14 @@ public class ReadHeadersInterceptor extends AbstractSoapInterceptor {
                 case XMLStreamConstants.CHARACTERS:
                     String s = reader.getText();
                     if (s != null) {
-                        addEvent(FACTORY.createCharacters(s));
+                        addEvent(eventFactory.createCharacters(s));
                     }
                     break;
                 case XMLStreamConstants.COMMENT:
-                    addEvent(FACTORY.createComment(reader.getText()));
+                    addEvent(eventFactory.createComment(reader.getText()));
                     break;
                 case XMLStreamConstants.CDATA:
-                    addEvent(FACTORY.createCData(reader.getText()));
+                    addEvent(eventFactory.createCData(reader.getText()));
                     break;
                 case XMLStreamConstants.START_DOCUMENT:
                 case XMLStreamConstants.END_DOCUMENT:
@@ -409,6 +429,13 @@ public class ReadHeadersInterceptor extends AbstractSoapInterceptor {
                         throw new Fault(e);
                     }
                 } else {
+                    if (ns.equals(lastStartElementQName.getNamespaceURI())) {
+                        if (body.equals(lastStartElementQName.getLocalPart())) {
+                            bodyPrefix = lastStartElementQName.getPrefix();
+                        } else if (envelope.equals(lastStartElementQName.getLocalPart())) {
+                            envelopePrefix = lastStartElementQName.getPrefix();
+                        }
+                    }
                     events.add(event);
                 }
             } else {
@@ -444,6 +471,14 @@ public class ReadHeadersInterceptor extends AbstractSoapInterceptor {
             } else {
                 return Collections.unmodifiableList(envEvents);
             }
+        }
+        
+        public String getEnvelopePrefix() {
+            return envelopePrefix;
+        }
+        
+        public String getBodyPrefix() {
+            return bodyPrefix;
         }
     }
 }

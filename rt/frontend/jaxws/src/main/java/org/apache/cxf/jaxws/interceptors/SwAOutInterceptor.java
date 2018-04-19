@@ -25,6 +25,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
@@ -182,12 +183,11 @@ public class SwAOutInterceptor extends AbstractSoapInterceptor {
                 // TODO: make this streamable. This is one of my pet
                 // peeves in JAXB RI as well, so if you fix this, submit the 
                 // code to the JAXB RI as well (see RuntimeBuiltinLeafInfoImpl)! - DD
-                ByteArrayOutputStream bos = new ByteArrayOutputStream(2048);
                 Iterator<ImageWriter> writers = ImageIO.getImageWritersByMIMEType(ct);
                 if (writers.hasNext()) {
                     ImageWriter writer = writers.next();
                     
-                    try {
+                    try (ByteArrayOutputStream bos = new ByteArrayOutputStream(2048)) {
                         BufferedImage bimg = convertToBufferedImage((Image) o);
                         ImageOutputStream out = ImageIO.createImageOutputStream(bos); 
                         writer.setOutput(out);
@@ -195,7 +195,7 @@ public class SwAOutInterceptor extends AbstractSoapInterceptor {
                         writer.dispose();
                         out.flush();
                         out.close();
-                        bos.close();
+                        dh = new DataHandler(new ByteDataSource(bos.toByteArray(), ct));
                     } catch (IOException e) {
                         throw new Fault(e);
                     }
@@ -203,8 +203,6 @@ public class SwAOutInterceptor extends AbstractSoapInterceptor {
                     throw new Fault(new org.apache.cxf.common.i18n.Message("ATTACHMENT_NOT_SUPPORTED", 
                                      LOG, ct));                    
                 }
-                
-                dh = new DataHandler(new ByteDataSource(bos.toByteArray(), ct));
             } else if (o instanceof DataHandler) {
                 dh = (DataHandler) o;
                 ct = dh.getContentType();
@@ -226,11 +224,7 @@ public class SwAOutInterceptor extends AbstractSoapInterceptor {
                 if (ct == null) {
                     ct = "text/plain; charset=\'UTF-8\'";
                 }
-                try {
-                    dh = new DataHandler(new ByteDataSource(((String)o).getBytes("UTF-8"), ct));
-                } catch (IOException e) {
-                    throw new Fault(e);
-                }                
+                dh = new DataHandler(new ByteDataSource(((String)o).getBytes(StandardCharsets.UTF_8), ct));
             } else {
                 throw new Fault(new org.apache.cxf.common.i18n.Message("ATTACHMENT_NOT_SUPPORTED", 
                                                                        LOG, o.getClass()));
@@ -256,11 +250,12 @@ public class SwAOutInterceptor extends AbstractSoapInterceptor {
             StreamSource src = (StreamSource)o;
             try {
                 if (src.getInputStream() != null) {
-                    ByteArrayOutputStream bos = new ByteArrayOutputStream(2048);
-                    IOUtils.copy(src.getInputStream(), bos, 1024);
-                    ds = new ByteDataSource(bos.toByteArray(), ct);
+                    try (ByteArrayOutputStream bos = new ByteArrayOutputStream(2048)) {
+                        IOUtils.copy(src.getInputStream(), bos, 1024);
+                        ds = new ByteDataSource(bos.toByteArray(), ct);
+                    }
                 } else {
-                    ds = new ByteDataSource(IOUtils.toString(src.getReader()).getBytes("UTF-8"),
+                    ds = new ByteDataSource(IOUtils.toString(src.getReader()).getBytes(StandardCharsets.UTF_8),
                                                  ct);                            
                 }
             } catch (IOException e) {

@@ -84,18 +84,21 @@ public class AsymmetricBindingTest extends AbstractBusClientServerTestBase {
                    // set this to false to fork
                    launchServer(StaxServer.class, true)
         );
-        assertTrue(
-                   "Server failed to launch",
-                   // run the server in the same process
-                   // set this to false to fork
-                   launchServer(STSServer.class, true)
-        );
-        assertTrue(
-                   "Server failed to launch",
-                   // run the server in the same process
-                   // set this to false to fork
-                   launchServer(StaxSTSServer.class, true)
-        );
+        STSServer stsServer = new STSServer();
+        stsServer.setContext("cxf-ut.xml");
+        assertTrue(launchServer(stsServer));
+        
+        stsServer = new STSServer();
+        stsServer.setContext("cxf-ut-encrypted.xml");
+        assertTrue(launchServer(stsServer));
+        
+        StaxSTSServer staxStsServer = new StaxSTSServer();
+        staxStsServer.setContext("stax-cxf-ut.xml");
+        assertTrue(launchServer(staxStsServer));
+        
+        staxStsServer = new StaxSTSServer();
+        staxStsServer.setContext("stax-cxf-ut-encrypted.xml");
+        assertTrue(launchServer(staxStsServer));
     }
     
     @Parameters(name = "{0}")
@@ -105,7 +108,6 @@ public class AsymmetricBindingTest extends AbstractBusClientServerTestBase {
                                                 {new TestParam(PORT, true, STSPORT2)},
                                                 {new TestParam(STAX_PORT, false, STSPORT2)},
                                                 {new TestParam(STAX_PORT, true, STSPORT2)},
-                                                
                                                 {new TestParam(PORT, false, STAX_STSPORT2)},
                                                 {new TestParam(PORT, true, STAX_STSPORT2)},
                                                 {new TestParam(STAX_PORT, false, STAX_STSPORT2)},
@@ -177,6 +179,38 @@ public class AsymmetricBindingTest extends AbstractBusClientServerTestBase {
         ((java.io.Closeable)asymmetricSaml2Port).close();
         bus.shutdown(true);
     }
+    
+    // TODO enable when WSS4J 2.1.5 is released, and some stuff in the AsymmetricBindingHandler
+    @org.junit.Test
+    @org.junit.Ignore
+    public void testUsernameTokenSAML2KeyValue() throws Exception {
+
+        SpringBusFactory bf = new SpringBusFactory();
+        URL busFile = AsymmetricBindingTest.class.getResource("cxf-client.xml");
+
+        Bus bus = bf.createBus(busFile.toString());
+        SpringBusFactory.setDefaultBus(bus);
+        SpringBusFactory.setThreadDefaultBus(bus);
+
+        URL wsdl = AsymmetricBindingTest.class.getResource("DoubleIt.wsdl");
+        Service service = Service.create(wsdl, SERVICE_QNAME);
+        QName portQName = new QName(NAMESPACE, "DoubleItAsymmetricSAML2KeyValuePort");
+        DoubleItPortType asymmetricSaml2Port = 
+                service.getPort(portQName, DoubleItPortType.class);
+        updateAddressPort(asymmetricSaml2Port, test.getPort());
+        
+        TokenTestUtils.updateSTSPort((BindingProvider)asymmetricSaml2Port, test.getStsPort());
+        
+        if (test.isStreaming()) {
+            SecurityTestUtil.enableStreaming(asymmetricSaml2Port);
+        }
+        
+        doubleIt(asymmetricSaml2Port, 30);
+        TokenTestUtils.verifyToken(asymmetricSaml2Port);
+        
+        ((java.io.Closeable)asymmetricSaml2Port).close();
+        bus.shutdown(true);
+    }
 
     @org.junit.Test
     public void testUsernameTokenSAML1Encrypted() throws Exception {
@@ -205,6 +239,9 @@ public class AsymmetricBindingTest extends AbstractBusClientServerTestBase {
         BindingProvider bindingProvider = (BindingProvider)asymmetricSaml1EncryptedPort;
         STSClient stsClient = 
             (STSClient)bindingProvider.getRequestContext().get(SecurityConstants.STS_CLIENT);
+        if (stsClient == null) {
+            stsClient = (STSClient)bindingProvider.getRequestContext().get("ws-" + SecurityConstants.STS_CLIENT);
+        }
         Crypto crypto = CryptoFactory.getInstance("clientKeystore.properties");
         CryptoType cryptoType = new CryptoType(CryptoType.TYPE.ALIAS);
         cryptoType.setAlias("myclientkey");
@@ -219,6 +256,6 @@ public class AsymmetricBindingTest extends AbstractBusClientServerTestBase {
   
     private static void doubleIt(DoubleItPortType port, int numToDouble) {
         int resp = port.doubleIt(numToDouble);
-        assertEquals(numToDouble * 2 , resp);
+        assertEquals(numToDouble * 2, resp);
     }
 }

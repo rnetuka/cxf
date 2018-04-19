@@ -22,6 +22,7 @@ package org.apache.cxf.transport.http_jetty;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -113,7 +114,7 @@ public class JettyHTTPDestinationTest extends Assert {
     private class EasyMockJettyHTTPDestination
         extends JettyHTTPDestination {
 
-        public EasyMockJettyHTTPDestination(Bus bus,
+        EasyMockJettyHTTPDestination(Bus bus,
                                             DestinationRegistry registry,
                                             EndpointInfo endpointInfo,
                                             JettyHTTPServerEngineFactory serverEngineFactory,
@@ -659,7 +660,7 @@ public class JettyHTTPDestinationTest extends Assert {
                 EasyMock.expect(request.getRequestURI()).andReturn("/foo");
                 EasyMock.expect(request.getRequestURL())
                     .andReturn(new StringBuffer("http://localhost/foo")).anyTimes();
-                EasyMock.expect(request.getCharacterEncoding()).andReturn("UTF-8");
+                EasyMock.expect(request.getCharacterEncoding()).andReturn(StandardCharsets.UTF_8.name());
                 EasyMock.expect(request.getQueryString()).andReturn(query);    
                 EasyMock.expect(request.getHeader("Accept")).andReturn("*/*");  
                 EasyMock.expect(request.getContentType()).andReturn("text/xml charset=utf8").times(2);
@@ -754,7 +755,7 @@ public class JettyHTTPDestinationTest extends Assert {
         request.getPathInfo();
         EasyMock.expectLastCall().andReturn("/bar/foo");
         request.getCharacterEncoding();
-        EasyMock.expectLastCall().andReturn("UTF-8");
+        EasyMock.expectLastCall().andReturn(StandardCharsets.UTF_8.name());
         request.getQueryString();
         EasyMock.expectLastCall().andReturn("wsdl");    
         response.setContentType("text/xml");
@@ -891,7 +892,7 @@ public class JettyHTTPDestinationTest extends Assert {
     }
     
     private static class TestJettyDestination extends JettyHTTPDestination {
-        public TestJettyDestination(Bus bus,
+        TestJettyDestination(Bus bus,
                                     DestinationRegistry registry,
                                     EndpointInfo endpointInfo,
                                     JettyHTTPServerEngineFactory serverEngineFactory) throws IOException {

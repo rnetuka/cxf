@@ -423,7 +423,7 @@ public class ParameterProcessor extends AbstractProcessor {
                     if (!qualified && !isRefElement(outputPart, outElement)) {
                         jp.setTargetNamespace("");
                     }
-                    if (!jpIn.getClassName().equals(jp.getClassName())) {
+                    if (jpIn != null && !jpIn.getClassName().equals(jp.getClassName())) {
                         jp.setStyle(JavaType.Style.OUT);
                     } 
                     addParameter(outputPart, method, jp);
@@ -475,7 +475,7 @@ public class ParameterProcessor extends AbstractProcessor {
                         if (!qualified && !isRefElement(outputPart, outElement)) {
                             jp.setTargetNamespace("");
                         }
-                        if (!jpIn.getClassName().equals(jp.getClassName())) {
+                        if (jpIn != null && !jpIn.getClassName().equals(jp.getClassName())) {
                             jp.setStyle(JavaType.Style.OUT);
                             checkPartName(outputMessage, outElement, jp);
                         }
@@ -578,7 +578,7 @@ public class ParameterProcessor extends AbstractProcessor {
         }
 
         String jpname = ProcessorUtil.mangleNameToVariableName(simpleJavaName);
-        JavaReturn returnType = new JavaReturn(jpname, fullJavaName , targetNamespace);
+        JavaReturn returnType = new JavaReturn(jpname, fullJavaName, targetNamespace);
 
         returnType.setDefaultValueWriter(
             ProcessorUtil.getDefaultValueWriterForWrappedElement(part, context, element));

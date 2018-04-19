@@ -42,6 +42,9 @@ import org.apache.cxf.workqueue.WorkQueueManager;
 @NoJSR250Annotations(unlessNull = "bus")
 public class WorkQueueManagerImpl implements WorkQueueManager {
 
+    public static final String DEFAULT_QUEUE_NAME = "default";
+    public static final String DEFAULT_WORKQUEUE_BEAN_NAME = "cxf.default.workqueue";
+
     private static final Logger LOG =
         LogUtils.getL7dLogger(WorkQueueManagerImpl.class);
 
@@ -73,7 +76,7 @@ public class WorkQueueManagerImpl implements WorkQueueManager {
                 try {
                     imanager.register(new WorkQueueManagerImplMBeanWrapper(this));
                 } catch (JMException jmex) {
-                    LOG.log(Level.WARNING , jmex.getMessage(), jmex);
+                    LOG.log(Level.WARNING, jmex.getMessage(), jmex);
                 }
             }
             ConfiguredBeanLocator locator = bus.getExtension(ConfiguredBeanLocator.class);
@@ -85,11 +88,11 @@ public class WorkQueueManagerImpl implements WorkQueueManager {
                 }
             }
             
-            if (!namedQueues.containsKey("default")) {
+            if (!namedQueues.containsKey(DEFAULT_QUEUE_NAME)) {
                 AutomaticWorkQueue defaultQueue 
-                    = locator.getBeanOfType("cxf.default.workqueue", AutomaticWorkQueue.class);
+                    = locator.getBeanOfType(DEFAULT_WORKQUEUE_BEAN_NAME, AutomaticWorkQueue.class);
                 if (defaultQueue != null) {
-                    addNamedWorkQueue("default", defaultQueue);
+                    addNamedWorkQueue(DEFAULT_QUEUE_NAME, defaultQueue);
                 }
             }
             
@@ -99,7 +102,7 @@ public class WorkQueueManagerImpl implements WorkQueueManager {
     }
 
     public synchronized AutomaticWorkQueue getAutomaticWorkQueue() {
-        AutomaticWorkQueue defaultQueue = getNamedWorkQueue("default");
+        AutomaticWorkQueue defaultQueue = getNamedWorkQueue(DEFAULT_QUEUE_NAME);
         if (defaultQueue == null) {
             defaultQueue = createAutomaticWorkQueue();
         }
@@ -121,7 +124,7 @@ public class WorkQueueManagerImpl implements WorkQueueManager {
                             try {
                                 imanager.unregister(new WorkQueueImplMBeanWrapper(impl, this));
                             } catch (JMException jmex) {
-                                LOG.log(Level.WARNING , jmex.getMessage(), jmex);
+                                LOG.log(Level.WARNING, jmex.getMessage(), jmex);
                             }
                         }
                     }
@@ -178,7 +181,7 @@ public class WorkQueueManagerImpl implements WorkQueueManager {
                         try {
                             imanager.register(new WorkQueueImplMBeanWrapper((AutomaticWorkQueueImpl)q, this));
                         } catch (JMException jmex) {
-                            LOG.log(Level.WARNING , jmex.getMessage(), jmex);
+                            LOG.log(Level.WARNING, jmex.getMessage(), jmex);
                         }
                     }
                     impl.addSharedUser();
@@ -187,15 +190,15 @@ public class WorkQueueManagerImpl implements WorkQueueManager {
                 try {
                     imanager.register(new WorkQueueImplMBeanWrapper((AutomaticWorkQueueImpl)q, this));
                 } catch (JMException jmex) {
-                    LOG.log(Level.WARNING , jmex.getMessage(), jmex);
+                    LOG.log(Level.WARNING, jmex.getMessage(), jmex);
                 }
             }
         }
     }
     
     private AutomaticWorkQueue createAutomaticWorkQueue() {        
-        AutomaticWorkQueue q = new AutomaticWorkQueueImpl("default");
-        addNamedWorkQueue("default", q);
+        AutomaticWorkQueue q = new AutomaticWorkQueueImpl(DEFAULT_QUEUE_NAME);
+        addNamedWorkQueue(DEFAULT_QUEUE_NAME, q);
         return q;
     }
     

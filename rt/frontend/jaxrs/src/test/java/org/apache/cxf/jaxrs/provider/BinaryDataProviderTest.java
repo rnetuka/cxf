@@ -98,6 +98,18 @@ public class BinaryDataProviderTest extends Assert {
     
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Test
+    public void testReadBytesFromUtf8() throws Exception {
+        MessageBodyReader p = new BinaryDataProvider();
+        byte[] utf8Bytes = "世界ーファイル".getBytes("UTF-16");
+        byte[] readBytes = (byte[])p.readFrom(byte[].class, byte[].class, new Annotation[]{},
+                                          MediaType.APPLICATION_OCTET_STREAM_TYPE,
+                                          new MetadataMap<String, Object>(),
+                                          new ByteArrayInputStream(utf8Bytes));
+        assertTrue(Arrays.equals(utf8Bytes, readBytes));
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @Test
     public void testWriteTo() throws Exception {
         MessageBodyWriter p = new BinaryDataProvider();
         ByteArrayOutputStream os = new ByteArrayOutputStream();

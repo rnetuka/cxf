@@ -25,12 +25,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -211,8 +212,9 @@ public class CachedOutputStream extends OutputStream {
         }
         doClose();
         currentStream.close();
-        maybeDeleteTempFile(currentStream);
-        postClose();
+        if (!maybeDeleteTempFile(currentStream)) {
+            postClose();
+        }
     }
 
     public boolean equals(Object obj) {
@@ -257,14 +259,17 @@ public class CachedOutputStream extends OutputStream {
                 }
             } else {
                 // read the file
-                currentStream.close();
-                if (copyOldContent) {
-                    InputStream fin = createInputStream(tempFile);
-                    IOUtils.copyAndCloseInput(fin, out);
+                try {
+                    currentStream.close();
+                    if (copyOldContent) {
+                        InputStream fin = createInputStream(tempFile);
+                        IOUtils.copyAndCloseInput(fin, out);
+                    }
+                } finally {
+                    streamList.remove(currentStream);
+                    deleteTempFile();
+                    inmem = true;
                 }
-                streamList.remove(currentStream);
-                deleteTempFile();
-                inmem = true;
             }
         }
         currentStream = out;
@@ -289,8 +294,9 @@ public class CachedOutputStream extends OutputStream {
             }
         } else {
             // read the file
-            InputStream fin = createInputStream(tempFile);
-            return IOUtils.readBytesFromStream(fin);
+            try (InputStream fin = createInputStream(tempFile)) {
+                return IOUtils.readBytesFromStream(fin);
+            }
         }
     }
 
@@ -310,7 +316,7 @@ public class CachedOutputStream extends OutputStream {
     }
     
     public void writeCacheTo(StringBuilder out, long limit) throws IOException {
-        writeCacheTo(out, "UTF-8", limit);
+        writeCacheTo(out, StandardCharsets.UTF_8.name(), limit);
     }
     
     public void writeCacheTo(StringBuilder out, String charsetName, long limit) throws IOException {
@@ -356,7 +362,7 @@ public class CachedOutputStream extends OutputStream {
     }
     
     public void writeCacheTo(StringBuilder out) throws IOException {
-        writeCacheTo(out, "UTF-8");
+        writeCacheTo(out, StandardCharsets.UTF_8.name());
     }
     
     public void writeCacheTo(StringBuilder out, String charsetName) throws IOException {
@@ -522,7 +528,8 @@ public class CachedOutputStream extends OutputStream {
             FileUtils.delete(file);
         }
     }
-    private void maybeDeleteTempFile(Object stream) {
+    private boolean maybeDeleteTempFile(Object stream) {
+        boolean postClosedInvoked = false;
         streamList.remove(stream);
         if (!inmem && tempFile != null && streamList.isEmpty() && allowDeleteOfFile) {
             if (currentStream != null) {
@@ -532,11 +539,13 @@ public class CachedOutputStream extends OutputStream {
                 } catch (Exception e) {
                     //ignore
                 }
+                postClosedInvoked = true;
             }
             deleteTempFile();
             currentStream = new LoadingByteArrayOutputStream(1024);
             inmem = true;
         }
+        return postClosedInvoked;
     }
 
     public void setOutputDir(File outputDir) throws IOException {
@@ -586,7 +595,7 @@ public class CachedOutputStream extends OutputStream {
     }
 
     private OutputStream createOutputStream(File file) throws IOException {
-        OutputStream out = new BufferedOutputStream(new FileOutputStream(file));
+        OutputStream out = new BufferedOutputStream(Files.newOutputStream(file.toPath()));
         if (cipherTransformation != null) {
             try {
                 if (ciphers == null) {
@@ -609,7 +618,7 @@ public class CachedOutputStream extends OutputStream {
     }
 
     private InputStream createInputStream(File file) throws IOException {
-        InputStream in = new FileInputStream(file);
+        InputStream in = Files.newInputStream(file.toPath());
         if (cipherTransformation != null) {
             in = new CipherInputStream(in, ciphers.getDecryptor()) {
                 boolean closed;
@@ -651,8 +660,8 @@ public class CachedOutputStream extends OutputStream {
             if (!transfered) {
                 // Data is in memory, or we failed to rename the file, try copying
                 // the stream instead.
-                try (FileOutputStream fout = new FileOutputStream(destinationFile)) {
-                    IOUtils.copyAndCloseInput(this, fout);
+                try (OutputStream out = Files.newOutputStream(destinationFile.toPath())) {
+                    IOUtils.copyAndCloseInput(this, out);
                 }
             }
         }

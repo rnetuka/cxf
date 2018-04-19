@@ -20,8 +20,7 @@ package org.apache.cxf.ws.security.wss4j;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-
-import org.apache.wss4j.dom.message.DOMCallbackLookup;
+import org.apache.wss4j.dom.callback.DOMCallbackLookup;
 import org.apache.wss4j.dom.util.WSSecurityUtil;
 
 /**
@@ -34,6 +33,7 @@ public class CXFCallbackLookup extends DOMCallbackLookup {
     
     public CXFCallbackLookup(Document doc, Element soapBody) {
         super(doc);
+        this.doc = doc;
         this.soapBody = soapBody;
     }
     

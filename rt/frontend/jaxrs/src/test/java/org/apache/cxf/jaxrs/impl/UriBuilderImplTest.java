@@ -43,6 +43,12 @@ import org.junit.Test;
 public class UriBuilderImplTest extends Assert {
 
     @Test
+    public void testFromUriRelativePath() throws Exception {
+        UriBuilder builder = UriBuilder.fromUri("path");
+        URI uri = builder.queryParam("a", "b").build();
+        assertEquals("path?a=b", uri.toString());
+    }
+    @Test
     public void testUriTemplate() throws Exception {
         UriBuilder builder = UriBuilder.fromUri("http://localhost:8080/{a}/{b}");
         URI uri = builder.build("1", "2");
@@ -264,6 +270,19 @@ public class UriBuilderImplTest extends Assert {
         uri = UriBuilder.fromPath("/index.jsp").queryParam("a", "{a}").queryParam("b", "{b}")
             .build("valueA", "valueB");
         assertEquals("/index.jsp?a=valueA&b=valueB", uri.toString());        
+    }
+    
+    @Test
+    public void testResolveTemplateInQuery() {
+        String uri = UriBuilder.fromPath("my/path").queryParam("qp",
+            "{param}").resolveTemplate("param", "value").toTemplate();
+        assertEquals("my/path?qp=value", uri);        
+    }
+    
+    @Test
+    public void testResolveTemplateInQuery2() {
+        String uri = UriBuilder.fromUri("my/path?qp={param}").resolveTemplate("param", "value").toTemplate();
+        assertEquals("my/path?qp=value", uri);        
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -1543,6 +1562,13 @@ public class UriBuilderImplTest extends Assert {
     public void testPathParamSpaceBuild4() {
         String expected = "http://localhost:8080/name%20space";
         URI uri = UriBuilder.fromUri("http://localhost:8080").path("name space").buildFromEncoded();
+        assertEquals(expected, uri.toString());
+    }
+    
+    @Test
+    public void testFromUriWithMatrix() {
+        String expected = "http://localhost:8080/name;a=b";
+        URI uri = UriBuilder.fromUri("http://localhost:8080/name;a=b").build();
         assertEquals(expected, uri.toString());
     }
     

@@ -53,6 +53,7 @@ import org.apache.cxf.ws.security.wss4j.StaxSecurityContextInInterceptor;
 import org.apache.cxf.ws.security.wss4j.WSS4JInInterceptor;
 import org.apache.cxf.ws.security.wss4j.policyvalidators.PolicyValidatorParameters;
 import org.apache.cxf.ws.security.wss4j.policyvalidators.SecurityPolicyValidator;
+import org.apache.cxf.ws.security.wss4j.policyvalidators.ValidatorUtils;
 import org.apache.wss4j.common.ext.WSSecurityException;
 import org.apache.wss4j.common.util.KeyUtils;
 import org.apache.wss4j.dom.handler.WSHandlerConstants;
@@ -97,7 +98,7 @@ public class KerberosTokenInterceptorProvider extends AbstractPolicyInterceptorP
     }
     
     static class KerberosTokenOutInterceptor extends AbstractPhaseInterceptor<Message> {
-        public KerberosTokenOutInterceptor() {
+        KerberosTokenOutInterceptor() {
             super(Phase.PREPARE_SEND);
         }
         public void handleMessage(Message message) throws Fault {
@@ -151,7 +152,7 @@ public class KerberosTokenInterceptorProvider extends AbstractPolicyInterceptorP
     }
     
     static class KerberosTokenDOMInInterceptor extends AbstractPhaseInterceptor<Message> {
-        public KerberosTokenDOMInInterceptor() {
+        KerberosTokenDOMInInterceptor() {
             super(Phase.PRE_PROTOCOL);
             addAfter(WSS4JInInterceptor.class.getName());
             addAfter(PolicyBasedWSS4JInInterceptor.class.getName());
@@ -201,7 +202,7 @@ public class KerberosTokenInterceptorProvider extends AbstractPolicyInterceptorP
             
             QName qName = ais.iterator().next().getAssertion().getName();
             Map<QName, SecurityPolicyValidator> validators = 
-                PolicyUtils.getSecurityPolicyValidators(message);
+                ValidatorUtils.getSecurityPolicyValidators(message);
             if (validators.containsKey(qName)) {
                 validators.get(qName).validatePolicies(parameters, ais);
             }
@@ -214,7 +215,7 @@ public class KerberosTokenInterceptorProvider extends AbstractPolicyInterceptorP
         private static final Logger LOG = 
             LogUtils.getL7dLogger(KerberosTokenStaxInInterceptor.class);
         
-        public KerberosTokenStaxInInterceptor() {
+        KerberosTokenStaxInInterceptor() {
             super(Phase.PRE_PROTOCOL);
             getBefore().add(StaxSecurityContextInInterceptor.class.getName());
         }
@@ -282,7 +283,7 @@ public class KerberosTokenInterceptorProvider extends AbstractPolicyInterceptorP
                 (List<SecurityEvent>)message.get(SecurityEvent.class.getName() + ".in");
             if (incomingEventList != null) {
                 for (SecurityEvent incomingEvent : incomingEventList) {
-                    if (WSSecurityEventConstants.KerberosToken 
+                    if (WSSecurityEventConstants.KERBEROS_TOKEN 
                         == incomingEvent.getSecurityEventType()) {
                         return incomingEvent;
                     }
